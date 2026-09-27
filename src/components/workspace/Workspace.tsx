@@ -225,7 +225,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
                 onSaved={(n: Note, om?: OmissionFlag[]) => setB((x) => (x ? { ...x, note: { ...x.note!, content: n }, artifacts: { ...x.artifacts, omissions: om ?? x.artifacts.omissions } } : x))}
               />
             )}
-            {tab === "codes" && <CodesPanel coding={b.artifacts.coding} onCite={(ids) => cite(ids)} />}
+            {tab === "codes" && <CodesPanel coding={b.artifacts.coding} encounterId={id} locked={locked} onUpdate={() => load()} onCite={(ids) => cite(ids)} />}
             {tab === "orders" && <OrdersPanel encounterId={id} orders={b.orders} locked={locked} onChange={(fn: (o: StagedOrder[]) => StagedOrder[]) => setB((x) => (x ? { ...x, orders: fn(x.orders) } : x))} onCite={(ids) => cite(ids)} />}
             {tab === "billing" && <BillingPanel key={b.claim?.updatedAt ?? "draft"} encounterId={id} record={b.claim} draft={b.artifacts.claim} priorAuth={b.artifacts.priorAuth ?? []} signed={signed} canReview={b.access.billingReview} onCite={(ids) => cite(ids)} />}
             {tab === "summary" && <SummaryPanel b={b} onFlags={load} />}

@@ -13,7 +13,8 @@ import { buildPatientSummary } from "../engine/summary";
 import { systemTemplate } from "../engine/templates";
 import { ageFrom } from "../engine/text";
 import { detectOmissions, scoreSupport, supportStats } from "../engine/verify";
-import type { ConsentRecord, Encounter, Note, OmissionFlag, Patient, PatientSummary } from "../types";
+import type { CodingResult, ConsentRecord, Encounter, Note, OmissionFlag, Patient, PatientSummary } from "../types";
+import { icdReleaseFor } from "../codesets";
 import { deleteAudio, finalPass, localDiarize, purgeExpired, retentionDays } from "./audio";
 import { checkInterpretation } from "../engine/interpreter";
 import { buildClaim, claimStatus } from "../engine/billing";
@@ -363,3 +364,74 @@ export function noteText(note: Note) {
 }
 
 export { users };
+
+export async function refreshDraftClaim(user: User, enc: Encounter) {
+  const { facts, patient } = await factsFor(user, enc);
+  const coding = await artifacts.get<CodingResult>(enc.id, "coding");
+  if (!coding) return null;
+  const minutes = Math.round((enc.durationS || 0) / 60);
+  const claim = buildClaim(facts, coding, { ...billingContext(enc, patient, coding.em.patientType, minutes, await orders.list(enc.id)), ref: await referenceFor(enc, user.orgId) });
+  await artifacts.set(enc.id, "claim", claim);
+  return claim;
+}
+
+export async function reviseDiagnoses(user: User, encId: string, change: { kind: "answer"; queryId: string; code: string | null } | { kind: "add"; code: string } | { kind: "remove"; code: string }) {
+  const enc = await encounters.get(user, encId);
+  if (!enc) throw new Error("Encounter not found");
+  if (enc.status === "signed") throw new Error("This note is signed. Record clarifications as an addendum and correct the claim in billing review.");
+  const coding = await artifacts.get<CodingResult>(enc.id, "coding");
+  if (!coding) throw new Error("Draft the note before coding");
+  const { facts, patient } = await factsFor(user, enc);
+  const answers = (await artifacts.get<CdiAnswer[]>(enc.id, "cdi_answers")) ?? [];
+  let diagnoses = [...coding.diagnoses];
+  let noteLine: string | null = null;
+  const release = icdReleaseFor(enc.scheduledAt);
+  if (!release) throw new Error("No ICD-10-CM release is loaded for this date of service");
+  if (change.kind === "answer") {
+    const i = (coding.dxDetail ?? []).findIndex((d) => d.query?.id === change.queryId);
+    if (i < 0) throw new Error("Query not found; it may already be answered");
+    const q = coding.dxDetail![i].query!;
+    if (change.code === null) {
+      answers.push({ queryId: q.id, from: q.code, to: null, label: "Clinically undetermined", by: user.name, at: new Date().toISOString() });
+    } else {
+      const opt = q.options.find((o) => o.code === change.code);
+      if (!opt) throw new Error("Choose one of the query options");
+      diagnoses[i] = { ...diagnoses[i], code: opt.code, label: opt.label, rationale: `${diagnoses[i].rationale}; specified by clinician in response to a documentation query`, confidence: 1 };
+      answers.push({ queryId: q.id, from: q.code, to: opt.code, label: opt.label, by: user.name, at: new Date().toISOString() });
+      noteLine = `Clarified diagnosis: ${opt.label} (${opt.code}).`;
+    }
+  } else if (change.kind === "add") {
+    const entry = release.lookup(change.code);
+    if (!entry?.billable) throw new Error(`${change.code} is not a billable ICD-10-CM code in ${release.meta.version}`);
+    if (diagnoses.some((d) => d.code.replace(".", "") === entry.code)) throw new Error(`${entry.dotted} is already on the diagnosis list`);
+    diagnoses.push({ code: entry.dotted, system: "ICD-10-CM", label: entry.long, rationale: "Added by clinician per ICD-10-CM instructional note", evidence: [], confidence: 1 });
+    noteLine = `Additional diagnosis: ${entry.long} (${entry.dotted}).`;
+  } else {
+    diagnoses = diagnoses.filter((d) => d.code !== change.code);
+  }
+  const base = { ...coding, diagnoses };
+  const enriched = await enrichCoding(user, enc, patient, base, facts);
+  const answered = new Map(answers.map((a) => [a.from, a]));
+  enriched.dxDetail = enriched.dxDetail?.map((d) => (d.query && answered.get(d.code)?.to === null ? { ...d, query: { ...d.query, answer: { code: null, label: "Clinically undetermined", by: answered.get(d.code)!.by, at: answered.get(d.code)!.at } } } : d));
+  await artifacts.set(enc.id, "coding", enriched);
+  await artifacts.set(enc.id, "cdi_answers", answers);
+  if (noteLine) {
+    const rec = await notes.latest(enc.id);
+    if (rec) {
+      const sections = rec.content.sections.map((s) => (/assessment/i.test(s.title) ? { ...s, sentences: [...s.sentences, { id: `${s.key}_cdi_${Date.now().toString(36)}`, text: noteLine!, evidence: [], kind: "clinician" as const, support: "strong" as const, edited: true }] } : s));
+      await notes.saveContent(enc.id, { ...rec.content, sections });
+    }
+  }
+  const claim = await refreshDraftClaim(user, enc);
+  await audit.log(user, enc.id, change.kind === "answer" ? "cdi.answered" : change.kind === "add" ? "dx.added" : "dx.removed", change.kind === "answer" ? { query: change.queryId, answer: change.code ?? "undetermined" } : { code: change.code });
+  return { coding: enriched, claim };
+}
+
+interface CdiAnswer {
+  queryId: string;
+  from: string;
+  to: string | null;
+  label: string;
+  by: string;
+  at: string;
+}

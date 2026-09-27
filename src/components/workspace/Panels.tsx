@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { api, copyText } from "@/lib/client";
-import type { CodingResult, MdmElement, PatientSummary, StagedOrder } from "@/lib/types";
+import type { CodingResult, DxDetail, MdmElement, PatientSummary, StagedOrder } from "@/lib/types";
 import { Alert, Check, Copy, Globe, Info, Link as LinkIcon, X } from "../icons";
 import { Empty, Spinner } from "../ui";
 import type { Bundle } from "./types";
@@ -23,10 +23,60 @@ function EvidenceButton({ ids, onCite }: { ids: string[]; onCite: (ids: string[]
   );
 }
 
-export function CodesPanel({ coding, onCite }: { coding?: CodingResult; onCite: (ids: string[]) => void }) {
+const SEV_TONE = { error: "bg-rec-50 text-rec", warning: "bg-warn-50 text-warn", info: "bg-info-50 text-info" } as const;
+
+function RuleSource({ source }: { source: { set: string; version: string; ref?: string } }) {
+  return <span className="ml-1 inline-block rounded bg-white/70 px-1.5 py-px font-mono text-[10px] text-ink-3" data-testid="rule-source">{source.set} · {source.version}{source.ref ? ` · ${source.ref}` : ""}</span>;
+}
+
+function DxQuery({ q, locked, busy, onAnswer }: { q: NonNullable<DxDetail["query"]>; locked: boolean; busy: boolean; onAnswer: (code: string | null) => void }) {
+  const [choice, setChoice] = useState<string>("");
+  if (q.answer) return <p className="mt-2 text-xs text-ink-3" data-testid="query-answered">Query answered: {q.answer.label} ({q.answer.by})</p>;
+  return (
+    <div className="mt-2 rounded-lg border border-info/30 bg-info-50/40 p-3" data-testid="cdi-query">
+      <p className="text-xs font-semibold uppercase tracking-wide text-info">Documentation query</p>
+      <p className="mt-1 text-sm">{q.question}</p>
+      <div className="mt-2 space-y-1">
+        {q.options.map((o) => (
+          <label key={o.code} className="flex items-start gap-2 text-sm">
+            <input type="radio" name={q.id} value={o.code} checked={choice === o.code} onChange={() => setChoice(o.code)} disabled={locked} className="mt-1 accent-brand" />
+            <span><span className="font-mono text-xs">{o.code}</span> {o.label}</span>
+          </label>
+        ))}
+        <label className="flex items-start gap-2 text-sm">
+          <input type="radio" name={q.id} value="undetermined" checked={choice === "undetermined"} onChange={() => setChoice("undetermined")} disabled={locked} className="mt-1 accent-brand" />
+          <span>Clinically undetermined</span>
+        </label>
+      </div>
+      <p className="mt-2 text-[11px] text-ink-3">Options are the official ICD-10-CM codes at this level; none is preselected. <RuleSource source={q.source} /></p>
+      {!locked && <button className="btn-primary mt-2 px-3 py-1 text-xs" disabled={!choice || busy} onClick={() => onAnswer(choice === "undetermined" ? null : choice)} data-testid="answer-query">{busy ? <Spinner /> : <Check size={13} />} Answer query</button>}
+    </div>
+  );
+}
+
+export function CodesPanel({ coding, encounterId, locked = true, onUpdate, onCite }: { coding?: CodingResult; encounterId?: string; locked?: boolean; onUpdate?: (coding: CodingResult, claim: unknown) => void; onCite: (ids: string[]) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   if (!coding) return <Empty title="Codes appear after the note is drafted." />;
   const { em } = coding;
   const risk = em.auditRisk;
+  const details: DxDetail[] = coding.dxDetail ?? coding.diagnoses.map((d) => ({ code: d.code, label: d.label, official: null, billable: true, release: null, chapter: null, hccs: [], issues: [] }));
+  const raf = coding.risk;
+
+  async function revise(bodyIn: Record<string, unknown>) {
+    if (!encounterId) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await api<{ coding: CodingResult; claim: unknown }>(`/encounters/${encounterId}/coding`, { body: bodyIn });
+      onUpdate?.(r.coding, r.claim);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not update coding");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-5" data-testid="codes-panel">
       <div className="card p-5">
@@ -58,39 +108,84 @@ export function CodesPanel({ coding, onCite }: { coding?: CodingResult; onCite: 
         </div>
       </div>
 
-      <div className="card overflow-hidden">
-        <p className="border-b border-line px-4 py-2.5 text-[13px] font-semibold uppercase tracking-wide text-ink-2">Diagnoses · ICD-10-CM</p>
-        <table className="w-full text-sm">
-          <tbody>
-            {coding.diagnoses.map((d, i) => (
-              <tr key={d.code + i} className="border-b border-line last:border-0" data-testid="dx-row">
-                <td className="w-24 px-4 py-2.5 font-mono font-medium">{d.code}</td>
-                <td className="py-2.5 pr-3"><p className="font-medium">{d.label}</p><p className="text-xs text-ink-3">{d.rationale}</p></td>
-                <td className="w-24 pr-3 text-right text-xs text-ink-3">{Math.round(d.confidence * 100)}%</td>
-                <td className="w-28 pr-4 text-right"><EvidenceButton ids={d.evidence} onCite={onCite} /></td>
-              </tr>
-            ))}
-            {!coding.diagnoses.length && <tr><td className="px-4 py-3 text-ink-3">No diagnoses identified.</td></tr>}
-          </tbody>
-        </table>
+      <div className="card overflow-hidden" data-testid="dx-list">
+        <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2.5">
+          <p className="text-[13px] font-semibold uppercase tracking-wide text-ink-2">Diagnoses · ICD-10-CM</p>
+          {details[0]?.release && <span className="pill bg-sunken text-[10px] text-ink-2" data-testid="icd-release">{details[0].release} release</span>}
+        </div>
+        {err && <p className="mx-4 mt-3 rounded-lg bg-rec-50 px-3 py-2 text-sm text-rec" role="alert">{err}</p>}
+        <ul className="divide-y divide-line">
+          {details.map((d, i) => {
+            const s = coding.diagnoses[i];
+            return (
+              <li key={d.code + i} className="px-4 py-3" data-testid="dx-row" data-code={d.code}>
+                <div className="flex flex-wrap items-start gap-3">
+                  <span className="w-20 shrink-0 font-mono font-medium">{d.code}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium" data-testid="dx-official">{d.official ?? d.label}</p>
+                    {s && <p className="text-xs text-ink-3">{s.rationale}</p>}
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      <span className={`pill text-[10px] ${d.billable ? "bg-ok-50 text-ok" : "bg-rec-50 text-rec"}`}>{d.billable ? "Billable" : "Not billable"}</span>
+                      {d.hccs.map((h) => <span key={h.hcc} className="pill bg-brand-50 text-[10px] text-brand" data-testid="dx-hcc" title={h.label}>{h.hcc} · {h.label}</span>)}
+                    </div>
+                  </div>
+                  {s && <span className="w-24 text-right"><EvidenceButton ids={s.evidence} onCite={onCite} /></span>}
+                </div>
+                {d.issues.filter((x) => x.rule !== "ICD.SPECIFICITY").map((x) => (
+                  <div key={x.rule + x.message} className={`mt-2 rounded-md px-2.5 py-1.5 text-sm ${SEV_TONE[x.severity]}`} data-testid="dx-issue" data-rule={x.rule}>
+                    <span className="font-mono text-[11px]">{x.rule}</span> · {x.message}<RuleSource source={x.source} />
+                    {x.rule === "ICD.USE_ADDITIONAL" && !locked && x.codes?.map((c) => <button key={c} className="btn-outline ml-2 px-2 py-0.5 text-xs" disabled={busy} onClick={() => revise({ action: "add", code: c })} data-testid="add-dx">Add {c}</button>)}
+                  </div>
+                ))}
+                {d.query && <DxQuery q={d.query} locked={locked || !encounterId} busy={busy} onAnswer={(code) => revise({ action: "answer", queryId: d.query!.id, code })} />}
+              </li>
+            );
+          })}
+          {!details.length && <li className="px-4 py-3 text-ink-3">No diagnoses identified.</li>}
+        </ul>
       </div>
 
-      {(coding.hcc.length > 0 || coding.cdi.length > 0) && (
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="card p-4">
-            <p className="text-[13px] font-semibold uppercase tracking-wide text-ink-2">Risk adjustment (HCC)</p>
-            {coding.hcc.length ? coding.hcc.map((h) => (
-              <div key={h.code + h.label} className="mt-2 text-sm"><p><span className="font-mono">{h.code}</span> · {h.label}</p><p className="text-xs text-ink-3">{h.rationale}</p></div>
-            )) : <p className="mt-2 text-sm text-ink-3">No risk-adjusting conditions addressed.</p>}
+      {raf && (
+        <div className="card p-4" data-testid="risk-card">
+          <div className="flex flex-wrap items-start gap-4">
+            <div>
+              <p className="text-[13px] font-semibold uppercase tracking-wide text-ink-2">Risk adjustment · CMS-HCC V28</p>
+              <p className="mt-1 font-serif text-3xl" data-testid="raf">{raf.total.toFixed(3)}</p>
+              <p className="text-xs text-ink-3">{raf.segmentLabel} · {raf.demographic.label} {raf.demographic.factor.toFixed(3)}</p>
+            </div>
+            <div className="min-w-[240px] flex-1 space-y-1 text-sm">
+              {raf.hccs.map((h) => <p key={h.hcc} className={h.droppedBy ? "text-ink-4 line-through" : ""}><span className="font-mono">{h.hcc}</span> {h.label} <span className="font-mono text-ink-3">+{h.factor.toFixed(3)}</span>{h.droppedBy ? <span className="ml-1 text-xs no-underline">(superseded by {h.droppedBy})</span> : null}</p>)}
+              {raf.interactions.map((x) => <p key={x.variable}><span className="font-mono">{x.variable}</span> <span className="font-mono text-ink-3">+{x.factor.toFixed(3)}</span></p>)}
+              {!raf.hccs.length && <p className="text-ink-3">No payment HCCs documented this visit.</p>}
+            </div>
           </div>
-          <div className="card p-4" data-testid="cdi">
-            <p className="text-[13px] font-semibold uppercase tracking-wide text-ink-2">Documentation improvement</p>
-            {coding.cdi.length ? coding.cdi.map((c) => (
-              <p key={c.message} className="mt-2 flex gap-2 text-sm text-ink-2"><Info size={15} className="mt-0.5 shrink-0 text-info" />{c.message}</p>
-            )) : <p className="mt-2 text-sm text-ink-3">Nothing to improve.</p>}
-          </div>
+          {raf.suspects.length > 0 && (
+            <div className="mt-3 border-t border-line pt-3" data-testid="hcc-suspects">
+              <p className="text-xs font-semibold uppercase tracking-wide text-warn">Not yet captured this year</p>
+              <ul className="mt-1 space-y-1 text-sm">
+                {raf.suspects.map((x) => <li key={x.code} data-testid="hcc-suspect"><span className="font-mono">{x.code}</span> {x.label} · {x.hccs.map((h) => h.hcc).join(", ")} <span className="font-mono text-ok">+{x.delta.toFixed(3)}</span><p className="text-xs text-ink-3">{x.reason}. Address it only if clinically assessed today (monitor, evaluate, assess, or treat).</p></li>)}
+              </ul>
+            </div>
+          )}
+          <p className="mt-3 text-[11px] text-ink-3">{raf.note} <RuleSource source={raf.source} /></p>
         </div>
       )}
+
+      {coding.cdi.length > 0 && (
+        <div className="card p-4" data-testid="cdi">
+          <p className="text-[13px] font-semibold uppercase tracking-wide text-ink-2">Documentation improvement</p>
+          {coding.cdi.map((c) => (
+            <p key={c.message} className="mt-2 flex gap-2 text-sm text-ink-2"><Info size={15} className="mt-0.5 shrink-0 text-info" />{c.message}</p>
+          ))}
+        </div>
+      )}
+
+      {coding.reference?.length ? (
+        <div className="rounded-lg border border-line px-4 py-3 text-xs text-ink-3" data-testid="coding-reference">
+          <p className="font-semibold uppercase tracking-wide text-ink-2">Official sources used</p>
+          <ul className="mt-1 grid gap-x-6 gap-y-0.5 sm:grid-cols-2">{coding.reference.map((r) => <li key={r.label}><span className="text-ink-2">{r.label}:</span> {r.version}</li>)}</ul>
+        </div>
+      ) : null}
     </div>
   );
 }
