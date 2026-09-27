@@ -13,7 +13,7 @@ export function wordToNumber(s: string): number | null {
 
 export function splitClauses(text: string): string[] {
   return text
-    .split(/(?<=[.!?;])\s+|\s+(?:but|and then|although|though)\s+/i)
+    .split(/(?<=[.!?;])\s+|\s+(?:but|and then|although|though)\s+|,\s+and\s+(?=(?:I|I'm|I've|my|she|he|it|it's|her|his)\b)/i)
     .map((s) => s.trim())
     .filter(Boolean);
 }
@@ -21,6 +21,8 @@ export function splitClauses(text: string): string[] {
 export function sentenceCase(s: string) {
   const t = s.trim();
   if (!t) return t;
+  const first = t.split(/\s/)[0];
+  if (/^[a-z]+[A-Z]/.test(first)) return t;
   return t[0].toUpperCase() + t.slice(1);
 }
 
@@ -65,6 +67,13 @@ export function overlap(a: string, b: string): number {
   let hit = 0;
   for (const t of ta) if (tb.has(t)) hit++;
   return hit / ta.length;
+}
+
+export function durationText(d: string) {
+  let t = d.toLowerCase().trim().replace(/^(?:a|an) (?=(?:day|week|month|year|hour)s?\b)/, "1 ").replace(/^(?:a )?couple of /, "2 ").replace(/^(?:a )?few /, "a few ");
+  t = t.replace(/^(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/, (m) => String(NUMBER_WORDS[m]));
+  if (/^1 \w+s$/.test(t)) t = t.replace(/s$/, "");
+  return t;
 }
 
 export function wordCount(s: string) {
@@ -114,7 +123,7 @@ export function toThirdPerson(text: string, pron: Pronouns): string {
     [/\bmine\b/gi, pron.possPro],
   ];
   for (const [re, rep] of rules) t = t.replace(re, rep);
-  t = t.replace(/\b(she|he|they) (take|drink|smoke|work|live|walk|eat|feel|get|go|use|exercise|run)\b/gi, (_m, s: string, v: string) =>
+  t = t.replace(/(?<!\b(?:can|could|will|would|should|does|did|do|to|may|might|must|let) )\b(she|he|they) (take|drink|smoke|work|live|walk|eat|feel|get|go|use|exercise|run|skip|miss|forget|keep|need|want)\b/gi, (_m, s: string, v: string) =>
     s.toLowerCase() === "they" ? `${s} ${v}` : `${s} ${v === "go" ? "goes" : v + "s"}`,
   );
   return sentenceCase(t.trim().replace(/^(um|uh|so|well|yeah|okay|oh),?\s+/i, ""));
@@ -123,6 +132,13 @@ export function toThirdPerson(text: string, pron: Pronouns): string {
 export function clinicianToNote(text: string): string {
   let t = text.trim();
   t = t.replace(/^(okay|alright|all right|so|well|now|and|um|uh|great|good),?\s+/i, "");
+  t = t.replace(/^for (?:the|your|her|his) [a-z\s]+?,\s*/i, "");
+  t = t.replace(/\bantibiotics (?:won't|will not|wouldn't|aren't going to) help(?: here)?/i, "antibiotics not indicated");
+  t = t.replace(/\bI'm not (?:too )?(?:concerned|worried) about\b/i, "low concern for").replace(/\bI'm (?:concerned|worried) about\b/i, "concern for");
+  t = t.replace(/^I think (?:that )?(?:this is |it's |it is )?/i, "").replace(/^(?:I suspect|my impression is)(?: that)?\s+/i, "");
+  t = t.replace(/^this (?:looks|sounds) like\s+/i, "presentation consistent with ").replace(/^this is\s+/i, "");
+  t = t.replace(/\bmost consistent with\b/i, "consistent with").replace(/^most likely\s+/i, "likely ").replace(/^(?:a|an)\s+/i, "");
+  t = t.replace(/\bgiven (?:the|your) exam\b/i, "given reassuring exam");
   t = t.replace(/^(?:I'm going to|I am going to|let me|let's|I'll|I want to)\s+(?:take a (?:quick )?(?:listen|look)(?: at)?|check|feel|examine|press on)\s*/i, "");
   t = t.replace(/\byour\b/gi, "the").replace(/\byou're\b/gi, "patient is").replace(/\byou\b/gi, "patient");
   return ensurePeriod(sentenceCase(t));

@@ -12,7 +12,7 @@ import {
   type OrderDef,
   type SymptomDef,
 } from "./lexicon";
-import { clinicianToNote, splitClauses, unique, wordToNumber } from "./text";
+import { clinicianToNote, pronounsFor, splitClauses, toThirdPerson, unique, wordToNumber } from "./text";
 
 export interface SymptomFact {
   key: string;
@@ -161,7 +161,7 @@ function findSymptoms(text: string) {
   return hits;
 }
 
-const DURATION = /\b(?:for|about|over|past|last|almost|nearly)\s+(?:the\s+)?(?:past\s+|last\s+)?((?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|a few|a couple of|several|\d+)\s+(?:day|week|month|year|hour)s?)\b/i;
+const DURATION = /\b(?:for|about|over|past|last|almost|nearly)\s+(?:the\s+)?(?:past\s+|last\s+)?((?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|a few|a couple of|couple of|few|several|\d+)\s+(?:day|week|month|year|hour)s?)\b/i;
 const SINCE = /\b(since\s+(?:yesterday|last\s+\w+|monday|tuesday|wednesday|thursday|friday|saturday|sunday|this morning|the weekend|\w+ ago)|started\s+(?:about\s+)?(?:(?:a|an|one|two|three|four|five|six|seven|\d+|a few|a couple of)\s+(?:day|week|month|year)s?\s+ago|yesterday|last\s+\w+|this morning))\b/i;
 const SEVERITY = /\b(\d{1,2})\s*(?:out of|\/|on a scale of)\s*10\b|\b(mild|moderate|severe|excruciating|unbearable|really bad|pretty bad|not too bad)\b/i;
 const QUALITY = /\b(sharp|dull|achy|aching|burning|throbbing|stabbing|pressure-like|pressure|cramping|crampy|squeezing|shooting|pounding|tight|dry|wet|productive|hacking)\b/i;
@@ -273,6 +273,26 @@ const ORDER_INDICATIONS: Record<string, string[]> = {
   Sleep_medicine: ["insomnia"],
   Gastroenterology: ["gerd"],
   Neurology: ["migraine"],
+};
+
+const CC_CONDITIONS: Record<string, string[]> = {
+  anxiety: ["gad", "anxiety"],
+  depressed_mood: ["mdd"],
+  insomnia: ["insomnia"],
+  cough: ["uri", "bronchitis", "pneumonia", "asthma", "copd", "covid", "flu"],
+  sore_throat: ["strep", "pharyngitis", "uri"],
+  ear_pain: ["aom"],
+  back_pain: ["lbp"],
+  dysuria: ["uti"],
+  frequency: ["uti"],
+  headache: ["migraine", "tth"],
+  knee_pain: ["knee_oa"],
+  congestion: ["uri", "sinusitis", "allergic_rhinitis"],
+  fever: ["flu", "covid", "uri", "aom", "pneumonia"],
+  heartburn: ["gerd"],
+  rash: ["eczema", "contact_derm"],
+  chest_pain: ["chest_pain_dx"],
+  joint_pain: ["gout", "knee_oa"],
 };
 
 const COUNSEL_HINTS: [RegExp, string[]][] = [
@@ -504,7 +524,8 @@ function toExamText(clause: string) {
   return t.replace(/[.,;]+$/, "") ;
 }
 
-export function extractFacts(utterances: Utterance[], chart?: Chart): Facts {
+export function extractFacts(utterances: Utterance[], chart?: Chart, who?: { pronouns?: string; sex?: string }): Facts {
+  const pr = pronounsFor(who?.pronouns ?? "", who?.sex ?? "X");
   const utts = utterances.filter((u) => !u.redacted).sort((a, b) => a.seq - b.seq);
   const symptoms = new Map<string, SymptomFact>();
   const meds: MedFact[] = [];
@@ -640,7 +661,7 @@ export function extractFacts(utterances: Utterance[], chart?: Chart): Facts {
       if (QUESTIONS_ASKED.test(text)) asked.questions.push(u.id);
     }
 
-    if (sp === "patient" && /\?\s*$/.test(text)) patientQuestions.push({ text: text.trim(), evidence: [u.id] });
+    if (sp === "patient" && /\?\s*$/.test(text)) patientQuestions.push({ text: toThirdPerson(text.trim(), pr), evidence: [u.id] });
 
     for (const clause of splitClauses(text)) {
       const clauseIsQuestion = sp === "clinician" && isQuestion({ ...u, text: clause });
@@ -693,7 +714,7 @@ export function extractFacts(utterances: Utterance[], chart?: Chart): Facts {
           }
           add("radiation", firstMatch(RADIATION, clause)?.toLowerCase().replace(/\s+(?:sometimes|occasionally|at times|a lot|too)$/, ""));
           add("timing", firstMatch(TIMING, clause)?.toLowerCase());
-          add("context", firstMatch(CONTEXT, clause)?.toLowerCase().replace(/^(?:ever )?since (?:i|she|he|they) (?:was|were) /, "").replace(/^when (?:i|she|he|they) (?:was|were) /, "").replace(/\bmy\b/g, "their").replace(/\bi\b/g, "they"));
+          add("context", firstMatch(CONTEXT, clause)?.toLowerCase().replace(/^(?:ever )?since (?:i|she|he|they) (?:was|were) /, "").replace(/^when (?:i|she|he|they) (?:was|were) /, "").replace(/\bmy\b/g, pr.poss).replace(/\bi\b/g, pr.subj));
           const agg = AGGRAVATING.exec(clause);
           if (agg) { f.aggravating = unique([...(f.aggravating ?? []), gerundize(cleanPhrase(agg[1]))]); if (!f.evidence.includes(u.id)) f.evidence.push(u.id); }
           const rel = RELIEVING.exec(clause);
@@ -744,7 +765,7 @@ export function extractFacts(utterances: Utterance[], chart?: Chart): Facts {
           name: lastMed.name, cls: lastMed.cls, rx: lastMed.rx, def: lastMed,
           action: notTaking ? "not_taking" : "side_effect",
           dose: prior?.dose, frequency: prior?.frequency,
-          note: clause.replace(/^(honestly|but|and|so),?\s+/i, "").replace(/[.]+$/, "").replace(/\bmy\b/gi, "their").replace(/\bI\b/g, "they").replace(/\bme\b/gi, "them"),
+          note: (() => { const t3 = toThirdPerson(clause.replace(/^(honestly|but|and|so),?\s+/i, "").replace(/[.]+$/, ""), pr); return t3.charAt(0).toLowerCase() + t3.slice(1); })(),
           evidence: [u.id], seq: u.seq,
         });
         void detail;
@@ -799,7 +820,7 @@ export function extractFacts(utterances: Utterance[], chart?: Chart): Facts {
         if (sp === "clinician" && ["start", "stop", "increase", "decrease", "refill", "continue", "change"].includes(action)) {
           const verb = { start: "Start", stop: "Discontinue", increase: "Increase", decrease: "Decrease", refill: "Refill", continue: "Continue", change: "Change" }[action as "start"];
           const durM = /\bfor (\d+|one|two|three|five|seven|ten|fourteen) (days|weeks?)\b/i.exec(seg);
-          const prn = /\bas needed(?: for (?:the )?([a-z\s]+?))?(?:[,.]|$| and| so)/i.exec(seg);
+          const prn = /\bas needed(?: for (?:the )?([a-z\s]+?))?(?:[,.]|$| and| so)/i.exec(seg) ?? (action === "continue" || action === "start" ? /\b(?:as needed )?for (pain and fever|pain or fever|fever and pain|pain|fever)\b/i.exec(clause) : null);
           const titr = /\bthen (?:increase|go up|bump(?: it)? up)(?: to)? (\d+(?:\.\d+)?)\s*(mg|milligrams?|mcg)(?: (?:daily|a day|once a day))?/i.exec(seg);
           if (durM) fact.note = `for ${durM[1]} ${durM[2]}`;
           const tail = `${fact.frequency ? ` ${fact.frequency}` : ""}${prn && !fact.frequency?.includes("as needed") ? ` as needed${prn[1] ? ` for ${prn[1].trim()}` : ""}` : ""}${durM ? ` for ${durM[1]} ${durM[2]}` : ""}${titr ? `, then increase to ${titr[1]} ${titr[2].toLowerCase().startsWith("mc") ? "mcg" : "mg"}${fact.frequency ? ` ${fact.frequency}` : ""}` : ""}`;
@@ -935,7 +956,14 @@ export function extractFacts(utterances: Utterance[], chart?: Chart): Facts {
     if (started && !onChart) {
       started.cancelled = true;
       stop.cancelled = true;
-      for (const p of problems.values()) p.plan = p.plan.filter((it) => !(it.type === "medication" && it.ref === stop.name));
+      for (const p of problems.values()) {
+        const had = p.plan.some((it) => it.type === "medication" && it.ref === stop.name);
+        p.plan = p.plan.filter((it) => !(it.type === "medication" && it.ref === stop.name));
+        const conflicts = allergyConflicts(stop.name, [...allergies.map((a) => a.substance), ...(chart?.allergies ?? []).map((a) => a.substance)]);
+        if (had && conflicts.length) {
+          p.plan.push({ type: "reasoning", text: `${stop.name[0].toUpperCase()}${stop.name.slice(1)} avoided due to documented ${conflicts[0]} allergy.`, evidence: unique([...started.evidence, ...stop.evidence, ...allergies.flatMap((a) => a.evidence)]), seq: stop.seq });
+        }
+      }
     }
   }
   const merges: [string, string][] = [["anxiety", "gad"], ["pharyngitis", "strep"], ["uri", "flu"], ["uri", "covid"], ["tth", "migraine"]];
@@ -967,11 +995,12 @@ export function extractFacts(utterances: Utterance[], chart?: Chart): Facts {
     }
   }
 
+  const related = new Set(chiefComplaint ? CC_CONDITIONS[chiefComplaint.key] ?? [] : []);
   const problemList = Array.from(problems.values())
     .filter((p) => p.assessed || p.plan.length > 0 || p.evidence.length > 1)
     .sort((a, b) => {
-      const w = (p: ProblemFact) => (p.fromSymptom ? 0 : 1) * 0 + (p.status === "not at goal" || !p.chronic ? 0 : 1);
-      return w(a) - w(b) || a.firstSeq - b.firstSeq;
+      const w = (p: ProblemFact) => (related.has(p.key) || p.key === `sym_${chiefComplaint?.key}` ? 0 : 1) * 1000 + p.firstSeq;
+      return w(a) - w(b);
     });
 
   if (problemList.some((p) => !p.fromSymptom && !p.chronic)) {

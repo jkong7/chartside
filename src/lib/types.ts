@@ -22,6 +22,9 @@ export interface NoteSentence {
   kind: SentenceKind;
   support: Support;
   pending?: boolean;
+  indent?: number;
+  heading?: boolean;
+  edited?: boolean;
 }
 
 export interface NoteSection {
