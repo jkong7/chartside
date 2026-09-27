@@ -335,6 +335,26 @@ async function buildClfs(src) {
   return { ...meta(src, files, { rates: name }), stats: { rates: Object.keys(rates).length }, rates };
 }
 
+async function buildVaxAdmin(src) {
+  const files = await fetchSource(src);
+  const { name, buf } = readMember(files.rates.file, src.files.rates.member);
+  const rows = parseCsv(buf.toString("latin1"));
+  const hi = rows.findIndex((r) => /Contractor/i.test(r[0] ?? ""));
+  const codes = rows[hi].slice(5).map((h) => h.trim()).filter(Boolean);
+  const money = (v) => Number(String(v ?? "").replace(/[$,\s]/g, ""));
+  const national = {};
+  const localities = {};
+  for (const r of rows.slice(hi + 1)) {
+    const mac = r[0]?.trim();
+    const vals = Object.fromEntries(codes.map((c, i) => [c, money(r[5 + i])]).filter(([, v]) => Number.isFinite(v) && v > 0));
+    if (!Object.keys(vals).length) continue;
+    if (!mac) Object.assign(national, vals);
+    else if (/^\d{5}$/.test(mac)) localities[`${mac}:${r[2].trim().padStart(2, "0")}`] = vals;
+  }
+  if (!national.G0008 || Object.keys(localities).length < 100) throw new Error("Vaccine administration rate parse failed");
+  return { ...meta(src, files, { rates: name }), stats: { localities: Object.keys(localities).length }, national, localities };
+}
+
 async function buildHcc(src) {
   const files = await fetchSource(src);
   const tmp = mkdtempSync(path.join(tmpdir(), "hcc-"));
@@ -399,7 +419,7 @@ function writeArtifact(dir, obj) {
 }
 
 async function buildPublic() {
-  const builders = { icd10cm: buildIcd, hcpcs: buildHcpcs, pfs: buildPfs, hcc: buildHcc, asp: buildAsp, clfs: buildClfs };
+  const builders = { icd10cm: buildIcd, hcpcs: buildHcpcs, pfs: buildPfs, hcc: buildHcc, asp: buildAsp, clfs: buildClfs, vaxadmin: buildVaxAdmin };
   for (const src of SOURCES.public) {
     if (only && !only.includes(src.id)) continue;
     log("building", src.id);

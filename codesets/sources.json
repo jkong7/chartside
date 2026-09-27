@@ -145,6 +145,24 @@
           "member": "PUF_CLFS_CY2026_Q4V1.csv"
         }
       }
+    },
+    {
+      "id": "vaxadmin-2026",
+      "kind": "vaxadmin",
+      "name": "Medicare geographically adjusted vaccine administration payment rates (G0008, G0009, G0010), CY2026",
+      "publisher": "Centers for Medicare & Medicaid Services",
+      "version": "CY2026",
+      "effective": {
+        "from": "2026-01-01",
+        "to": "2026-12-31"
+      },
+      "license": "US government data.",
+      "files": {
+        "rates": {
+          "url": "https://www.cms.gov/files/zip/2026-geographically-adjusted-payment-rates-influenza-pneumococcal-hepatitis-b-home-additional.zip",
+          "member": "508 compliant version of 2026_Geo_Adj_G0008_9_10_Admin_Payment_Rates_01.01.26_12.31.26.csv"
+        }
+      }
     }
   ],
   "licensed": [

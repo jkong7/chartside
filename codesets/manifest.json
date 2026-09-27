@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-27T17:57:14.186Z",
+  "generated": "2026-09-27T18:15:30.294Z",
   "sources": {
     "hcc-v28-2026": {
       "name": "CMS-HCC risk adjustment model V28, payment year 2026 (midyear final)",
@@ -216,6 +216,31 @@
         "rates": 2243
       },
       "builtAt": "2026-09-27T17:57:14.180Z"
+    },
+    "vaxadmin-2026": {
+      "name": "Medicare geographically adjusted vaccine administration payment rates (G0008, G0009, G0010), CY2026",
+      "version": "CY2026",
+      "effective": {
+        "from": "2026-01-01",
+        "to": "2026-12-31"
+      },
+      "files": {
+        "rates": {
+          "url": "https://www.cms.gov/files/zip/2026-geographically-adjusted-payment-rates-influenza-pneumococcal-hepatitis-b-home-additional.zip",
+          "sha256": "c159986b85bc540898fd0e5fbe16b08e7982c6db375c49eb4c5f9050a5f341aa",
+          "bytes": 25702,
+          "member": "508 compliant version of 2026_Geo_Adj_G0008_9_10_Admin_Payment_Rates_01.01.26_12.31.26.csv"
+        }
+      },
+      "artifact": {
+        "file": "codesets/dist/vaxadmin-2026.json.gz",
+        "sha256": "66f16d96d226de60223f81e8e781c487f52274c64df6136aedcfbff73fedf5a5",
+        "bytes": 1960
+      },
+      "stats": {
+        "localities": 109
+      },
+      "builtAt": "2026-09-27T18:15:30.293Z"
     }
   }
 }

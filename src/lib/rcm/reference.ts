@@ -1,4 +1,4 @@
-import { clfs, hcpcs, hcc, icdReleaseFor, ncci, partB, pfs, pos, STATUS_CODES } from "../codesets";
+import { clfs, hcpcs, hcc, icdReleaseFor, ncci, partB, pfs, pos, STATUS_CODES, vaccineAdmin } from "../codesets";
 import { MEDICARE_ADMIN, NECESSITY, PROLONGED, SERVICE_SUMMARY, type Claim, type ClaimEdit, type ClaimLine, type ClaimReference, type LinePricing, type Payer } from "../engine/billing";
 import { reviewDiagnoses } from "./dx";
 
@@ -11,6 +11,7 @@ export interface BillingSettings {
   npi?: string;
   tin?: string;
   taxonomy?: string;
+  demoIdentifiers?: boolean;
 }
 
 export const DEFAULT_BILLING: BillingSettings = { locality: "06102:16", chargeMultiplier: 2, qualifyingApm: false, commercialMultiplier: 1.3, medicaidMultiplier: 0.75 };
@@ -42,7 +43,8 @@ export function medicareUnitPrice(code: string, modifiers: string[], placeOfServ
   if (lab) return { basis: "CLFS", allowed: lab.rate, coinsurance: 0, note: "Clinical Laboratory Fee Schedule (national limit)", source: { set: "CLFS", version: clfs.meta().version, ref: code } };
   const drug = partB.limit(code);
   if (drug) return { basis: "ASP", allowed: Math.round(drug.limit * 100) / 100, coinsurance: drug.coinsurance, note: drug.vaccine ? `Part B vaccine payment limit (${drug.dosage ?? "per dose"})` : `Part B drug payment limit (${drug.dosage ?? "per unit"})`, source: { set: "Medicare Part B payment limits", version: partB.meta().version, ref: code } };
-  if (/^G00(08|09|10)$/.test(code)) return { basis: "none", allowed: null, status: row?.s, coinsurance: 0, note: "Paid at the locality-adjusted Medicare vaccine administration rate published on the CMS Vaccine Pricing page", source: { set: "CMS Vaccine Pricing", version: "2026" } };
+  const admin = /^(G00(08|09|10)|M0201)$/.test(code) ? vaccineAdmin.rate(code, locality) : undefined;
+  if (admin) return { basis: "MPFS", allowed: admin, status: row?.s, coinsurance: 0, note: `Geographically adjusted vaccine administration rate · ${pfs.locality(locality).name}`, source: { set: "CMS vaccine administration rates", version: vaccineAdmin.meta().version, ref: code } };
   return row ? { basis: "none", allowed: null, status: row.s, note: STATUS_CODES[row.s] ?? `Status ${row.s}`, source: { set: "MPFS", version: pfs.meta().version, ref: `${code} status ${row.s}` } } : null;
 }
 
@@ -174,7 +176,7 @@ export function makeClaimReference(input: { dos: string; settings?: Partial<Bill
       const p = unit(l.cpt, l.modifiers, claim);
       const charge = chargeFor(l.cpt, l.modifiers);
       if (!p && charge === null) return null;
-      return { charge: Math.round((charge ?? 0) * l.units * 100) / 100, pricing: p ?? { basis: "none", allowed: null, note: "No Medicare pricing found for this code" } };
+      return { charge: charge === null ? null : Math.round(charge * l.units * 100) / 100, pricing: p ?? { basis: "none", allowed: null, note: "No Medicare pricing found for this code" } };
     },
     expected(code, claim) {
       return unit(code, [], claim)?.allowed ?? null;

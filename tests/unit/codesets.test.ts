@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { clfs, hcc, hcpcs, icdRelease, icdReleaseFor, manifest, partB, pfs, pos } from "@/lib/codesets";
+import { clfs, hcc, hcpcs, icdRelease, icdReleaseFor, manifest, partB, pfs, pos, vaccineAdmin } from "@/lib/codesets";
 import { buildClaim, type ClaimLine } from "@/lib/engine/billing";
 import { computeCoding } from "@/lib/engine/coding";
 import { CONDITIONS } from "@/lib/engine/lexicon";
@@ -17,7 +17,7 @@ describe("official code-set artifacts", () => {
   it("match the SHA-256 recorded in the manifest and come only from CMS or CDC", () => {
     const m = manifest();
     const ids = Object.keys(m.sources);
-    expect(ids).toEqual(expect.arrayContaining(["icd10cm-2026-apr", "icd10cm-2027", "hcpcs-2026-oct", "pfs-2026-d", "hcc-v28-2026", "asp-2026-oct", "clfs-2026-q4"]));
+    expect(ids).toEqual(expect.arrayContaining(["icd10cm-2026-apr", "icd10cm-2027", "hcpcs-2026-oct", "pfs-2026-d", "hcc-v28-2026", "asp-2026-oct", "clfs-2026-q4", "vaxadmin-2026"]));
     for (const id of ids) {
       const s = m.sources[id];
       expect(createHash("sha256").update(readFileSync(s.artifact.file)).digest("hex")).toBe(s.artifact.sha256);
@@ -84,6 +84,8 @@ describe("official code-set artifacts", () => {
     expect(clfs.rate("87880", "QW")?.rate).toBe(16.53);
     expect(partB.limit("90677")).toMatchObject({ limit: 361.418, coinsurance: 0, vaccine: true });
     expect(partB.limit("90686")).toBeUndefined();
+    expect(vaccineAdmin.rate("G0009", "06102:16")).toBe(36.63);
+    expect(vaccineAdmin.rate("G0008", "99999:99")).toBe(34.62);
     expect(hcpcs.lookup("G2211")?.short).toBe("Complex e/m visit add on");
     expect(hcpcs.activeOn("G2211", FY26)).toBe(true);
     expect(pos.isFacility("22")).toBe(true);
@@ -153,7 +155,7 @@ describe("Medicare claim rules with provenance", () => {
     const claim = buildClaim(facts, coding, { age: 72, sex: d.sex, setting: "in-person", patientType: "established", chart: patient.chart, minutes: 18, orders: [vaccine], final: true, at: new Date(`${FY26}T15:00:00Z`), ref });
     const by = Object.fromEntries(claim.lines.map((l) => [l.cpt, l]));
     expect(by["90677"].pricing).toMatchObject({ basis: "ASP", allowed: 361.42, coinsurance: 0 });
-    expect(by.G0009).toBeTruthy();
+    expect(by.G0009.pricing).toMatchObject({ allowed: 36.63, coinsurance: 0 });
     expect(by["99214"].pricing).toMatchObject({ basis: "MPFS", allowed: 142.45 });
     expect(by["99214"].charge).toBe(Math.ceil(pfs.price("99214", { pos: "11", locality: "00000:00" })!.allowed * 2));
     expect(claim.totals.allowed).toBeGreaterThan(500);

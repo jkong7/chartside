@@ -75,7 +75,7 @@ export interface Claim {
 export interface ClaimReference {
   dos: string;
   describe(code: string): string | null;
-  price(line: Pick<ClaimLine, "cpt" | "modifiers" | "units">, claim: Pick<Claim, "placeOfService" | "payer">): { charge: number; pricing: LinePricing } | null;
+  price(line: Pick<ClaimLine, "cpt" | "modifiers" | "units">, claim: Pick<Claim, "placeOfService" | "payer">): { charge: number | null; pricing: LinePricing } | null;
   expected(code: string, claim: Pick<Claim, "placeOfService" | "payer">): number | null;
   review(claim: Claim, ctx: { age: number; sex: string; minutes: number; chart?: Chart; facts: Facts | null }): ClaimEdit[];
   versions(): { label: string; version: string }[];
@@ -343,7 +343,7 @@ function priceLines(claim: Claim, ref?: ClaimReference) {
   if (!ref) return claim;
   const lines = claim.lines.map((l) => {
     const p = ref.price(l, claim);
-    return p ? { ...l, charge: l.source === "manual" && l.charge > 0 ? l.charge : p.charge, pricing: p.pricing } : { ...l, pricing: { basis: "none" as const, allowed: null, note: "No Medicare pricing found for this code" } };
+    return p ? { ...l, charge: (l.source === "manual" && l.charge > 0) || p.charge === null ? l.charge : p.charge, pricing: p.pricing } : { ...l, pricing: { basis: "none" as const, allowed: null, note: "No Medicare pricing found for this code" } };
   });
   return { ...claim, lines };
 }

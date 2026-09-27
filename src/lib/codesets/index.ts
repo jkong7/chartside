@@ -431,6 +431,19 @@ export const clfs = {
   },
 };
 
+interface VaxAdminArtifact extends SetMeta {
+  national: Record<string, number>;
+  localities: Record<string, Record<string, number>>;
+}
+
+export const vaccineAdmin = {
+  meta: () => stripData(load<VaxAdminArtifact>("vaxadmin-2026"), ["national", "localities"]),
+  rate(code: string, locality: string) {
+    const a = load<VaxAdminArtifact>("vaxadmin-2026");
+    return a.localities[locality]?.[code] ?? a.national[code];
+  },
+};
+
 interface HccArtifact extends SetMeta {
   segments: string[];
   mapping: Record<string, ([string] | [string, string | null, string | null, string | null])[]>;
