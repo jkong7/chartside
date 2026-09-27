@@ -8,6 +8,7 @@ import type { Note, NoteSentence, OmissionFlag, Speaker, StagedOrder, Utterance 
 import { Alert, Check, Copy, Download, Play, Refresh, Shield } from "../icons";
 import { Modal, Spinner, StatusPill, Tabs, Toast } from "../ui";
 import Assistant from "./Assistant";
+import BillingPanel from "./BillingPanel";
 import Capture from "./Capture";
 import NoteEditor from "./NoteEditor";
 import { AuditPanel, CodesPanel, LettersPanel, OrdersPanel, SummaryPanel } from "./Panels";
@@ -15,13 +16,13 @@ import PreVisit from "./PreVisit";
 import Transcript from "./Transcript";
 import type { Bundle, Highlight } from "./types";
 
-type Tab = "note" | "codes" | "orders" | "summary" | "letters" | "audit";
+type Tab = "note" | "codes" | "orders" | "billing" | "summary" | "letters" | "audit";
 
-export default function Workspace({ id }: { id: string }) {
+export default function Workspace({ id, initialTab }: { id: string; initialTab?: string }) {
   const [b, setB] = useState<Bundle | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [mode, setMode] = useState<"mic" | "simulate" | "type" | null>(null);
-  const [tab, setTab] = useState<Tab>("note");
+  const [tab, setTab] = useState<Tab>((["note", "codes", "orders", "billing", "summary", "letters", "audit"].includes(initialTab ?? "") ? initialTab : "note") as Tab);
   const [hl, setHl] = useState<Highlight | null>(null);
   const [active, setActive] = useState<string | null>(null);
   const [signOpen, setSignOpen] = useState(false);
@@ -165,6 +166,7 @@ export default function Workspace({ id }: { id: string }) {
               { id: "note", label: "Note" },
               { id: "codes", label: "Codes", badge: b.artifacts.coding ? <span className="pill bg-sunken text-[10px]">{b.artifacts.coding.em.code}</span> : null },
               { id: "orders", label: "Orders", badge: staged ? <span className="pill bg-warn-50 text-[10px] text-warn">{staged}</span> : null },
+              { id: "billing", label: "Billing", badge: b.claim ? <span className={`h-2 w-2 rounded-full ${b.claim.status === "needs_review" ? "bg-warn" : b.claim.status === "on_hold" ? "bg-rec" : "bg-ok"}`} /> : (b.artifacts.priorAuth?.length ? <span className="pill bg-sunken text-[10px]">PA</span> : null) },
               { id: "summary", label: "Patient summary", badge: b.patientFlags.some((f) => !f.resolved) ? <span className="h-2 w-2 rounded-full bg-warn" /> : null },
               { id: "letters", label: "Letters", badge: b.artifacts.letters?.length ? <span className="pill bg-sunken text-[10px]">{b.artifacts.letters.length}</span> : null },
               { id: "audit", label: "Audit" },
@@ -204,6 +206,7 @@ export default function Workspace({ id }: { id: string }) {
             )}
             {tab === "codes" && <CodesPanel coding={b.artifacts.coding} onCite={(ids) => cite(ids)} />}
             {tab === "orders" && <OrdersPanel encounterId={id} orders={b.orders} locked={locked} onChange={(fn: (o: StagedOrder[]) => StagedOrder[]) => setB((x) => (x ? { ...x, orders: fn(x.orders) } : x))} onCite={(ids) => cite(ids)} />}
+            {tab === "billing" && <BillingPanel key={b.claim?.updatedAt ?? "draft"} encounterId={id} record={b.claim} draft={b.artifacts.claim} priorAuth={b.artifacts.priorAuth ?? []} signed={locked} onCite={(ids) => cite(ids)} />}
             {tab === "summary" && <SummaryPanel b={b} onFlags={load} />}
             {tab === "letters" && <LettersPanel letters={b.artifacts.letters} />}
             {tab === "audit" && <AuditPanel b={b} />}

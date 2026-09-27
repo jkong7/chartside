@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { api } from "@/lib/client";
-import { Calendar, Chart, Gear, Layout, Logo, Logout, Users } from "./icons";
+import { Calendar, Chart, Gear, Layout, Logo, Logout, Receipt, Users } from "./icons";
 import { Avatar } from "./ui";
 
 const NAV = [
   { href: "/today", label: "Today", icon: Calendar },
   { href: "/patients", label: "Patients", icon: Users },
   { href: "/templates", label: "Templates", icon: Layout },
+  { href: "/revenue", label: "Revenue", icon: Receipt },
   { href: "/insights", label: "Insights", icon: Chart },
   { href: "/settings", label: "Settings", icon: Gear },
 ];

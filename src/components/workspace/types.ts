@@ -19,6 +19,8 @@ export interface Bundle {
     facts?: { chiefComplaint: { label: string } | null; interpreter: boolean; languages: string[] };
     share?: { token: string };
     interpreter?: import("@/lib/engine/interpreter").InterpreterCheck;
+    claim?: import("@/lib/engine/billing").Claim;
+    priorAuth?: import("@/lib/engine/priorauth").PaPacket[];
   };
   orders: StagedOrder[];
   audit: { id: string; action: string; detail: Record<string, unknown>; created_at: string }[];
@@ -26,6 +28,7 @@ export interface Bundle {
   patientFlags: { id: string; item: string; comment: string; resolved: number; created_at: string }[];
   engine: { llm: boolean; model: string | null };
   audio: { chunks: number; bytes: number; durationMs: number; retentionDays: number };
+  claim: import("@/lib/server/repo").ClaimRecord | null;
   speech: { provider: "deepgram" | "browser"; live: boolean; finalPass: boolean; wsUrl: string | null };
 }
 
