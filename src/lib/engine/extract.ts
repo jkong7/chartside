@@ -895,7 +895,13 @@ export function extractFacts(utterances: Utterance[], chart?: Chart, who?: { pro
             if (/\b(don't|do not|no need|won't|not going to|hold off|not necessary|doesn't need|skip)\b/i.test(before)) continue;
             if (o.kind === "vaccine" && /\b(already|had|got)\b/i.test(clause) && !/\btoday\b/i.test(clause)) continue;
             if (!orders.some((x) => x.name === o.name)) {
-              const when = /\b(today|now|in (?:\d+|one|two|three|four|six|a few|a couple of) (?:days?|weeks?|months?)|before (?:the|your) next visit|at (?:the|your) next visit|fasting)\b/i.exec(clause);
+              const at = Math.max(0, clause.search(o.patterns.find((re) => re.test(clause)) ?? o.patterns[0]));
+              const after = clause.slice(at);
+              const nextOrder = ORDERABLES.filter((x) => x !== o).map((x) => x.patterns.map((re) => after.slice(1).search(re)).filter((i) => i >= 0)).flat().sort((a, b) => a - b)[0];
+              const scope = nextOrder !== undefined ? after.slice(0, nextOrder + 1) : after;
+              const WHEN = /\b(today|now|in (?:\d+|one|two|three|four|six|a few|a couple of) (?:days?|weeks?|months?)|before (?:the|your) next visit|at (?:the|your) next visit|fasting)\b/i;
+              const onlyOrder = ORDERABLES.filter((x) => x.patterns.some((re) => re.test(clause))).length === 1;
+              const when = WHEN.exec(scope) ?? (onlyOrder ? WHEN.exec(clause.slice(0, at)) : null);
               const of: OrderFact = { kind: o.kind, name: o.name, detail: when ? when[1].toLowerCase() : "", cpt: o.cpt, evidence: [u.id], seq: u.seq };
               orders.push(of);
               of.problemKey = attachPlan({ type: "order", text: `${o.kind === "vaccine" ? "Administer" : "Order"} ${o.name}.`, evidence: [u.id], seq: u.seq }, ORDER_INDICATIONS[o.name] ?? []) ?? undefined;
