@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Source Serif 4", ui-serif, Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-paper: #f7f5f0;
+  --color-surface: #ffffff;
+  --color-sunken: #efece5;
+  --color-line: #e2ddd2;
+  --color-line-strong: #cfc8b9;
+  --color-ink: #16202e;
+  --color-ink-2: #3d4757;
+  --color-ink-3: #6b7482;
+  --color-ink-4: #9aa1ab;
+
+  --color-brand: #0f6b5c;
+  --color-brand-600: #0c594c;
+  --color-brand-50: #e6f2ef;
+  --color-brand-100: #cce6df;
+
+  --color-rec: #d6453d;
+  --color-rec-50: #fbeceb;
+  --color-warn: #b7791f;
+  --color-warn-50: #fbf3e2;
+  --color-ok: #2f855a;
+  --color-ok-50: #e7f4ec;
+  --color-info: #2b6cb0;
+  --color-info-50: #e8f0fa;
+  --color-evidence: #fff3c4;
+  --color-evidence-strong: #ffe38a;
+  --color-default-ins: #ece8fb;
+  --color-default-ins-line: #8b7fd1;
+}
+
+html, body { background: var(--color-paper); color: var(--color-ink); }
+body { font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiased; }
+
+@layer components {
+  .card { @apply bg-surface border border-line rounded-xl; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-primary { @apply btn bg-brand text-white hover:bg-brand-600; }
+  .btn-ghost { @apply btn text-ink-2 hover:bg-sunken; }
+  .btn-outline { @apply btn border border-line-strong bg-surface text-ink hover:bg-sunken; }
+  .btn-danger { @apply btn bg-rec text-white hover:opacity-90; }
+  .input { @apply w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand-100; }
+  .label { @apply block text-xs font-medium uppercase tracking-wide text-ink-3 mb-1; }
+  .pill { @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium; }
+  .kbd { @apply rounded border border-line-strong bg-sunken px-1.5 py-0.5 font-mono text-[11px] text-ink-2; }
+}
+
+@keyframes pulse-ring { 0% { transform: scale(0.9); opacity: .6 } 100% { transform: scale(1.6); opacity: 0 } }
+.pulse-ring { animation: pulse-ring 1.6s cubic-bezier(.2,.6,.3,1) infinite; }
+@keyframes bar { 0%,100% { transform: scaleY(.3) } 50% { transform: scaleY(1) } }
+.level-bar { animation: bar 1s ease-in-out infinite; transform-origin: bottom; }
