@@ -6,5 +6,5 @@ export const dynamic = "force-dynamic";
 
 export default async function Templates() {
   const user = await requireUser();
-  return <TemplatesManager initial={templates.list(user.id)} />;
+  return <TemplatesManager initial={await templates.list(user)} />;
 }

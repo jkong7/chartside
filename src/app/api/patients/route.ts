@@ -2,14 +2,14 @@ import { authed, body, fail, json } from "@/lib/server/http";
 import { patients } from "@/lib/server/repo";
 import type { Chart, Patient } from "@/lib/types";
 
-export const GET = authed((_req, user) => json({ patients: patients.list(user.id) }));
+export const GET = authed(async (_req, user) => json({ patients: await patients.list(user) }));
 
 export const POST = authed(async (req, user) => {
   const b = await body<Partial<Patient>>(req);
   if (!b.name?.trim()) return fail("Name is required");
   if (!b.dob || Number.isNaN(Date.parse(b.dob))) return fail("Date of birth is required");
   const chart: Chart = { problems: [], medications: [], allergies: [], ...(b.chart ?? {}) };
-  const p = patients.create(user.id, {
+  const p = await patients.create(user, {
     mrn: b.mrn?.trim() || String(100000 + Math.floor(Math.random() * 899999)),
     name: b.name.trim(),
     dob: b.dob,

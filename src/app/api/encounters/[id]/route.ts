@@ -2,66 +2,88 @@ import { llmEnabled, llmModel } from "@/lib/llm";
 import { authed, body, fail, json } from "@/lib/server/http";
 import { speechConfig } from "@/lib/server/audio";
 import { consentScript } from "@/lib/server/pipeline";
-import { artifacts, audioChunks, audit, claims, consents, encounters, feedback, notes, orders, patientFlags, patients, templates, utterances } from "@/lib/server/repo";
+import { assertCan, can, canSign } from "@/lib/server/policy";
+import { artifacts, audioChunks, audit, claims, consents, encounters, feedback, notes, orders, patientFlags, patients, templates, users, utterances } from "@/lib/server/repo";
 import type { Encounter } from "@/lib/types";
 
-export const GET = authed<{ id: string }>((_req, user, { id }) => {
-  const enc = encounters.get(user.id, id);
+export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
+  const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
-  const patient = enc.patientId ? patients.get(user.id, enc.patientId) ?? null : null;
-  const rec = notes.latest(enc.id);
-  const tplId = enc.templateId ?? user.prefs.defaultTemplate ?? "soap";
+  const clinician = enc.userId === user.id ? user : await users.byId(enc.userId);
+  const prefs = clinician?.prefs ?? user.prefs;
+  const tplId = enc.templateId ?? prefs.defaultTemplate ?? "soap";
+  const [patient, rec, template, tpls, consent, utts, arts, ords, aud, fb, flags, chunks, claim] = await Promise.all([
+    enc.patientId ? patients.get(user, enc.patientId) : Promise.resolve(undefined),
+    notes.latest(enc.id),
+    templates.get(user, tplId).then(async (t) => t ?? (await templates.get(user, "soap"))),
+    templates.list(user),
+    consents.latest(enc.id),
+    utterances.list(enc.id),
+    artifacts.all(enc.id),
+    orders.list(enc.id),
+    audit.forEncounter(enc.id),
+    feedback.forEncounter(enc.id),
+    patientFlags.list(enc.id),
+    audioChunks.list(enc.id),
+    claims.get(enc.id),
+  ]);
   return json({
     encounter: enc,
-    patient,
-    template: templates.get(user.id, tplId) ?? templates.get(user.id, "soap"),
-    templates: templates.list(user.id).map((t) => ({ id: t.id, name: t.name, specialty: t.specialty })),
-    consent: consents.latest(enc.id) ?? null,
-    consentScript: consentScript(user.name, user.prefs.state ?? "IL"),
-    state: user.prefs.state ?? "IL",
-    utterances: utterances.list(enc.id),
+    patient: patient ?? null,
+    template,
+    templates: tpls.map((t) => ({ id: t.id, name: t.name, specialty: t.specialty })),
+    consent: consent ?? null,
+    consentScript: consentScript(clinician?.name ?? user.name, prefs.state ?? "IL"),
+    state: prefs.state ?? "IL",
+    utterances: utts,
     note: rec ? { version: rec.version, status: rec.status, engine: rec.engine, content: rec.content, updatedAt: rec.updatedAt } : null,
-    artifacts: artifacts.all(enc.id),
-    orders: orders.list(enc.id),
-    audit: audit.forEncounter(enc.id),
-    feedback: feedback.forEncounter(enc.id),
-    patientFlags: patientFlags.list(enc.id),
+    artifacts: arts,
+    orders: ords,
+    audit: aud,
+    feedback: fb,
+    patientFlags: flags,
     engine: { llm: llmEnabled(), model: llmEnabled() ? llmModel() : null },
-    audio: (() => {
-      const c = audioChunks.list(enc.id);
-      return { chunks: c.length, bytes: c.reduce((n, x) => n + x.bytes, 0), durationMs: c.at(-1)?.tMs ?? 0, retentionDays: user.prefs.audioRetentionDays ?? 0 };
-    })(),
+    audio: { chunks: chunks.length, bytes: chunks.reduce((n, x) => n + x.bytes, 0), durationMs: chunks.at(-1)?.tMs ?? 0, retentionDays: prefs.audioRetentionDays ?? 0 },
     speech: speechConfig(),
-    claim: claims.get(enc.id) ?? null,
+    claim: claim ?? null,
+    clinician: { id: enc.userId, name: clinician?.name ?? "Unknown" },
+    access: {
+      role: user.role,
+      capture: can(user, "clinical.capture"),
+      edit: can(user, "clinical.edit"),
+      sign: canSign(user, enc),
+      billingReview: can(user, "billing.review"),
+    },
   });
 });
 
 export const PATCH = authed<{ id: string }>(async (req, user, { id }) => {
-  const enc = encounters.get(user.id, id);
+  const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
+  assertCan(user, "clinical.capture");
   const b = await body<Partial<Encounter> & { action?: "start" | "pause" | "resume" | "reset"; manual?: boolean }>(req);
   const patch: Partial<Encounter> = {};
   for (const k of ["reason", "visitType", "templateId", "setting", "inputLang", "outputLang", "patientId"] as const) if (b[k] !== undefined) (patch as Record<string, unknown>)[k] = b[k];
   if (b.action === "start") {
-    const consent = consents.latest(enc.id);
+    const consent = await consents.latest(enc.id);
     if (!consent) return fail("Record patient consent before starting ambient capture", 409);
     if (consent.decision !== "granted" && !b.manual) return fail("The patient declined recording. Only manual documentation is available.", 409);
     if (enc.status === "signed") return fail("This visit is already signed", 409);
     patch.status = "recording";
     patch.startedAt = enc.startedAt ?? new Date().toISOString();
-    audit.log(user.id, enc.id, b.manual ? "capture.manual" : "capture.started", {});
+    await audit.log(user, enc.id, b.manual ? "capture.manual" : "capture.started", {});
   }
-  if (b.action === "pause") { patch.status = "paused"; audit.log(user.id, enc.id, "capture.paused", {}); }
-  if (b.action === "resume") { patch.status = "recording"; audit.log(user.id, enc.id, "capture.resumed", {}); }
+  if (b.action === "pause") { patch.status = "paused"; await audit.log(user, enc.id, "capture.paused", {}); }
+  if (b.action === "resume") { patch.status = "recording"; await audit.log(user, enc.id, "capture.resumed", {}); }
   if (b.action === "reset") {
     if (enc.status === "signed") return fail("Signed visits cannot be reset", 409);
-    utterances.clear(enc.id);
+    await utterances.clear(enc.id);
     patch.status = "scheduled";
     patch.startedAt = null;
     patch.endedAt = null;
     patch.durationS = 0;
-    audit.log(user.id, enc.id, "capture.reset", {});
+    await audit.log(user, enc.id, "capture.reset", {});
   }
   if (b.durationS !== undefined) patch.durationS = Math.max(0, Math.round(b.durationS));
-  return json({ encounter: encounters.update(user.id, enc.id, patch) });
+  return json({ encounter: await encounters.update(user, enc.id, patch) });
 });

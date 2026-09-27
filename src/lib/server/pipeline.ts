@@ -18,6 +18,7 @@ import { deleteAudio, finalPass, localDiarize, purgeExpired, retentionDays } fro
 import { checkInterpretation } from "../engine/interpreter";
 import { buildClaim, claimStatus } from "../engine/billing";
 import { buildPriorAuths } from "../engine/priorauth";
+import { canSign, Forbidden } from "./policy";
 import { artifacts, audit, claims, consents, encounters, notes, orders, patients, styleRules, templates, utterances, users, type User } from "./repo";
 
 export const CONSENT_SCRIPT_VERSION = "2026.09-a";
@@ -32,7 +33,7 @@ export function consentScript(clinician: string, stateCode: string) {
   };
 }
 
-export function recordConsent(user: User, enc: Encounter, input: { decision: "granted" | "declined"; method: ConsentRecord["method"]; state: string; othersPresent: boolean }) {
+export async function recordConsent(user: User, enc: Encounter, input: { decision: "granted" | "declined"; method: ConsentRecord["method"]; state: string; othersPresent: boolean }) {
   const { allParty, stateName } = consentScript(user.name, input.state);
   const when = new Date().toISOString();
   const statement =
@@ -40,23 +41,27 @@ export function recordConsent(user: User, enc: Encounter, input: { decision: "gr
       ? `${input.method === "verbal" ? "Verbal" : input.method === "written" ? "Written" : "Patient-device"} consent for AI-assisted documentation was obtained by ${user.name} at ${when} using consent script ${CONSENT_SCRIPT_VERSION}. Visit location: ${stateName}${allParty ? " (all-party consent state" + (input.othersPresent ? "; all parties present consented" : "") + ")" : ""}.`
       : `Patient declined AI-assisted documentation at ${when}. No audio was captured; documentation will be completed manually.`;
   const digest = createHash("sha256").update(JSON.stringify({ enc: enc.id, user: user.id, ...input, statement, script: CONSENT_SCRIPT_VERSION })).digest("hex");
-  const rec = consents.add({ encounterId: enc.id, userId: user.id, decision: input.decision, method: input.method, state: input.state, allParty, othersPresent: input.othersPresent, scriptVersion: CONSENT_SCRIPT_VERSION, statement, digest });
-  audit.log(user.id, enc.id, input.decision === "granted" ? "consent.granted" : "consent.declined", { method: input.method, state: input.state, digest });
+  const rec = await consents.add({ encounterId: enc.id, userId: user.id, decision: input.decision, method: input.method, state: input.state, allParty, othersPresent: input.othersPresent, scriptVersion: CONSENT_SCRIPT_VERSION, statement, digest });
+  await audit.log(user, enc.id, input.decision === "granted" ? "consent.granted" : "consent.declined", { method: input.method, state: input.state, digest });
   return rec;
 }
 
-function templateFor(user: User, enc: Encounter) {
-  return templates.get(user.id, enc.templateId ?? user.prefs.defaultTemplate ?? "soap") ?? systemTemplate("soap")!;
+async function templateFor(user: User, enc: Encounter) {
+  return (await templates.get(user, enc.templateId ?? user.prefs.defaultTemplate ?? "soap")) ?? systemTemplate("soap")!;
 }
 
-export function factsFor(user: User, enc: Encounter): { facts: Facts; patient: Patient | null } {
-  const patient = enc.patientId ? patients.get(user.id, enc.patientId) ?? null : null;
-  const utts = utterances.list(enc.id);
+export async function clinicianOf(enc: Encounter) {
+  return (await users.byId(enc.userId)) ?? { name: "Clinician", specialty: "", id: enc.userId };
+}
+
+export async function factsFor(user: User, enc: Encounter): Promise<{ facts: Facts; patient: Patient | null }> {
+  const patient = enc.patientId ? (await patients.get(user, enc.patientId)) ?? null : null;
+  const utts = await utterances.list(enc.id);
   return { facts: extractFacts(utts, patient?.chart, { pronouns: patient?.pronouns, sex: patient?.sex }), patient };
 }
 
-export function liveCoverage(user: User, enc: Encounter) {
-  const { facts } = factsFor(user, enc);
+export async function liveCoverage(user: User, enc: Encounter) {
+  const { facts } = await factsFor(user, enc);
   return {
     coverage: computeCoverage(facts, { visitType: enc.visitType }),
     snapshot: {
@@ -75,24 +80,25 @@ export interface ProcessResult {
 }
 
 export async function processEncounter(user: User, encId: string, opts: { templateId?: string; engine?: "local" | "auto" } = {}): Promise<ProcessResult> {
-  let enc = encounters.get(user.id, encId);
+  let enc = await encounters.get(user, encId);
   if (!enc) throw new Error("Encounter not found");
-  if (opts.templateId && opts.templateId !== enc.templateId) enc = encounters.update(user.id, encId, { templateId: opts.templateId })!;
-  const template = templateFor(user, enc);
+  if (opts.templateId && opts.templateId !== enc.templateId) enc = (await encounters.update(user, encId, { templateId: opts.templateId }))!;
+  const template = await templateFor(user, enc);
+  const clinician = await clinicianOf(enc);
   const warnings: string[] = [];
   const started = Date.now();
-  if (opts.engine !== "local" && user.prefs.finalPass !== false && !utterances.list(enc.id).some((u) => u.source === "final")) {
+  if (opts.engine !== "local" && user.prefs.finalPass !== false && !(await utterances.list(enc.id)).some((u) => u.source === "final")) {
     try {
       await finalPass(user, enc);
     } catch (err) {
       warnings.push(`High-accuracy re-transcription was unavailable (${err instanceof Error ? err.message : "error"}); the live transcript was used.`);
     }
   }
-  localDiarize(user, enc);
-  const utts = utterances.list(enc.id);
+  await localDiarize(user, enc);
+  const utts = await utterances.list(enc.id);
   if (!utts.length) throw new Error("Audio was recorded but no transcript is available. Add DEEPGRAM_API_KEY for server-side transcription, or type the conversation.");
-  const { facts, patient } = factsFor(user, enc);
-  const rules = styleRules.list(user.id);
+  const { facts, patient } = await factsFor(user, enc);
+  const rules = await styleRules.list(enc.userId);
   const interpretation = checkInterpretation(utts);
 
   let note: Note | null = null;
@@ -112,7 +118,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   const omissions = detectOmissions(note, facts, template);
   const minutes = Math.round((enc.durationS || (utts.at(-1)?.tEnd ?? 0)) / 60);
   const pediatric = patient ? ageFrom(patient.dob) < 18 : false;
-  const priorVisits = encounters.list(user.id, { patientId: enc.patientId ?? "__none__" }).filter((e) => e.id !== enc!.id && e.status === "signed").length;
+  const priorVisits = (await encounters.list(user, { patientId: enc.patientId ?? "__none__" })).filter((e) => e.id !== enc!.id && e.status === "signed").length;
   const patientType = enc.visitType === "new" || (!patient?.chart.priorVisits?.length && !priorVisits) ? "new" : "established";
   const coding = computeCoding(facts, { patientType, minutes, chart: patient?.chart, pediatric });
   const staged = stageOrders(facts, { chart: patient?.chart, ageYears: patient ? ageFrom(patient.dob) : undefined, now: new Date(enc.scheduledAt) });
@@ -131,29 +137,29 @@ export async function processEncounter(user: User, encId: string, opts: { templa
     }
     if (s) summaries[outLang] = s;
   }
-  const letters = buildReferralLetters(facts, note, patient, { name: user.name, specialty: user.specialty }, new Date(enc.scheduledAt));
+  const letters = buildReferralLetters(facts, note, patient, { name: clinician.name, specialty: clinician.specialty }, new Date(enc.scheduledAt));
 
-  notes.create(enc.id, note);
-  artifacts.set(enc.id, "coding", coding);
-  artifacts.set(enc.id, "coverage", coverage);
-  artifacts.set(enc.id, "omissions", omissions);
-  artifacts.set(enc.id, "summaries", summaries);
-  artifacts.set(enc.id, "letters", letters);
-  artifacts.set(enc.id, "interpreter", interpretation);
-  artifacts.set(enc.id, "facts", {
+  await notes.create(enc.id, note);
+  await artifacts.set(enc.id, "coding", coding);
+  await artifacts.set(enc.id, "coverage", coverage);
+  await artifacts.set(enc.id, "omissions", omissions);
+  await artifacts.set(enc.id, "summaries", summaries);
+  await artifacts.set(enc.id, "letters", letters);
+  await artifacts.set(enc.id, "interpreter", interpretation);
+  await artifacts.set(enc.id, "facts", {
     chiefComplaint: facts.chiefComplaint,
     problems: facts.problems.map((p) => ({ key: p.key, label: p.label, icd10: p.icd10, status: p.status ?? null })),
     interpreter: facts.interpreter,
     languages: facts.languages,
   });
-  const savedOrders = orders.replace(enc.id, staged);
+  const savedOrders = await orders.replace(enc.id, staged);
   const billCtx = billingContext(enc, patient, patientType, minutes, savedOrders);
-  artifacts.set(enc.id, "claim", buildClaim(facts, coding, billCtx));
-  const prevPa = artifacts.get<import("../engine/priorauth").PaPacket[]>(enc.id, "priorAuth") ?? [];
-  artifacts.set(enc.id, "priorAuth", buildPriorAuths(facts, coding, savedOrders, paContext(user, enc, patient)).map((p) => ({ ...p, submission: prevPa.find((x) => x.service === p.service)?.submission ?? p.submission })));
-  encounters.update(user.id, enc.id, { status: "review", endedAt: enc.endedAt ?? new Date().toISOString() });
+  await artifacts.set(enc.id, "claim", buildClaim(facts, coding, billCtx));
+  const prevPa = (await artifacts.get<import("../engine/priorauth").PaPacket[]>(enc.id, "priorAuth")) ?? [];
+  await artifacts.set(enc.id, "priorAuth", buildPriorAuths(facts, coding, savedOrders, paContext(clinician.name, enc, patient)).map((p) => ({ ...p, submission: prevPa.find((x) => x.service === p.service)?.submission ?? p.submission })));
+  await encounters.update(user, enc.id, { status: "review", endedAt: enc.endedAt ?? new Date().toISOString() });
   const stats = supportStats(note);
-  audit.log(user.id, enc.id, "note.generated", { engine: note.meta.engine, model: note.meta.model ?? null, template: template.id, ms: Date.now() - started, sentences: stats.total, supportedPct: stats.pct, omissions: omissions.length });
+  await audit.log(user, enc.id, "note.generated", { engine: note.meta.engine, model: note.meta.model ?? null, template: template.id, ms: Date.now() - started, sentences: stats.total, supportedPct: stats.pct, omissions: omissions.length });
   return { note, warnings };
 }
 
@@ -161,44 +167,46 @@ function billingContext(enc: Encounter, patient: Patient | null, patientType: "n
   return { age: patient ? ageFrom(patient.dob, new Date(enc.scheduledAt)) : 40, sex: patient?.sex ?? "X", setting: enc.setting, patientType, chart: patient?.chart, minutes, orders: list, at: new Date(enc.scheduledAt), final } as const;
 }
 
-function paContext(user: User, enc: Encounter, patient: Patient | null) {
+function paContext(clinicianName: string, enc: Encounter, patient: Patient | null) {
   const bmi = Number.parseFloat(patient?.chart.vitals?.BMI ?? "");
-  return { chart: patient?.chart, patientName: patient?.name ?? "Patient", dob: patient?.dob ?? "", clinician: user.name, date: new Date(enc.scheduledAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }), bmi: Number.isFinite(bmi) ? bmi : undefined };
+  return { chart: patient?.chart, patientName: patient?.name ?? "Patient", dob: patient?.dob ?? "", clinician: clinicianName, date: new Date(enc.scheduledAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }), bmi: Number.isFinite(bmi) ? bmi : undefined };
 }
 
-export function finalizeClaim(user: User, enc: Encounter) {
-  const { facts, patient } = factsFor(user, enc);
-  const coding = artifacts.get<ReturnType<typeof computeCoding>>(enc.id, "coding");
+export async function finalizeClaim(user: User, enc: Encounter) {
+  const { facts, patient } = await factsFor(user, enc);
+  const coding = await artifacts.get<ReturnType<typeof computeCoding>>(enc.id, "coding");
   if (!coding) return null;
   const patientType = coding.em.patientType;
   const minutes = Math.round((enc.durationS || 0) / 60);
-  const claim = buildClaim(facts, coding, billingContext(enc, patient, patientType, minutes, orders.list(enc.id), true));
-  const existing = claims.get(enc.id);
+  const claim = buildClaim(facts, coding, billingContext(enc, patient, patientType, minutes, await orders.list(enc.id), true));
+  const existing = await claims.get(enc.id);
   const status = claimStatus(claim);
-  return claims.save(user.id, enc.id, status, claim, [...(existing?.history ?? []), { at: new Date().toISOString(), action: "created", note: status === "ready" ? "No edits; ready to submit" : `${claim.edits.filter((e) => e.severity !== "info").length} edit(s) need review` }]);
+  return claims.save(enc.userId, enc.id, status, claim, [...(existing?.history ?? []), { at: new Date().toISOString(), action: "created", note: status === "ready" ? "No edits; ready to submit" : `${claim.edits.filter((e) => e.severity !== "info").length} edit(s) need review` }]);
 }
 
-export function saveNoteEdits(user: User, encId: string, note: Note) {
-  const enc = encounters.get(user.id, encId);
+export async function saveNoteEdits(user: User, encId: string, note: Note) {
+  const enc = await encounters.get(user, encId);
   if (!enc) throw new Error("Encounter not found");
   if (enc.status === "signed") throw new Error("Signed notes are locked. Create an addendum instead.");
-  const { facts, patient } = factsFor(user, enc);
-  const template = templateFor(user, enc);
-  const scored = scoreSupport(note, utterances.list(enc.id), patient?.chart);
-  notes.saveContent(enc.id, scored);
+  const { facts, patient } = await factsFor(user, enc);
+  const template = await templateFor(user, enc);
+  const scored = scoreSupport(note, await utterances.list(enc.id), patient?.chart);
+  await notes.saveContent(enc.id, scored);
   const omissions: OmissionFlag[] = detectOmissions(scored, facts, template);
-  artifacts.set(enc.id, "omissions", omissions);
+  await artifacts.set(enc.id, "omissions", omissions);
   return { note: scored, omissions };
 }
 
-export function signEncounter(user: User, encId: string, opts: { force?: boolean } = {}) {
-  const enc = encounters.get(user.id, encId);
+export async function signEncounter(user: User, encId: string, opts: { force?: boolean } = {}) {
+  const enc = await encounters.get(user, encId);
   if (!enc) throw new Error("Encounter not found");
   if (enc.status === "signed") return { signed: true, blockers: [] as string[] };
-  const rec = notes.latest(enc.id);
+  if (!canSign(user, enc)) throw new Forbidden(user.role === "scribe" ? "Scribes can prepare notes but only the treating clinician can sign." : "Only the treating clinician can sign this note.");
+  const rec = await notes.latest(enc.id);
   if (!rec) throw new Error("Generate a note before signing");
-  const staged = orders.list(enc.id).filter((o) => o.status === "staged");
-  const blocked = orders.list(enc.id).filter((o) => o.status === "accepted" && o.alerts.some((a) => a.level === "block"));
+  const orderList = await orders.list(enc.id);
+  const staged = orderList.filter((o) => o.status === "staged");
+  const blocked = orderList.filter((o) => o.status === "accepted" && o.alerts.some((a) => a.level === "block"));
   const unsupported = rec.content.sections.flatMap((s) => s.sentences).filter((s) => !s.pending && s.support === "none" && s.kind !== "default");
   const blockers: string[] = [];
   if (blocked.length) blockers.push(`${blocked.length} accepted order(s) have a blocking safety alert: ${blocked.map((o) => o.name).join(", ")}.`);
@@ -208,7 +216,7 @@ export function signEncounter(user: User, encId: string, opts: { force?: boolean
   }
   if (blockers.length && (blocked.length || !opts.force)) return { signed: false, blockers };
 
-  const consent = consents.latest(enc.id);
+  const consent = await consents.latest(enc.id);
   const final: Note = {
     ...rec.content,
     sections: rec.content.sections.map((s) => ({ ...s, sentences: s.sentences.filter((x) => !x.pending) })),
@@ -216,21 +224,21 @@ export function signEncounter(user: User, encId: string, opts: { force?: boolean
   if (consent?.decision === "granted" && !final.sections.some((s) => s.key === "__consent")) {
     final.sections.push({ key: "__consent", title: "Documentation Consent", format: "paragraph", sentences: [{ id: "consent_1", text: consent.statement, evidence: [], kind: "system", support: "strong" }] });
   }
-  notes.saveContent(enc.id, final);
-  notes.setStatus(enc.id, "signed");
+  await notes.saveContent(enc.id, final);
+  await notes.setStatus(enc.id, "signed");
   const signedAt = new Date().toISOString();
-  encounters.update(user.id, enc.id, { status: "signed", signedAt });
+  await encounters.update(user, enc.id, { status: "signed", signedAt });
 
   const candidates = learnFromEdits(rec.generated, final);
-  for (const c of candidates) styleRules.learn(user.id, c);
+  for (const c of candidates) await styleRules.learn(enc.userId, c);
   const genText = JSON.stringify(rec.generated.sections.map((s) => s.sentences.filter((x) => !x.pending).map((x) => x.text)));
   const finText = JSON.stringify(final.sections.filter((s) => s.key !== "__consent").map((s) => s.sentences.map((x) => x.text)));
   const edited = genText !== finText;
   const editRatio = editDistanceRatio(genText, finText);
-  audit.log(user.id, enc.id, "note.signed", { edited, editRatio, learned: candidates.length, forced: !!opts.force, overrides: blockers });
-  finalizeClaim(user, encounters.get(user.id, enc.id)!);
-  if (retentionDays(user) === 0) deleteAudio(user.id, enc.id, "signed (retention: delete at signing)");
-  purgeExpired(user);
+  await audit.log(user, enc.id, "note.signed", { edited, editRatio, learned: candidates.length, forced: !!opts.force, overrides: blockers });
+  await finalizeClaim(user, (await encounters.get(user, enc.id))!);
+  if (retentionDays(user) === 0) await deleteAudio(user, enc.id, "signed (retention: delete at signing)");
+  await purgeExpired(user);
   return { signed: true, blockers: [] as string[], learned: candidates.length };
 }
 
@@ -244,11 +252,11 @@ function editDistanceRatio(a: string, b: string) {
 }
 
 export async function assist(user: User, encId: string, message: string) {
-  const enc = encounters.get(user.id, encId);
+  const enc = await encounters.get(user, encId);
   if (!enc) throw new Error("Encounter not found");
-  const rec = notes.latest(enc.id);
-  const utts = utterances.list(enc.id);
-  const patient = enc.patientId ? patients.get(user.id, enc.patientId) : undefined;
+  const rec = await notes.latest(enc.id);
+  const utts = await utterances.list(enc.id);
+  const patient = enc.patientId ? await patients.get(user, enc.patientId) : undefined;
   let result = localAssist(message, rec?.content ?? null, utts, patient?.chart);
   if (result.action === "none" && llmEnabled()) {
     try {
@@ -270,19 +278,22 @@ export async function assist(user: User, encId: string, message: string) {
     }
   }
   if (result.note && enc.status !== "signed") {
-    const saved = saveNoteEdits(user, enc.id, result.note);
+    const saved = await saveNoteEdits(user, enc.id, result.note);
     result = { ...result, note: saved.note };
   }
-  audit.log(user.id, enc.id, "assist", { action: result.action, message: message.slice(0, 200) });
+  await audit.log(user, enc.id, "assist", { action: result.action, message: message.slice(0, 200) });
   return result;
 }
 
-export function exportFhir(user: User, encId: string) {
-  const enc = encounters.get(user.id, encId);
+export async function exportFhir(user: User, encId: string) {
+  const enc = await encounters.get(user, encId);
   if (!enc) throw new Error("Encounter not found");
-  const rec = notes.latest(enc.id);
-  const patient = enc.patientId ? patients.get(user.id, enc.patientId) : undefined;
-  const coding = artifacts.get<ReturnType<typeof computeCoding>>(enc.id, "coding");
+  const rec = await notes.latest(enc.id);
+  const patient = enc.patientId ? await patients.get(user, enc.patientId) : undefined;
+  const coding = await artifacts.get<ReturnType<typeof computeCoding>>(enc.id, "coding");
+  const clinician = await clinicianOf(enc);
+  const title = (await templateFor(user, enc)).name;
+  const orderList = await orders.list(enc.id);
   const text = rec ? noteText(rec.content) : "";
   const patientRef = { reference: `Patient/${patient?.id ?? "unknown"}`, display: patient?.name };
   const composition = {
@@ -293,9 +304,9 @@ export function exportFhir(user: User, encId: string) {
     subject: patientRef,
     encounter: { reference: `Encounter/${enc.id}` },
     date: enc.signedAt ?? new Date().toISOString(),
-    author: [{ reference: `Practitioner/${user.id}`, display: user.name }],
-    title: templateFor(user, enc).name,
-    attester: enc.signedAt ? [{ mode: "legal", time: enc.signedAt, party: { reference: `Practitioner/${user.id}` } }] : undefined,
+    author: [{ reference: `Practitioner/${enc.userId}`, display: clinician.name }],
+    title,
+    attester: enc.signedAt ? [{ mode: "legal", time: enc.signedAt, party: { reference: `Practitioner/${enc.userId}` } }] : undefined,
     section: (rec?.content.sections ?? []).map((s) => ({
       title: s.title,
       text: { status: "generated", div: `<div xmlns="http://www.w3.org/1999/xhtml">${s.sentences.filter((x) => !x.pending).map((x) => `<p>${escapeXml(x.text)}</p>`).join("")}</div>` },
@@ -321,9 +332,9 @@ export function exportFhir(user: User, encId: string) {
     content: [{ attachment: { contentType: "text/plain", data: Buffer.from(text).toString("base64"), title: composition.title } }],
     context: { encounter: [{ reference: `Encounter/${enc.id}` }] },
   };
-  const serviceRequests = orders.list(enc.id).filter((o) => o.status === "accepted" && o.kind !== "medication" && o.kind !== "follow_up").map((o) => ({ resourceType: "ServiceRequest", id: `sr-${o.id}`, status: "active", intent: "order", code: { text: o.name }, subject: patientRef, encounter: { reference: `Encounter/${enc.id}` }, note: o.detail ? [{ text: o.detail }] : undefined }));
-  const medRequests = orders.list(enc.id).filter((o) => o.status === "accepted" && o.kind === "medication").map((o) => ({ resourceType: "MedicationRequest", id: `mr-${o.id}`, status: "active", intent: "order", medicationCodeableConcept: { text: o.name }, subject: patientRef, dosageInstruction: o.detail ? [{ text: o.detail }] : undefined }));
-  audit.log(user.id, enc.id, "export.fhir", {});
+  const serviceRequests = orderList.filter((o) => o.status === "accepted" && o.kind !== "medication" && o.kind !== "follow_up").map((o) => ({ resourceType: "ServiceRequest", id: `sr-${o.id}`, status: "active", intent: "order", code: { text: o.name }, subject: patientRef, encounter: { reference: `Encounter/${enc.id}` }, note: o.detail ? [{ text: o.detail }] : undefined }));
+  const medRequests = orderList.filter((o) => o.status === "accepted" && o.kind === "medication").map((o) => ({ resourceType: "MedicationRequest", id: `mr-${o.id}`, status: "active", intent: "order", medicationCodeableConcept: { text: o.name }, subject: patientRef, dosageInstruction: o.detail ? [{ text: o.detail }] : undefined }));
+  await audit.log(user, enc.id, "export.fhir", {});
   return {
     resourceType: "Bundle",
     type: "document",

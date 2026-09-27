@@ -3,7 +3,7 @@ import { authed, fail, json } from "@/lib/server/http";
 import { audioChunks, encounters } from "@/lib/server/repo";
 
 export const POST = authed<{ id: string }>(async (req, user, { id }) => {
-  const enc = encounters.get(user.id, id);
+  const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
   if (enc.status !== "recording" && enc.status !== "paused") return fail("Capture is not active for this visit", 409);
   const url = new URL(req.url);
@@ -13,17 +13,17 @@ export const POST = authed<{ id: string }>(async (req, user, { id }) => {
   const data = Buffer.from(await req.arrayBuffer());
   if (!data.length) return fail("Empty audio chunk");
   try {
-    const count = saveChunk(enc.id, seq, t, mime, data);
+    const count = await saveChunk(enc.id, seq, t, mime, data);
     return json({ ok: true, seq, chunks: count }, 201);
   } catch (err) {
     return fail(err instanceof Error ? err.message : "Could not store audio", 400);
   }
 });
 
-export const GET = authed<{ id: string }>((req, user, { id }) => {
-  const enc = encounters.get(user.id, id);
+export const GET = authed<{ id: string }>(async (req, user, { id }) => {
+  const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
-  const rec = recording(enc.id);
+  const rec = await recording(enc.id);
   if (!rec) return fail("No audio is stored for this visit", 404);
   const range = req.headers.get("range");
   const total = rec.buffer.length;
@@ -40,9 +40,9 @@ export const GET = authed<{ id: string }>((req, user, { id }) => {
   return new Response(new Uint8Array(rec.buffer), { headers: { "content-type": rec.mime, "accept-ranges": "bytes", "content-length": String(total), "cache-control": "private, no-store" } });
 });
 
-export const DELETE = authed<{ id: string }>((_req, user, { id }) => {
-  const enc = encounters.get(user.id, id);
+export const DELETE = authed<{ id: string }>(async (_req, user, { id }) => {
+  const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
-  deleteAudio(user.id, enc.id, "deleted by clinician");
-  return json({ ok: true, chunks: audioChunks.list(enc.id).length });
+  await deleteAudio(user, enc.id, "deleted by clinician");
+  return json({ ok: true, chunks: (await audioChunks.list(enc.id)).length });
 });

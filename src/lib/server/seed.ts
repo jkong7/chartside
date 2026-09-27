@@ -1,10 +1,9 @@
-import { run } from "../db";
 import { DEMO_PATIENTS, type DemoPatient } from "../demo/scripts";
 import type { Note } from "../types";
 import { encounters, notes, orders, patients, utterances, type User } from "./repo";
 import { processEncounter, recordConsent, saveNoteEdits, signEncounter } from "./pipeline";
 import { claimAction } from "./revenue";
-import { claims } from "./repo";
+import { audit, claims } from "./repo";
 
 const ARCHIVE: { from: string; name: string; first: string; dob: string; mrn: string; daysAgo: number; time: string; edit: boolean; late?: boolean }[] = [
   { from: "gonzalez", name: "Linda Park", first: "Linda", dob: "1964-08-02", mrn: "099120", daysAgo: 13, time: "09:00", edit: true },
@@ -26,8 +25,8 @@ export function localDate(daysAgo: number, time: string) {
   return d;
 }
 
-function addPatient(userId: string, p: DemoPatient, override?: { name: string; dob: string; mrn: string }) {
-  return patients.create(userId, {
+function addPatient(user: User, p: DemoPatient, override?: { name: string; dob: string; mrn: string }) {
+  return patients.create(user, {
     mrn: override?.mrn ?? p.mrn,
     name: override?.name ?? p.name,
     dob: override?.dob ?? p.dob,
@@ -38,11 +37,11 @@ function addPatient(userId: string, p: DemoPatient, override?: { name: string; d
   });
 }
 
-export function seedSchedule(user: User) {
+export async function seedSchedule(user: User) {
   const created = [];
   for (const p of DEMO_PATIENTS) {
-    const pat = addPatient(user.id, p);
-    const enc = encounters.create(user.id, {
+    const pat = await addPatient(user, p);
+    const enc = await encounters.create(user, {
       patientId: pat.id,
       scheduledAt: localDate(0, p.visit.time).toISOString(),
       visitType: p.visit.type,
@@ -69,9 +68,9 @@ function editNote(note: Note): Note {
 export async function seedArchive(user: User) {
   for (const a of ARCHIVE) {
     const src = DEMO_PATIENTS.find((p) => p.key === a.from)!;
-    const pat = addPatient(user.id, src, { name: a.name, dob: a.dob, mrn: a.mrn });
+    const pat = await addPatient(user, src, { name: a.name, dob: a.dob, mrn: a.mrn });
     const start = localDate(a.daysAgo, a.time);
-    const enc = encounters.create(user.id, {
+    const enc = await encounters.create(user, {
       patientId: pat.id,
       scheduledAt: start.toISOString(),
       visitType: src.visit.type,
@@ -79,10 +78,10 @@ export async function seedArchive(user: User) {
       templateId: src.visit.template,
       outputLang: src.visit.outputLang ?? "en",
     });
-    recordConsent(user, enc, { decision: "granted", method: "verbal", state: user.prefs.state ?? "IL", othersPresent: false });
+    await recordConsent(user, enc, { decision: "granted", method: "verbal", state: user.prefs.state ?? "IL", othersPresent: false });
     const firstName = src.name.split(" ")[0];
     let t = 0;
-    utterances.append(
+    await utterances.append(
       enc.id,
       src.script.map((l) => {
         const text = l.t.replace(new RegExp(`\\b${firstName}\\b`, "g"), a.first);
@@ -93,30 +92,30 @@ export async function seedArchive(user: User) {
       }),
     );
     const ended = new Date(start.getTime() + t * 1000);
-    encounters.update(user.id, enc.id, { status: "processing", startedAt: start.toISOString(), endedAt: ended.toISOString(), durationS: Math.round(t) });
+    await encounters.update(user, enc.id, { status: "processing", startedAt: start.toISOString(), endedAt: ended.toISOString(), durationS: Math.round(t) });
     await processEncounter(user, enc.id, { engine: "local" });
-    for (const o of orders.list(enc.id)) if (o.status === "staged") orders.setStatus(enc.id, o.id, o.alerts.some((x) => x.level === "block") ? "rejected" : "accepted");
-    const rec = notes.latest(enc.id)!;
-    if (a.edit) saveNoteEdits(user, enc.id, editNote(rec.content));
-    signEncounter(user, enc.id, { force: true });
+    for (const o of await orders.list(enc.id)) if (o.status === "staged") await orders.setStatus(enc.id, o.id, o.alerts.some((x) => x.level === "block") ? "rejected" : "accepted");
+    const rec = (await notes.latest(enc.id))!;
+    if (a.edit) await saveNoteEdits(user, enc.id, editNote(rec.content));
+    await signEncounter(user, enc.id, { force: true });
     const signedAt = a.late ? new Date(start.getTime()).setHours(21, 40 + (a.daysAgo % 15), 0, 0) : ended.getTime() + (4 + (a.daysAgo % 7) * 3) * 60000;
     const iso = new Date(signedAt).toISOString();
-    run("UPDATE encounters SET signed_at = ? WHERE id = ?", iso, enc.id);
-    run("UPDATE audit SET created_at = ? WHERE encounter_id = ? AND action = 'note.signed'", iso, enc.id);
-    run("UPDATE audit SET created_at = ? WHERE encounter_id = ? AND action != 'note.signed'", ended.toISOString(), enc.id);
-    const claim = claims.get(enc.id);
+    await encounters.setSignedAt(enc.id, iso);
+    await audit.retime(enc.id, "note.signed", iso);
+    await audit.retime(enc.id, "note.signed", ended.toISOString(), true);
+    const claim = await claims.get(enc.id);
     if (claim && !claim.content.edits.some((e) => e.severity === "error")) {
       if (a.daysAgo >= 7) {
-        claimAction(user, enc.id, "approve", {});
-        claimAction(user, enc.id, "submit", {});
+        await claimAction(user, enc.id, "approve", {});
+        await claimAction(user, enc.id, "submit", {});
       } else if (a.daysAgo === 5) {
-        claimAction(user, enc.id, "hold", { note: "Verify secondary insurance before submitting" });
+        await claimAction(user, enc.id, "hold", { note: "Verify secondary insurance before submitting" });
       }
     }
   }
 }
 
 export async function seedDemo(user: User, opts: { archive?: boolean } = {}) {
-  seedSchedule(user);
+  await seedSchedule(user);
   if (opts.archive !== false) await seedArchive(user);
 }

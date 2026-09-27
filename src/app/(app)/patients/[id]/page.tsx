@@ -14,9 +14,10 @@ export const dynamic = "force-dynamic";
 export default async function PatientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await requireUser();
-  const p = patients.get(user.id, id);
+  const p = await patients.get(user, id);
   if (!p) notFound();
-  const visits = encounters.list(user.id, { patientId: id }).reverse();
+  const visits = (await encounters.list(user, { patientId: id })).reverse();
+  const rows = await Promise.all(visits.map(async (e) => ({ e, coding: await artifacts.get<CodingResult>(e.id, "coding"), n: await notes.latest(e.id) })));
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 md:px-8 md:py-8">
       <Link href="/patients" className="text-sm text-ink-3 hover:text-ink">← Patients</Link>
@@ -36,9 +37,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
       </div>
       <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-ink-3">Visits</h2>
       <div className="card mt-2 divide-y divide-line">
-        {visits.map((e) => {
-          const coding = artifacts.get<CodingResult>(e.id, "coding");
-          const n = notes.latest(e.id);
+        {rows.map(({ e, coding, n }) => {
           return (
             <Link key={e.id} href={`/encounters/${e.id}`} className="flex items-center gap-4 px-4 py-3 hover:bg-sunken">
               <div className="w-28 text-sm">{new Date(e.scheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</div>

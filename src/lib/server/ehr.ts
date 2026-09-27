@@ -4,7 +4,7 @@ import { buildChart, buildDocumentReference, mapEncounter, mapPatient, type Fhir
 import { authorizeUrl, discover, exchangeCode, fhirRequest, fhirUserOf, normalizeIss, refreshToken, type TokenResponse } from "../fhir/smart";
 import type { Encounter } from "../types";
 import { noteText } from "./pipeline";
-import { artifacts, audit, consents, encounters, notes, patients, type User } from "./repo";
+import { artifacts, audit, consents, encounters, notes, patients, users, type User } from "./repo";
 
 export const EPIC_SANDBOX = "https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4";
 
@@ -47,9 +47,9 @@ export async function startLaunch(user: User, input: { iss: string; launch?: str
   const smart = await discover(iss);
   const { verifier, challenge } = pkcePair();
   const state = randomState();
-  run("DELETE FROM smart_launches WHERE created_at < ?", new Date(Date.now() - 15 * 60000).toISOString());
-  run("INSERT INTO smart_launches (state, user_id, iss, launch, verifier, token_endpoint, redirect_uri, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", state, user.id, iss, input.launch ?? null, verifier, smart.token_endpoint, input.redirectUri, now());
-  audit.log(user.id, null, input.launch ? "ehr.launch" : "ehr.connect", { iss });
+  await run("DELETE FROM smart_launches WHERE created_at < ?", new Date(Date.now() - 15 * 60000).toISOString());
+  await run("INSERT INTO smart_launches (state, user_id, iss, launch, verifier, token_endpoint, redirect_uri, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", state, user.id, iss, input.launch ?? null, verifier, smart.token_endpoint, input.redirectUri, now());
+  await audit.log(user, null, input.launch ? "ehr.launch" : "ehr.connect", { iss });
   return authorizeUrl(smart, { clientId: cfg.clientId, redirectUri: input.redirectUri, scope: input.launch ? cfg.ehrScope : cfg.standaloneScope, state, aud: iss, challenge, launch: input.launch });
 }
 
@@ -84,26 +84,26 @@ export interface Connection {
 const toConn = (r: ConnRow): Connection => ({ id: r.id, iss: r.iss, scope: r.scope, patient: r.patient, encounter: r.encounter, fhirUser: r.fhir_user, expiresAt: r.expires_at, hasRefresh: !!r.refresh_token, createdAt: r.created_at });
 
 export const connections = {
-  list: (userId: string) => all<ConnRow>("SELECT * FROM ehr_connections WHERE user_id = ? ORDER BY updated_at DESC", userId).map(toConn),
-  get: (userId: string, id: string) => {
-    const r = get<ConnRow>("SELECT * FROM ehr_connections WHERE user_id = ? AND id = ?", userId, id);
+  list: async (userId: string) => (await all<ConnRow>("SELECT * FROM ehr_connections WHERE user_id = ? ORDER BY updated_at DESC", userId)).map(toConn),
+  get: async (userId: string, id: string) => {
+    const r = await get<ConnRow>("SELECT * FROM ehr_connections WHERE user_id = ? AND id = ?", userId, id);
     return r ? toConn(r) : undefined;
   },
-  latestFor: (userId: string, iss: string) => {
-    const r = get<ConnRow>("SELECT * FROM ehr_connections WHERE user_id = ? AND iss = ? ORDER BY updated_at DESC LIMIT 1", userId, normalizeIss(iss));
+  latestFor: async (userId: string, iss: string) => {
+    const r = await get<ConnRow>("SELECT * FROM ehr_connections WHERE user_id = ? AND iss = ? ORDER BY updated_at DESC LIMIT 1", userId, normalizeIss(iss));
     return r ? toConn(r) : undefined;
   },
   remove: (userId: string, id: string) => run("DELETE FROM ehr_connections WHERE user_id = ? AND id = ?", userId, id),
 };
 
-function saveConnection(userId: string, iss: string, tokenEndpoint: string, t: TokenResponse, existingId?: string) {
+async function saveConnection(userId: string, iss: string, tokenEndpoint: string, t: TokenResponse, existingId?: string) {
   const id = existingId ?? uid("ehr_");
   const expires = new Date(Date.now() + (t.expires_in ?? 3600) * 1000 - 30000).toISOString();
   const refresh = t.refresh_token ? seal(t.refresh_token) : null;
   if (existingId) {
-    run("UPDATE ehr_connections SET access_token = ?, refresh_token = COALESCE(?, refresh_token), expires_at = ?, scope = COALESCE(?, scope), updated_at = ? WHERE id = ?", seal(t.access_token), refresh, expires, t.scope ?? null, now(), id);
+    await run("UPDATE ehr_connections SET access_token = ?, refresh_token = COALESCE(?, refresh_token), expires_at = ?, scope = COALESCE(?, scope), updated_at = ? WHERE id = ?", seal(t.access_token), refresh, expires, t.scope ?? null, now(), id);
   } else {
-    run(
+    await run(
       "INSERT INTO ehr_connections (id, user_id, iss, token_endpoint, access_token, refresh_token, expires_at, scope, patient, encounter, fhir_user, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       id, userId, iss, tokenEndpoint, seal(t.access_token), refresh, expires, t.scope ?? "", t.patient ?? null, t.encounter ?? null, fhirUserOf(t), now(), now(),
     );
@@ -112,14 +112,14 @@ function saveConnection(userId: string, iss: string, tokenEndpoint: string, t: T
 }
 
 export async function accessToken(userId: string, connId: string) {
-  const r = get<ConnRow>("SELECT * FROM ehr_connections WHERE user_id = ? AND id = ?", userId, connId);
+  const r = await get<ConnRow>("SELECT * FROM ehr_connections WHERE user_id = ? AND id = ?", userId, connId);
   if (!r) throw new Error("EHR connection not found");
   if (new Date(r.expires_at) > new Date()) return { token: unseal(r.access_token), iss: r.iss };
   if (!r.refresh_token) throw new Error("The EHR session expired. Relaunch Chartside from the EHR to reconnect.");
   const cfg = ehrConfig();
   const t = await refreshToken(r.token_endpoint, { refreshToken: unseal(r.refresh_token), clientId: cfg.clientId, clientSecret: cfg.clientSecret });
-  saveConnection(userId, r.iss, r.token_endpoint, t, r.id);
-  audit.log(userId, null, "ehr.token_refreshed", { iss: r.iss });
+  await saveConnection(userId, r.iss, r.token_endpoint, t, r.id);
+  await audit.log({ id: userId, orgId: null }, null, "ehr.token_refreshed", { iss: r.iss });
   return { token: t.access_token, iss: r.iss };
 }
 
@@ -147,29 +147,29 @@ export async function importPatient(user: User, connId: string, fhirPatientId: s
     conditions.entry = any.entry ?? [];
   }
   const demo = mapPatient(pat);
-  const existing = patients.byExternal(user.id, iss, fhirPatientId);
+  const existing = await patients.byExternal(user, iss, fhirPatientId);
   const chart = buildChart({ conditions, meds, allergies, labs, vitals }, existing?.chart);
   let patient = existing;
   if (patient) {
-    patients.link(user.id, patient.id, iss, fhirPatientId, demo);
-    patients.updateChart(user.id, patient.id, chart);
+    await patients.link(user, patient.id, iss, fhirPatientId, demo);
+    await patients.updateChart(user, patient.id, chart);
   } else {
-    patient = patients.create(user.id, { ...demo, pronouns: "", chart });
-    patients.link(user.id, patient.id, iss, fhirPatientId, demo);
+    patient = await patients.create(user, { ...demo, pronouns: "", chart });
+    await patients.link(user, patient.id, iss, fhirPatientId, demo);
   }
-  audit.log(user.id, null, "ehr.imported", { iss, problems: chart.problems.length, medications: chart.medications.length, allergies: chart.allergies.length, labs: chart.labs?.length ?? 0 });
-  return patients.get(user.id, patient.id)!;
+  await audit.log(user, null, "ehr.imported", { iss, problems: chart.problems.length, medications: chart.medications.length, allergies: chart.allergies.length, labs: chart.labs?.length ?? 0 });
+  return (await patients.get(user, patient.id))!;
 }
 
 export async function completeLaunch(user: User, state: string, code: string) {
-  const row = get<{ state: string; user_id: string; iss: string; launch: string | null; verifier: string; token_endpoint: string; redirect_uri: string; created_at: string }>("SELECT * FROM smart_launches WHERE state = ?", state);
-  run("DELETE FROM smart_launches WHERE state = ?", state);
+  const row = await get<{ state: string; user_id: string; iss: string; launch: string | null; verifier: string; token_endpoint: string; redirect_uri: string; created_at: string }>("SELECT * FROM smart_launches WHERE state = ?", state);
+  await run("DELETE FROM smart_launches WHERE state = ?", state);
   if (!row || row.user_id !== user.id) throw new Error("This sign-in link has expired. Start the launch again.");
   if (Date.now() - new Date(row.created_at).getTime() > 15 * 60000) throw new Error("The launch took too long. Start it again.");
   const cfg = ehrConfig();
   const t = await exchangeCode(row.token_endpoint, { code, redirectUri: row.redirect_uri, clientId: cfg.clientId, clientSecret: cfg.clientSecret, verifier: row.verifier });
-  const connId = saveConnection(user.id, row.iss, row.token_endpoint, t);
-  audit.log(user.id, null, "ehr.connected", { iss: row.iss, patient: t.patient ?? null, encounter: t.encounter ?? null, scope: t.scope ?? "" });
+  const connId = await saveConnection(user.id, row.iss, row.token_endpoint, t);
+  await audit.log(user, null, "ehr.connected", { iss: row.iss, patient: t.patient ?? null, encounter: t.encounter ?? null, scope: t.scope ?? "" });
   if (!t.patient) return { connectionId: connId, encounterId: null as string | null };
   const patient = await importPatient(user, connId, t.patient);
   let enc: Encounter | undefined;
@@ -178,7 +178,7 @@ export async function completeLaunch(user: User, state: string, code: string) {
   let reason = "";
   let telehealth = false;
   if (t.encounter) {
-    enc = encounters.byExternal(user.id, iss, t.encounter);
+    enc = await encounters.byExternal(user, iss, t.encounter);
     try {
       const e = await fhirRequest<FhirResource>(iss, token, `Encounter/${encodeURIComponent(t.encounter)}`);
       const m = mapEncounter(e.data);
@@ -190,16 +190,17 @@ export async function completeLaunch(user: User, state: string, code: string) {
     }
   }
   if (!enc) {
-    enc = encounters.create(user.id, { patientId: patient.id, scheduledAt: started, reason, visitType: "follow-up", templateId: user.prefs.defaultTemplate ?? "soap", setting: telehealth ? "telehealth" : "in-person", outputLang: patient.language !== "en" ? patient.language : "en" });
-    if (t.encounter) encounters.link(user.id, enc.id, iss, t.encounter);
+    enc = await encounters.create(user, { patientId: patient.id, scheduledAt: started, reason, visitType: "follow-up", templateId: user.prefs.defaultTemplate ?? "soap", setting: telehealth ? "telehealth" : "in-person", outputLang: patient.language !== "en" ? patient.language : "en" });
+    if (t.encounter) await encounters.link(user, enc.id, iss, t.encounter);
   }
-  artifacts.set(enc.id, "ehr_link", { connectionId: connId, iss, patient: t.patient, encounter: t.encounter ?? null, fhirUser: fhirUserOf(t), system: systemLabel(iss) });
-  audit.log(user.id, enc.id, "ehr.context", { iss, patient: t.patient, encounter: t.encounter ?? null });
+  await artifacts.set(enc.id, "ehr_link", { connectionId: connId, connectionOwner: user.id, iss, patient: t.patient, encounter: t.encounter ?? null, fhirUser: fhirUserOf(t), system: systemLabel(iss) });
+  await audit.log(user, enc.id, "ehr.context", { iss, patient: t.patient, encounter: t.encounter ?? null });
   return { connectionId: connId, encounterId: enc.id };
 }
 
 export interface EhrLink {
   connectionId: string;
+  connectionOwner?: string;
   iss: string;
   patient: string;
   encounter: string | null;
@@ -215,20 +216,21 @@ export interface EhrFiling {
 }
 
 export async function fileNote(user: User, encId: string): Promise<EhrFiling> {
-  const enc = encounters.get(user.id, encId);
+  const enc = await encounters.get(user, encId);
   if (!enc) throw new Error("Encounter not found");
-  const link = artifacts.get<EhrLink>(enc.id, "ehr_link");
+  const link = await artifacts.get<EhrLink>(enc.id, "ehr_link");
   if (!link) throw new Error("This visit was not launched from an EHR");
   if (enc.status !== "signed") throw new Error("Sign the note before filing it to the EHR");
   if (!link.encounter) {
     const f: EhrFiling = { status: "error", at: now(), message: "The EHR did not provide an encounter, which is required to file a note. Launch from an open encounter." };
-    artifacts.set(enc.id, "ehr_filing", f);
+    await artifacts.set(enc.id, "ehr_filing", f);
     return f;
   }
-  const rec = notes.latest(enc.id);
+  const rec = await notes.latest(enc.id);
   if (!rec) throw new Error("No note to file");
-  const consent = consents.latest(enc.id);
-  const text = `${noteText(rec.content)}${consent && !rec.content.sections.some((s) => s.key === "__consent") ? `\n\nDOCUMENTATION CONSENT\n${consent.statement}` : ""}\n\nSigned electronically by ${user.name} on ${new Date(enc.signedAt ?? Date.now()).toLocaleString("en-US")}.`;
+  const consent = await consents.latest(enc.id);
+  const clinician = (await users.byId(enc.userId)) ?? user;
+  const text = `${noteText(rec.content)}${consent && !rec.content.sections.some((s) => s.key === "__consent") ? `\n\nDOCUMENTATION CONSENT\n${consent.statement}` : ""}\n\nSigned electronically by ${clinician.name} on ${new Date(enc.signedAt ?? Date.now()).toLocaleString("en-US")}.`;
   const doc = buildDocumentReference({
     patientId: link.patient,
     encounterId: link.encounter,
@@ -240,23 +242,23 @@ export async function fileNote(user: User, encId: string): Promise<EhrFiling> {
   });
   let filing: EhrFiling;
   try {
-    const { token, iss } = await accessToken(user.id, link.connectionId);
+    const { token, iss } = await accessToken(link.connectionOwner ?? user.id, link.connectionId);
     const r = await fhirRequest<FhirResource>(iss, token, "DocumentReference", { method: "POST", body: doc });
     const ref = r.data?.id ? `DocumentReference/${r.data.id}` : (r.location?.match(/DocumentReference\/[^/]+/)?.[0] ?? "DocumentReference");
     filing = { status: "filed", at: now(), reference: ref };
-    audit.log(user.id, enc.id, "ehr.filed", { iss, reference: ref });
+    await audit.log(user, enc.id, "ehr.filed", { iss, reference: ref });
   } catch (err) {
     filing = { status: "error", at: now(), message: err instanceof Error ? err.message : "Filing failed" };
-    audit.log(user.id, enc.id, "ehr.file_failed", { message: filing.message });
+    await audit.log(user, enc.id, "ehr.file_failed", { message: filing.message });
   }
-  artifacts.set(enc.id, "ehr_filing", filing);
+  await artifacts.set(enc.id, "ehr_filing", filing);
   return filing;
 }
 
 export async function resyncPatient(user: User, patientId: string) {
-  const p = patients.get(user.id, patientId);
+  const p = await patients.get(user, patientId);
   if (!p?.externalId || !p.externalSystem) throw new Error("This patient is not linked to an EHR");
-  const conn = connections.latestFor(user.id, p.externalSystem);
+  const conn = await connections.latestFor(user.id, p.externalSystem);
   if (!conn) throw new Error("No active EHR connection. Relaunch Chartside from the EHR.");
   return importPatient(user, conn.id, p.externalId);
 }

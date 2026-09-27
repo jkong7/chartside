@@ -22,11 +22,15 @@ export function verifyPassword(password: string, stored: string) {
 export async function currentUser(): Promise<User | null> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  return sessions.user(token) ?? null;
+  return (await sessions.user(token)) ?? null;
 }
 
-export async function startSession(userId: string) {
-  const token = sessions.create(userId);
+export async function sessionToken() {
+  return (await cookies()).get(SESSION_COOKIE)?.value ?? null;
+}
+
+export async function startSession(userId: string, orgId: string | null = null) {
+  const token = await sessions.create(userId, orgId);
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
@@ -39,12 +43,12 @@ export async function startSession(userId: string) {
 export async function endSession() {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
-  if (token) sessions.remove(token);
+  if (token) await sessions.remove(token);
   jar.delete(SESSION_COOKIE);
 }
 
 export function publicUser(u: User) {
-  return { id: u.id, email: u.email, name: u.name, specialty: u.specialty, prefs: u.prefs };
+  return { id: u.id, email: u.email, name: u.name, specialty: u.specialty, prefs: u.prefs, orgId: u.orgId, orgName: u.orgName, role: u.role };
 }
 
 export { users };

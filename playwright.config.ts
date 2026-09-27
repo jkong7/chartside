@@ -34,7 +34,7 @@ export default defineConfig({
       env: { MOCK_DG_PORT: "3299" },
     },
     {
-      command: `rm -rf data/e2e.db data/e2e.db-wal data/e2e.db-shm data/audio && npm run build && npx next start -p ${PORT}`,
+      command: `rm -rf data/e2e.db data/e2e.db-wal data/e2e.db-shm data/audio && node tests/e2e/reset-pg.mjs && npm run build && npx next start -p ${PORT}`,
       url: `http://localhost:${PORT}/api/health`,
       timeout: 240_000,
       reuseExistingServer: false,
@@ -48,6 +48,7 @@ export default defineConfig({
         SMART_CLIENT_ID: "chartside-test",
         SMART_ISS: "http://localhost:3297/fhir",
         SMART_LABEL: "Epic",
+        ...(process.env.DATABASE_URL ? { DATABASE_URL: process.env.DATABASE_URL } : {}),
       },
     },
   ],

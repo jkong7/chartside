@@ -7,5 +7,5 @@ export const dynamic = "force-dynamic";
 
 export default async function InsightsPage() {
   const user = await requireUser();
-  return <InsightsView insights={computeInsights(user.id)} rules={styleRules.list(user.id)} />;
+  return <InsightsView insights={await computeInsights(user.id)} rules={await styleRules.list(user.id)} />;
 }

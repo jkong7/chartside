@@ -17,14 +17,14 @@ export default async function Settings({ searchParams }: { searchParams: Promise
     clientId: cfg.clientId ? `${cfg.clientId.slice(0, 6)}…` : null,
     defaultIss: cfg.defaultIss,
     label: cfg.label,
-    connections: connections.list(user.id).map((c) => ({ ...c, system: systemLabel(c.iss), expired: new Date(c.expiresAt) < new Date() })),
+    connections: (await connections.list(user.id)).map((c) => ({ ...c, system: systemLabel(c.iss), expired: new Date(c.expiresAt) < new Date() })),
   };
   return (
     <SettingsView
       ehr={<EhrCard initial={ehr} error={sp.ehr_error} connected={sp.ehr_connected === "1"} autoFile={user.prefs.autoFileEhr !== false} />}
       user={{ name: user.name, email: user.email, specialty: user.specialty, prefs: user.prefs }}
-      templates={templates.list(user.id).map((t) => ({ id: t.id, name: t.name }))}
-      rules={styleRules.list(user.id)}
+      templates={(await templates.list(user)).map((t) => ({ id: t.id, name: t.name }))}
+      rules={await styleRules.list(user.id)}
       engine={{ llm: llmEnabled(), model: llmEnabled() ? llmModel() : null }}
       speech={speechConfig()}
     />

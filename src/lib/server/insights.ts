@@ -28,9 +28,9 @@ function afterHours(d: Date) {
   return h >= 19 || h < 7 || day === 0 || day === 6;
 }
 
-export function computeInsights(userId: string, days = 30) {
+export async function computeInsights(userId: string, days = 30) {
   const since = new Date(Date.now() - days * 86400000).toISOString();
-  const rows = all<Row>(
+  const rows = await all<Row>(
     `SELECT e.id, e.scheduled_at, e.visit_type, e.status, e.ended_at, e.signed_at, e.duration_s, e.template_id,
             n.engine, n.content,
             (SELECT COUNT(*) FROM utterances u WHERE u.encounter_id = e.id) AS captured
@@ -42,8 +42,8 @@ export function computeInsights(userId: string, days = 30) {
     since,
   );
   const signed = rows.filter((r) => r.signed_at);
-  const signAudit = all<{ encounter_id: string; detail: string }>("SELECT encounter_id, detail FROM audit WHERE user_id = ? AND action = 'note.signed' AND created_at >= ?", userId, since).map((r) => ({ id: r.encounter_id, ...(JSON.parse(r.detail) as { edited: boolean; editRatio: number }) }));
-  const genAudit = all<{ detail: string }>("SELECT detail FROM audit WHERE user_id = ? AND action = 'note.generated' AND created_at >= ?", userId, since).map((r) => JSON.parse(r.detail) as { supportedPct: number; omissions: number; ms: number; engine: string });
+  const signAudit = (await all<{ encounter_id: string; detail: string }>("SELECT a.encounter_id, a.detail FROM audit a JOIN encounters e ON e.id = a.encounter_id WHERE e.user_id = ? AND a.action = 'note.signed' AND a.created_at >= ?", userId, since)).map((r) => ({ id: r.encounter_id, ...(JSON.parse(r.detail) as { edited: boolean; editRatio: number }) }));
+  const genAudit = (await all<{ detail: string }>("SELECT a.detail FROM audit a JOIN encounters e ON e.id = a.encounter_id WHERE e.user_id = ? AND a.action = 'note.generated' AND a.created_at >= ?", userId, since)).map((r) => JSON.parse(r.detail) as { supportedPct: number; omissions: number; ms: number; engine: string });
 
   const signMinutes = signed.filter((r) => r.ended_at).map((r) => (new Date(r.signed_at!).getTime() - new Date(r.ended_at!).getTime()) / 60000).filter((m) => m >= 0);
   const late = signed.filter((r) => afterHours(new Date(r.signed_at!))).length;
@@ -105,4 +105,14 @@ export function computeInsights(userId: string, days = 30) {
   };
 }
 
-export type Insights = ReturnType<typeof computeInsights>;
+export type Insights = Awaited<ReturnType<typeof computeInsights>>;
+
+export async function computeOrgAnalytics(orgId: string, days = 30) {
+  const members = await all<{ user_id: string; name: string; role: string }>("SELECT m.user_id, u.name, m.role FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.org_id = ? AND m.status = 'active' AND m.role IN ('owner', 'admin', 'clinician') ORDER BY u.name", orgId);
+  const out = [];
+  for (const m of members) {
+    const i = await computeInsights(m.user_id, days);
+    out.push({ userId: m.user_id, name: m.name, role: m.role, visits: i.visits, signed: i.signed, medianSignMinutes: i.medianSignMinutes, uneditedRate: i.uneditedRate, afterHoursSigned: i.afterHoursSigned, evidencePct: i.evidencePct });
+  }
+  return out;
+}

@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pkcePair, seal, unseal } from "@/lib/fhir/crypto";
 import { buildDocumentReference, mapAllergies, mapLabs, mapMedications, mapPatient, mapProblems, mapVitals, type FhirBundle } from "@/lib/fhir/mapping";
 import { authorizeUrl } from "@/lib/fhir/smart";
+import { newMember } from "./org-helpers";
 
 const dir = mkdtempSync(path.join(tmpdir(), "chartside-ehr-"));
 const PORT = 3396;
@@ -101,7 +102,7 @@ describe("EHR launch, import, and write-back against a SMART server", () => {
     const repo = await import("@/lib/server/repo");
     const ehr = await import("@/lib/server/ehr");
     const pipeline = await import("@/lib/server/pipeline");
-    const user = repo.users.create({ email: `e${Date.now()}@x.test`, name: "Dr. Avery Chen", passwordHash: "x", specialty: "FM" });
+    const user = await newMember("Dr. Avery Chen");
 
     await expect(ehr.startLaunch(user, { iss: "https://evil.example/fhir", launch: "x", redirectUri: "http://localhost/smart/callback" })).rejects.toThrow("not on the allowed list");
     const authUrl = await ehr.startLaunch(user, { iss: BASE, launch: "epic-launch-123", redirectUri: "http://localhost:3100/smart/callback" });
@@ -111,10 +112,10 @@ describe("EHR launch, import, and write-back against a SMART server", () => {
     const out = await ehr.completeLaunch(user, back.searchParams.get("state")!, back.searchParams.get("code")!);
     await expect(ehr.completeLaunch(user, back.searchParams.get("state")!, back.searchParams.get("code")!)).rejects.toThrow("expired");
 
-    const enc = repo.encounters.get(user.id, out.encounterId!)!;
+    const enc = (await repo.encounters.get(user, out.encounterId!))!;
     expect(enc.reason).toBe("Diabetes follow-up");
     expect(enc.externalId).toBe("enc-5501");
-    const p = repo.patients.get(user.id, enc.patientId!)!;
+    const p = (await repo.patients.get(user, enc.patientId!))!;
     expect(p).toMatchObject({ name: "Elena Vasquez", mrn: "203713", sex: "F", language: "es", externalId: "eX7tQ2pVh9Lw" });
     expect(p.chart.problems.map((x) => x.icd10)).toEqual(["E11.9", "I10"]);
     expect(p.chart.medications.map((m) => m.name)).toEqual(["metformin 1,000 mg tablet", "lisinopril 20 mg tablet"]);
@@ -123,14 +124,14 @@ describe("EHR launch, import, and write-back against a SMART server", () => {
     expect(p.chart.vitals).toMatchObject({ BP: "148/92", Weight: "180 lb", BMI: "30.4" });
     expect(p.chart.egfr).toBe(61);
 
-    pipeline.recordConsent(user, enc, { decision: "granted", method: "verbal", state: "IL", othersPresent: false });
-    repo.encounters.update(user.id, enc.id, { status: "recording" });
-    repo.utterances.append(enc.id, [
+    await pipeline.recordConsent(user, enc, { decision: "granted", method: "verbal", state: "IL", othersPresent: false });
+    await repo.encounters.update(user, enc.id, { status: "recording" });
+    await repo.utterances.append(enc.id, [
       { speaker: "clinician", text: "Your A1c is 8.1, so your diabetes is not at goal.", tStart: 0, tEnd: 3 },
       { speaker: "clinician", text: "Let's increase metformin to 1000 milligrams twice a day. Follow up in 3 months.", tStart: 3, tEnd: 7 },
     ]);
     await pipeline.processEncounter(user, enc.id, { engine: "local" });
-    expect(pipeline.signEncounter(user, enc.id, { force: true }).signed).toBe(true);
+    expect((await pipeline.signEncounter(user, enc.id, { force: true })).signed).toBe(true);
 
     const filing = await ehr.fileNote(user, enc.id);
     expect(filing).toMatchObject({ status: "filed", reference: "DocumentReference/doc-1" });
@@ -141,10 +142,10 @@ describe("EHR launch, import, and write-back against a SMART server", () => {
     expect(stats.docs[0].text).toContain("Type 2 diabetes");
     expect(stats.docs[0].text).toContain("Verbal consent for AI-assisted documentation");
     expect(stats.docs[0].text).toContain("Signed electronically by Dr. Avery Chen");
-    expect(repo.audit.forEncounter(enc.id).map((a) => a.action)).toEqual(expect.arrayContaining(["ehr.context", "ehr.filed"]));
+    expect((await repo.audit.forEncounter(enc.id)).map((a) => a.action)).toEqual(expect.arrayContaining(["ehr.context", "ehr.filed"]));
 
     const again = await ehr.resyncPatient(user, p.id);
     expect(again.id).toBe(p.id);
-    expect(repo.patients.list(user.id).filter((x) => x.externalId === "eX7tQ2pVh9Lw")).toHaveLength(1);
+    expect((await repo.patients.list(user)).filter((x) => x.externalId === "eX7tQ2pVh9Lw")).toHaveLength(1);
   });
 });

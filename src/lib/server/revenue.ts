@@ -3,12 +3,12 @@ import type { PaPacket } from "../engine/priorauth";
 import { ageFrom } from "../engine/text";
 import type { CodingResult } from "../types";
 import { factsFor } from "./pipeline";
-import { artifacts, claims, encounters, patients, type ClaimRecord, type User } from "./repo";
+import { artifacts, claims, encounters, patients, users, type ClaimRecord, type User } from "./repo";
 
-export function revalidate(user: User, encId: string, claim: Claim) {
-  const enc = encounters.get(user.id, encId)!;
-  const { facts, patient } = factsFor(user, enc);
-  const coding = artifacts.get<CodingResult>(enc.id, "coding") ?? null;
+export async function revalidate(user: User, encId: string, claim: Claim) {
+  const enc = (await encounters.get(user, encId))!;
+  const { facts, patient } = await factsFor(user, enc);
+  const coding = (await artifacts.get<CodingResult>(enc.id, "coding")) ?? null;
   return validateClaim(claim, facts, coding, {
     age: patient ? ageFrom(patient.dob, new Date(enc.scheduledAt)) : 40,
     sex: patient?.sex ?? "X",
@@ -34,8 +34,8 @@ export function sanitizeLines(lines: Partial<ClaimLine>[]): ClaimLine[] {
   }));
 }
 
-export function claimAction(user: User, encId: string, action: string, opts: { note?: string; opportunityId?: string }): ClaimRecord {
-  const rec = claims.get(encId);
+export async function claimAction(user: User, encId: string, action: string, opts: { note?: string; opportunityId?: string }): Promise<ClaimRecord> {
+  const rec = await claims.get(encId);
   if (!rec) throw new Error("Claim not found; sign the note first");
   const at = new Date().toISOString();
   const history = [...rec.history];
@@ -58,21 +58,24 @@ export function claimAction(user: User, encId: string, action: string, opts: { n
     const opp = claim.opportunities.find((o) => o.id === opts.opportunityId);
     if (!opp?.line) throw new Error("That opportunity has no billable line");
     if (status === "submitted") throw new Error("Claim already submitted");
-    claim = revalidate(user, encId, { ...claim, lines: [...claim.lines, opp.line], opportunities: claim.opportunities.filter((o) => o.id !== opp.id) });
+    claim = await revalidate(user, encId, { ...claim, lines: [...claim.lines, opp.line], opportunities: claim.opportunities.filter((o) => o.id !== opp.id) });
     status = claimStatus(claim);
   } else {
     throw new Error("Unknown action");
   }
-  history.push({ at, action, note: opts.note?.trim() || undefined });
-  return claims.save(user.id, encId, status, claim, history, action === "hold" ? opts.note?.trim() : undefined);
+  history.push({ at, action, note: opts.note?.trim() || undefined, by: user.name });
+  const enc = await encounters.byIdUnscoped(encId);
+  return claims.save(enc?.userId ?? user.id, encId, status, claim, history, action === "hold" ? opts.note?.trim() : undefined);
 }
 
-export function revenueSummary(user: User) {
-  const list = claims.list(user.id);
-  const rows = list.map((r) => {
-    const enc = encounters.get(user.id, r.encounterId);
-    const p = enc?.patientId ? patients.get(user.id, enc.patientId) : undefined;
-    return {
+export async function revenueSummary(user: User) {
+  const list = await claims.list(user);
+  const rows = [];
+  for (const r of list) {
+    const enc = await encounters.byIdUnscoped(r.encounterId);
+    const p = enc?.patientId ? await patients.get(user, enc.patientId) : undefined;
+    const clinician = enc ? await users.byId(enc.userId) : undefined;
+    rows.push({
       encounterId: r.encounterId,
       patient: p?.name ?? "Unassigned",
       date: enc?.scheduledAt ?? r.updatedAt,
@@ -83,8 +86,9 @@ export function revenueSummary(user: User) {
       errors: r.content.edits.filter((e) => e.severity === "error").length,
       warnings: r.content.edits.filter((e) => e.severity === "warning").length,
       opportunities: r.content.opportunities.length,
-    };
-  });
+      clinician: clinician?.name ?? "",
+    });
+  }
   const byStatus: Record<string, { count: number; charges: number }> = {};
   for (const r of rows) {
     byStatus[r.status] ??= { count: 0, charges: 0 };
@@ -102,9 +106,9 @@ export function revenueSummary(user: User) {
     }
   }
   const pa: (PaPacket & { encounterId: string; patient: string })[] = [];
-  for (const e of encounters.list(user.id)) {
-    const packets = artifacts.get<PaPacket[]>(e.id, "priorAuth") ?? [];
-    const p = e.patientId ? patients.get(user.id, e.patientId) : undefined;
+  for (const e of await encounters.list(user)) {
+    const packets = (await artifacts.get<PaPacket[]>(e.id, "priorAuth")) ?? [];
+    const p = e.patientId ? await patients.get(user, e.patientId) : undefined;
     for (const x of packets) pa.push({ ...x, encounterId: e.id, patient: p?.name ?? "Unassigned" });
   }
   return { rows, byStatus, leakage, priorAuth: pa, totals: { charges: Math.round(rows.reduce((s, r) => s + r.charges, 0) * 100) / 100, leakageValue: Object.values(leakage).reduce((s, l) => s + l.value, 0) } };

@@ -6,7 +6,7 @@ import type { revenueSummary } from "@/lib/server/revenue";
 import { ClaimStatus } from "./workspace/BillingPanel";
 import { Kpi, Tabs } from "./ui";
 
-type Data = ReturnType<typeof revenueSummary>;
+type Data = Awaited<ReturnType<typeof revenueSummary>>;
 
 const CATEGORY: Record<string, string> = {
   em_level: "E/M level supported by time",

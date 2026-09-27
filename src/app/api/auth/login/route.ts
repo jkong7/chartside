@@ -1,12 +1,17 @@
 import { publicUser, startSession, verifyPassword } from "@/lib/server/auth";
 import { body, fail, json } from "@/lib/server/http";
-import { audit, toUser, users } from "@/lib/server/repo";
+import { actorFor, audit, orgs, users } from "@/lib/server/repo";
 
 export async function POST(req: Request) {
   const b = await body<{ email?: string; password?: string }>(req);
-  const row = users.byEmail((b.email ?? "").trim());
-  if (!row || !verifyPassword(b.password ?? "", row.password_hash)) return fail("Incorrect email or password", 401);
-  await startSession(row.id);
-  audit.log(row.id, null, "user.login", {});
-  return json({ user: publicUser(toUser(row)) });
+  const email = (b.email ?? "").trim().toLowerCase();
+  const sso = await orgs.requiringSso(email.split("@")[1] ?? "");
+  if (sso) return json({ error: `${sso.name} requires single sign-on. Continue with SSO.`, sso: true }, 403);
+  const row = await users.byEmail(email);
+  if (!row || !row.password_hash || !verifyPassword(b.password ?? "", row.password_hash)) return fail("Incorrect email or password", 401);
+  const actor = await actorFor(row.id);
+  if (!actor) return fail("Your access to Chartside has been disabled. Contact your administrator.", 403);
+  await startSession(row.id, actor.orgId);
+  await audit.log(actor, null, "user.login", { method: "password" });
+  return json({ user: publicUser(actor) });
 }

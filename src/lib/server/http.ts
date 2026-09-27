@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "./auth";
+import { Forbidden } from "./policy";
 import type { User } from "./repo";
 
 export function json(data: unknown, init?: number | ResponseInit) {
@@ -28,7 +29,7 @@ export function authed<P = Record<string, never>>(handler: (req: Request, user: 
       return await handler(req, user, (await ctx.params) ?? ({} as P));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unexpected error";
-      const status = /not found/i.test(message) ? 404 : /locked|read-only/i.test(message) ? 409 : 500;
+      const status = err instanceof Error && err.name === "Forbidden" ? 403 : err instanceof Forbidden ? 403 : /not found/i.test(message) ? 404 : /locked|read-only/i.test(message) ? 409 : 500;
       if (status === 500) console.error(err);
       return fail(message, status);
     }

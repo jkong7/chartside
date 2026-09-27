@@ -5,7 +5,7 @@ import type { SectionKind, Template } from "@/lib/types";
 const KINDS: SectionKind[] = ["chief_complaint", "hpi", "ros", "pmh", "medications", "allergies", "social", "family", "vitals", "exam", "results", "assessment", "plan", "assessment_plan", "subjective", "objective", "mental_status", "patient_instructions", "follow_up", "custom"];
 
 export const PUT = authed<{ id: string }>(async (req, user, { id }) => {
-  const cur = templates.get(user.id, id);
+  const cur = await templates.get(user, id);
   if (!cur) return fail("Template not found", 404);
   const b = await body<Partial<Template>>(req);
   const sections = (b.sections ?? cur.sections).map((s, i) => ({
@@ -16,12 +16,12 @@ export const PUT = authed<{ id: string }>(async (req, user, { id }) => {
     instructions: s.instructions ?? "",
   })) as Template["sections"];
   if (new Set(sections.map((s) => s.key)).size !== sections.length) return fail("Section keys must be unique");
-  return json({ template: templates.save(user.id, { id, name: b.name?.trim() || cur.name, specialty: b.specialty ?? cur.specialty, description: b.description ?? cur.description, sections, style: b.style ?? cur.style }) });
+  return json({ template: await templates.save(user, { id, name: b.name?.trim() || cur.name, specialty: b.specialty ?? cur.specialty, description: b.description ?? cur.description, sections, style: b.style ?? cur.style }) });
 });
 
-export const DELETE = authed<{ id: string }>((_req, user, { id }) => {
-  const cur = templates.get(user.id, id);
+export const DELETE = authed<{ id: string }>(async (_req, user, { id }) => {
+  const cur = await templates.get(user, id);
   if (!cur || !cur.userId) return fail("Only your own templates can be deleted", 409);
-  templates.remove(user.id, id);
+  await templates.remove(user, id);
   return json({ ok: true });
 });

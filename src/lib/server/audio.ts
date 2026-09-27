@@ -45,7 +45,7 @@ function audioDir(encId: string) {
 
 const ALLOWED_MIME = /^audio\/(webm|ogg|mp4|mpeg|wav|x-wav|aac)(;.*)?$/i;
 
-export function saveChunk(encId: string, seq: number, tMs: number, mime: string, data: Buffer) {
+export async function saveChunk(encId: string, seq: number, tMs: number, mime: string, data: Buffer) {
   if (!ALLOWED_MIME.test(mime)) throw new Error("Unsupported audio type");
   if (!Number.isInteger(seq) || seq < 0 || seq > 100000) throw new Error("Invalid chunk sequence");
   if (data.length > 5 * 1024 * 1024) throw new Error("Audio chunk too large");
@@ -53,12 +53,12 @@ export function saveChunk(encId: string, seq: number, tMs: number, mime: string,
   mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `${String(seq).padStart(6, "0")}.bin`);
   writeFileSync(file, data);
-  audioChunks.add(encId, { seq, tMs: Math.max(0, Math.round(tMs)), bytes: data.length, mime: mime.split(";")[0], path: file });
-  return audioChunks.list(encId).length;
+  await audioChunks.add(encId, { seq, tMs: Math.max(0, Math.round(tMs)), bytes: data.length, mime: mime.split(";")[0], path: file });
+  return (await audioChunks.list(encId)).length;
 }
 
-export function recording(encId: string) {
-  const chunks = audioChunks.list(encId);
+export async function recording(encId: string) {
+  const chunks = await audioChunks.list(encId);
   if (!chunks.length) return null;
   const parts: Buffer[] = [];
   for (const c of chunks) {
@@ -74,12 +74,12 @@ export function recording(encId: string) {
   return { buffer, mime: chunks[0].mime, chunks: chunks.length, bytes: buffer.length, durationMs: lastMs };
 }
 
-export function deleteAudio(userId: string | null, encId: string, reason: string) {
-  const had = audioChunks.list(encId).length;
+export async function deleteAudio(actor: User | null, encId: string, reason: string) {
+  const had = (await audioChunks.list(encId)).length;
   if (!had) return false;
   rmSync(audioDir(encId), { recursive: true, force: true });
-  audioChunks.remove(encId);
-  audit.log(userId, encId, "audio.purged", { reason, chunks: had });
+  await audioChunks.remove(encId);
+  await audit.log(actor, encId, "audio.purged", { reason, chunks: had });
   return true;
 }
 
@@ -88,13 +88,13 @@ export function retentionDays(user: User) {
   return typeof d === "number" && d >= 0 ? d : 0;
 }
 
-export function purgeExpired(user: User) {
+export async function purgeExpired(user: User) {
   const days = retentionDays(user);
   const before = new Date(Date.now() - days * 86400000).toISOString();
   let n = 0;
-  for (const encId of audioChunks.expired(before)) {
-    const e = encounters.get(user.id, encId);
-    if (e && deleteAudio(user.id, encId, days === 0 ? "signed (retention: delete at signing)" : `retention ${days} days`)) n++;
+  for (const encId of await audioChunks.expired(user.orgId, before)) {
+    const e = await encounters.byIdUnscoped(encId);
+    if (e && (await deleteAudio(user, encId, days === 0 ? "signed (retention: delete at signing)" : `retention ${days} days`))) n++;
   }
   return n;
 }
@@ -135,12 +135,12 @@ function majorityLang(u: DeepgramUtterance) {
 
 export async function finalPass(user: User, enc: Encounter) {
   if (!deepgramKey()) return { ran: false as const, reason: "no-provider" };
-  const rec = recording(enc.id);
+  const rec = await recording(enc.id);
   if (!rec) return { ran: false as const, reason: "no-audio" };
   const started = Date.now();
   const dg = await transcribeWithDeepgram(rec.buffer, rec.mime, enc.inputLang);
   if (!dg.length) return { ran: false as const, reason: "empty" };
-  const live = utterances.list(enc.id);
+  const live = await utterances.list(enc.id);
   const draft: Utterance[] = dg.map((u, i) => ({
     id: `tmp_${i}`,
     seq: i,
@@ -159,23 +159,23 @@ export async function finalPass(user: User, enc: Encounter) {
   let roles: Record<string, Speaker> = assignRoles(groups, draft.map((d, i) => ({ ...d, speaker: speakerOf[i] as Speaker })));
   if (keys.length === 1) roles = {};
   const rows = draft.map((d, i) => ({ ...d, speaker: roles[speakerOf[i]] ?? d.speaker }));
-  artifacts.set(enc.id, "live_transcript", live.map((u) => ({ speaker: u.speaker, text: u.text, tStart: u.tStart })));
-  const saved = utterances.replaceAll(
+  await artifacts.set(enc.id, "live_transcript", live.map((u) => ({ speaker: u.speaker, text: u.text, tStart: u.tStart })));
+  const saved = await utterances.replaceAll(
     enc.id,
     rows.map(({ id: _id, seq: _seq, ...rest }) => rest),
   );
-  audit.log(user.id, enc.id, "transcript.final_pass", { provider: "deepgram", utterances: saved.length, speakers: keys.length, replaced: live.length, ms: Date.now() - started });
+  await audit.log(user, enc.id, "transcript.final_pass", { provider: "deepgram", utterances: saved.length, speakers: keys.length, replaced: live.length, ms: Date.now() - started });
   return { ran: true as const, utterances: saved.length, speakers: keys.length };
 }
 
-export function localDiarize(user: User, enc: Encounter) {
-  const utts = utterances.list(enc.id);
+export async function localDiarize(user: User, enc: Encounter) {
+  const utts = await utterances.list(enc.id);
   if (utts.some((u) => u.source === "final")) return { ran: false as const };
   const map = clusterVoices(utts);
   if (!map) return { ran: false as const };
   const changes: Record<string, Speaker> = {};
   for (const u of utts) if (u.speakerSource === "auto" && map[u.id] && map[u.id] !== u.speaker) changes[u.id] = map[u.id];
-  utterances.setSpeakers(enc.id, changes);
-  audit.log(user.id, enc.id, "transcript.diarized", { method: "voice-clustering", relabeled: Object.keys(changes).length });
+  await utterances.setSpeakers(enc.id, changes);
+  await audit.log(user, enc.id, "transcript.diarized", { method: "voice-clustering", relabeled: Object.keys(changes).length });
   return { ran: true as const, relabeled: Object.keys(changes).length };
 }

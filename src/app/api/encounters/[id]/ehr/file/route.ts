@@ -3,7 +3,7 @@ import { authed, fail, json } from "@/lib/server/http";
 import { encounters } from "@/lib/server/repo";
 
 export const POST = authed<{ id: string }>(async (_req, user, { id }) => {
-  const enc = encounters.get(user.id, id);
+  const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
   try {
     const filing = await fileNote(user, enc.id);

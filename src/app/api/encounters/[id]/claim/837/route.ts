@@ -2,12 +2,12 @@ import { to837 } from "@/lib/engine/billing";
 import { authed, fail } from "@/lib/server/http";
 import { claims, encounters, patients } from "@/lib/server/repo";
 
-export const GET = authed<{ id: string }>((_req, user, { id }) => {
-  const enc = encounters.get(user.id, id);
+export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
+  const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
-  const rec = claims.get(enc.id);
+  const rec = await claims.get(enc.id);
   if (!rec) return fail("No claim yet", 404);
-  const p = enc.patientId ? patients.get(user.id, enc.patientId) : undefined;
+  const p = enc.patientId ? await patients.get(user, enc.patientId) : undefined;
   const text = to837(rec.content, {
     claimId: `CS${enc.id.slice(-10).toUpperCase()}`,
     patient: { name: p?.name ?? "UNKNOWN PATIENT", dob: p?.dob ?? "1900-01-01", sex: p?.sex ?? "X", mrn: p?.mrn ?? "0" },

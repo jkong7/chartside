@@ -3,7 +3,7 @@ import { authed, fail, json } from "@/lib/server/http";
 import { encounters } from "@/lib/server/repo";
 
 export const POST = authed<{ id: string }>(async (_req, user, { id }) => {
-  const enc = encounters.get(user.id, id);
+  const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
   if (enc.status === "signed") return fail("Signed visits are locked", 409);
   const out = await finalPass(user, enc);

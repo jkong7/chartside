@@ -6,5 +6,5 @@ export const dynamic = "force-dynamic";
 
 export default async function RevenuePage() {
   const user = await requireUser();
-  return <RevenueView data={revenueSummary(user)} />;
+  return <RevenueView data={await revenueSummary(user)} />;
 }

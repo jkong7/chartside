@@ -3,7 +3,7 @@ import { assist } from "@/lib/server/pipeline";
 import { encounters } from "@/lib/server/repo";
 
 export const POST = authed<{ id: string }>(async (req, user, { id }) => {
-  const enc = encounters.get(user.id, id);
+  const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
   const b = await body<{ message?: string }>(req);
   if (!b.message?.trim()) return fail("Ask a question or give an instruction");
