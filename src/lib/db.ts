@@ -47,6 +47,16 @@ CREATE TABLE IF NOT EXISTS oidc_logins (
   next TEXT,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS sso_identities (
+  issuer TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  last_login_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (issuer, subject)
+);
 CREATE TABLE IF NOT EXISTS auth_sessions (
   token TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

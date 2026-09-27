@@ -34,6 +34,12 @@ export default defineConfig({
       env: { MOCK_DG_PORT: "3299" },
     },
     {
+      command: "node tests/e2e/mock-oidc.mjs",
+      url: "http://localhost:3296/.well-known/openid-configuration",
+      reuseExistingServer: false,
+      env: { MOCK_OIDC_PORT: "3296" },
+    },
+    {
       command: `rm -rf data/e2e.db data/e2e.db-wal data/e2e.db-shm data/audio && node tests/e2e/reset-pg.mjs && npm run build && npx next start -p ${PORT}`,
       url: `http://localhost:${PORT}/api/health`,
       timeout: 240_000,
