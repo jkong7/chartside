@@ -1,0 +1,221 @@
+{
+  "generated": "2026-09-27T17:57:14.186Z",
+  "sources": {
+    "hcc-v28-2026": {
+      "name": "CMS-HCC risk adjustment model V28, payment year 2026 (midyear final)",
+      "version": "V28-PY2026",
+      "effective": {
+        "from": "2025-01-01",
+        "to": "2026-12-31"
+      },
+      "files": {
+        "package": {
+          "url": "https://www.cms.gov/files/zip/2026-midyear-final-model-software-python.zip",
+          "sha256": "b47ed086d8a1cae0bf860526168ecffee07cb8d46766825a72fc21d57dbd47be",
+          "bytes": 332632,
+          "member": "CMS_HCC_v28_2026_T_package_v3.zip"
+        }
+      },
+      "artifact": {
+        "file": "codesets/dist/hcc-v28-2026.json.gz",
+        "sha256": "7380f0c07d76bdf8a1ce02b9196606f95a76e36c838c55f613094e006e8e9c83",
+        "bytes": 30238
+      },
+      "stats": {
+        "mappedCodes": 8019,
+        "hccs": 115,
+        "variables": 164
+      },
+      "builtAt": "2026-09-27T17:53:59.088Z"
+    },
+    "pfs-2026-d": {
+      "name": "Medicare Physician Fee Schedule relative values, RVU26D",
+      "version": "RVU26D",
+      "effective": {
+        "from": "2026-01-01",
+        "to": "2026-12-31"
+      },
+      "files": {
+        "rvu": {
+          "url": "https://www.cms.gov/files/zip/rvu26d-updated-08-26-2026.zip",
+          "sha256": "521ff0f4ecbf13b5d99dc1dc04d9f82e5361e55c6b4b6b3033043598bf8406e6",
+          "bytes": 6181360,
+          "member": "PPRRVU2026_Oct_nonQPP.csv"
+        },
+        "rvuQp": {
+          "url": "https://www.cms.gov/files/zip/rvu26d-updated-08-26-2026.zip",
+          "sha256": "521ff0f4ecbf13b5d99dc1dc04d9f82e5361e55c6b4b6b3033043598bf8406e6",
+          "bytes": 6181360,
+          "member": "PPRRVU2026_Oct_QPP.csv"
+        },
+        "gpci": {
+          "url": "https://www.cms.gov/files/zip/rvu26d-updated-08-26-2026.zip",
+          "sha256": "521ff0f4ecbf13b5d99dc1dc04d9f82e5361e55c6b4b6b3033043598bf8406e6",
+          "bytes": 6181360,
+          "member": "GPCI2026.csv"
+        }
+      },
+      "artifact": {
+        "file": "codesets/dist/pfs-2026-d.json.gz",
+        "sha256": "4a7e94cf472bc31710f8f15c5e51fc01bd197a2448c4ce1a97f1a6a36b6e7830",
+        "bytes": 219981
+      },
+      "stats": {
+        "rows": 19453,
+        "localities": 109
+      },
+      "builtAt": "2026-09-27T17:48:28.542Z"
+    },
+    "icd10cm-2026-apr": {
+      "name": "ICD-10-CM FY2026 (April 1, 2026 update)",
+      "version": "FY2026-April",
+      "effective": {
+        "from": "2026-04-01",
+        "to": "2026-09-30"
+      },
+      "files": {
+        "order": {
+          "url": "https://www.cms.gov/files/zip/april-1-2026-code-descriptions-tabular-order.zip",
+          "sha256": "4fd9d8b37f02ab42827c7e7be30595c005b0cc3a6bae7a515e3f4c86b6918688",
+          "bytes": 2242530,
+          "member": "Code Descriptions/icd10cm_order_2026.txt"
+        },
+        "tabular": {
+          "url": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Publications/ICD10CM/2026-update/icd10cm-April-1-2026-XML.zip",
+          "sha256": "0b50672322cd53b222d007fe703e2708dfa3b34f296eb2016bb3cf2109f0fd64",
+          "bytes": 2138331,
+          "member": "icd10c-tabular-April-1-2026.xml"
+        }
+      },
+      "artifact": {
+        "file": "codesets/dist/icd10cm-2026-apr.json.gz",
+        "sha256": "a59a9bd7adad07a1d2d2e862ad11345879ececcbe84836db9502e06616c0b21f",
+        "bytes": 1449008
+      },
+      "stats": {
+        "codes": 98186,
+        "billable": 74719,
+        "headers": 23467,
+        "tabularNodes": 47200
+      },
+      "builtAt": "2026-09-27T17:49:00.375Z"
+    },
+    "icd10cm-2027": {
+      "name": "ICD-10-CM FY2027",
+      "version": "FY2027",
+      "effective": {
+        "from": "2026-10-01",
+        "to": "2027-09-30"
+      },
+      "files": {
+        "order": {
+          "url": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Publications/ICD10CM/2027/icd10cm-code-descriptions-2027.zip",
+          "sha256": "93e3ad6004badf470c55bfe679b748ae88fd9b2b421851e409eec382c7713b9a",
+          "bytes": 2192779,
+          "member": "icd10cm-code-descriptions-2027/icd10cm-order-2027.txt"
+        },
+        "tabular": {
+          "url": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Publications/ICD10CM/2027/icd10cm-table-and-index-2027.zip",
+          "sha256": "99b5c2be16ff53eab861cc0be4b1dacba27f687b8ff4bc700679944355037ee0",
+          "bytes": 20923571,
+          "member": "icd10cm-table-and-index-2027/icd10cm-tabular_-2027.xml"
+        }
+      },
+      "artifact": {
+        "file": "codesets/dist/icd10cm-2027.json.gz",
+        "sha256": "f4359089b474a0f55ec87e27b7030572fa616f5df18f349766bb2090bd122b4d",
+        "bytes": 1452977
+      },
+      "stats": {
+        "codes": 98403,
+        "billable": 74879,
+        "headers": 23524,
+        "tabularNodes": 47344
+      },
+      "builtAt": "2026-09-27T17:51:34.511Z"
+    },
+    "hcpcs-2026-oct": {
+      "name": "HCPCS Level II, October 2026 quarterly update",
+      "version": "2026-Q4",
+      "effective": {
+        "from": "2026-10-01",
+        "to": "2026-12-31"
+      },
+      "files": {
+        "codes": {
+          "url": "https://www.cms.gov/files/zip/october-2026-alpha-numeric-hcpcs-file.zip",
+          "sha256": "08c2202fa92c1d1fb6f31b808b61c767bc487954f6930b6a0f8d09c89af5992f",
+          "bytes": 2518755,
+          "member": "HCPC2026_OCT_ANWEB_09232026.txt"
+        }
+      },
+      "artifact": {
+        "file": "codesets/dist/hcpcs-2026-oct.json.gz",
+        "sha256": "d3ac4ba56e3814a7abd3ae854c50758168927090223f6f9313556e3531b2e7c1",
+        "bytes": 259099
+      },
+      "stats": {
+        "codes": 8770,
+        "modifiers": 384
+      },
+      "builtAt": "2026-09-27T17:51:35.261Z"
+    },
+    "asp-2026-oct": {
+      "name": "Medicare Part B drug and vaccine payment allowance limits, October 2026",
+      "version": "2026-Q4",
+      "effective": {
+        "from": "2026-10-01",
+        "to": "2026-12-31"
+      },
+      "files": {
+        "limits": {
+          "url": "https://www.cms.gov/files/zip/october-2026-medicare-part-b-payment-limit-files-final.zip",
+          "sha256": "a9b7afa80aae96c43cf84bf0b18648f1974429de2913e2e29d8342747174c417",
+          "bytes": 85594,
+          "member": "section 508 version of October 2026 Medicare Part B Payment Limit File 091626.csv"
+        },
+        "notPayable": {
+          "url": "https://www.cms.gov/files/zip/october-2026-medicare-part-b-payment-limit-files-final.zip",
+          "sha256": "a9b7afa80aae96c43cf84bf0b18648f1974429de2913e2e29d8342747174c417",
+          "bytes": 85594,
+          "member": "section 508 version of October 2026 Drugs Not Payable Under Part B 091426.csv"
+        }
+      },
+      "artifact": {
+        "file": "codesets/dist/asp-2026-oct.json.gz",
+        "sha256": "c8bd5295625a4bd3e7f9ab3799fd93dc538a4b2282c7911ec43032ff07a72413",
+        "bytes": 20145
+      },
+      "stats": {
+        "limits": 918,
+        "notPayable": 7
+      },
+      "builtAt": "2026-09-27T17:57:12.920Z"
+    },
+    "clfs-2026-q4": {
+      "name": "Medicare Clinical Laboratory Fee Schedule, CY2026 Q4",
+      "version": "26CLABQ4",
+      "effective": {
+        "from": "2026-10-01",
+        "to": "2026-12-31"
+      },
+      "files": {
+        "rates": {
+          "url": "https://www.cms.gov/files/zip/26clabq4.zip",
+          "sha256": "d6d0de8539519cc52dd51faaff53e6fbc008d38a03c528b0e351658e31b688f3",
+          "bytes": 513605,
+          "member": "PUF_CLFS_CY2026_Q4V1.csv"
+        }
+      },
+      "artifact": {
+        "file": "codesets/dist/clfs-2026-q4.json.gz",
+        "sha256": "359ddc5c353a4f36a3771eca5ff9b1dfe944d7d34218e435d9714f64dde2ee01",
+        "bytes": 13309
+      },
+      "stats": {
+        "rates": 2243
+      },
+      "builtAt": "2026-09-27T17:57:14.180Z"
+    }
+  }
+}

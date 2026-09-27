@@ -1,0 +1,271 @@
+{
+ "id": "pos",
+ "name": "Place of Service code set",
+ "publisher": "Centers for Medicare & Medicaid Services",
+ "source": "https://www.cms.gov/medicare/coding-billing/place-of-service-codes/code-sets",
+ "retrieved": "2026-09-27",
+ "facilityRateSource": "Medicare Claims Processing Manual, Chapter 12, §20.4.2 (site-of-service payment differential)",
+ "license": "US government data.",
+ "codes": [
+  {
+   "code": "01",
+   "name": "Pharmacy",
+   "facility": false
+  },
+  {
+   "code": "02",
+   "name": "Telehealth provided other than in patient’s home",
+   "facility": true
+  },
+  {
+   "code": "03",
+   "name": "School",
+   "facility": false
+  },
+  {
+   "code": "04",
+   "name": "Homeless shelter",
+   "facility": false
+  },
+  {
+   "code": "05",
+   "name": "Indian Health Service free-standing facility",
+   "facility": false
+  },
+  {
+   "code": "06",
+   "name": "Indian Health Service provider-based facility",
+   "facility": false
+  },
+  {
+   "code": "07",
+   "name": "Tribal 638 free-standing facility",
+   "facility": false
+  },
+  {
+   "code": "08",
+   "name": "Tribal 638 provider-based facility",
+   "facility": false
+  },
+  {
+   "code": "09",
+   "name": "Prison/correctional facility",
+   "facility": false
+  },
+  {
+   "code": "10",
+   "name": "Telehealth provided in patient’s home",
+   "facility": false
+  },
+  {
+   "code": "11",
+   "name": "Office",
+   "facility": false
+  },
+  {
+   "code": "12",
+   "name": "Home",
+   "facility": false
+  },
+  {
+   "code": "13",
+   "name": "Assisted living facility",
+   "facility": false
+  },
+  {
+   "code": "14",
+   "name": "Group home",
+   "facility": false
+  },
+  {
+   "code": "15",
+   "name": "Mobile unit",
+   "facility": false
+  },
+  {
+   "code": "16",
+   "name": "Temporary lodging",
+   "facility": false
+  },
+  {
+   "code": "17",
+   "name": "Walk-in retail health clinic",
+   "facility": false
+  },
+  {
+   "code": "18",
+   "name": "Place of employment/worksite",
+   "facility": false
+  },
+  {
+   "code": "19",
+   "name": "Off campus-outpatient hospital",
+   "facility": true
+  },
+  {
+   "code": "20",
+   "name": "Urgent care facility",
+   "facility": false
+  },
+  {
+   "code": "21",
+   "name": "Inpatient hospital",
+   "facility": true
+  },
+  {
+   "code": "22",
+   "name": "On campus-outpatient hospital",
+   "facility": true
+  },
+  {
+   "code": "23",
+   "name": "Emergency room – hospital",
+   "facility": true
+  },
+  {
+   "code": "24",
+   "name": "Ambulatory surgical center",
+   "facility": true
+  },
+  {
+   "code": "25",
+   "name": "Birthing center",
+   "facility": false
+  },
+  {
+   "code": "26",
+   "name": "Military treatment facility",
+   "facility": true
+  },
+  {
+   "code": "27",
+   "name": "Outreach site/street",
+   "facility": false
+  },
+  {
+   "code": "31",
+   "name": "Skilled nursing facility",
+   "facility": true
+  },
+  {
+   "code": "32",
+   "name": "Nursing facility",
+   "facility": false
+  },
+  {
+   "code": "33",
+   "name": "Custodial care facility",
+   "facility": false
+  },
+  {
+   "code": "34",
+   "name": "Hospice",
+   "facility": true
+  },
+  {
+   "code": "41",
+   "name": "Ambulance – land",
+   "facility": true
+  },
+  {
+   "code": "42",
+   "name": "Ambulance – air or water",
+   "facility": true
+  },
+  {
+   "code": "49",
+   "name": "Independent clinic",
+   "facility": false
+  },
+  {
+   "code": "50",
+   "name": "Federally qualified health center",
+   "facility": false
+  },
+  {
+   "code": "51",
+   "name": "Inpatient psychiatric facility",
+   "facility": true
+  },
+  {
+   "code": "52",
+   "name": "Psychiatric facility-partial hospitalization",
+   "facility": true
+  },
+  {
+   "code": "53",
+   "name": "Community mental health center",
+   "facility": true
+  },
+  {
+   "code": "54",
+   "name": "Intermediate care facility/individuals with intellectual disabilities",
+   "facility": false
+  },
+  {
+   "code": "55",
+   "name": "Residential substance abuse treatment facility",
+   "facility": false
+  },
+  {
+   "code": "56",
+   "name": "Psychiatric residential treatment center",
+   "facility": true
+  },
+  {
+   "code": "57",
+   "name": "Non-residential substance abuse treatment facility",
+   "facility": false
+  },
+  {
+   "code": "58",
+   "name": "Non-residential opioid treatment facility",
+   "facility": false
+  },
+  {
+   "code": "60",
+   "name": "Mass immunization center",
+   "facility": false
+  },
+  {
+   "code": "61",
+   "name": "Comprehensive inpatient rehabilitation facility",
+   "facility": true
+  },
+  {
+   "code": "62",
+   "name": "Comprehensive outpatient rehabilitation facility",
+   "facility": false
+  },
+  {
+   "code": "65",
+   "name": "End-stage renal disease treatment facility",
+   "facility": false
+  },
+  {
+   "code": "66",
+   "name": "Programs of All-Inclusive Care for the Elderly (PACE) center",
+   "facility": false
+  },
+  {
+   "code": "71",
+   "name": "Public health clinic",
+   "facility": false
+  },
+  {
+   "code": "72",
+   "name": "Rural health clinic",
+   "facility": false
+  },
+  {
+   "code": "81",
+   "name": "Independent laboratory",
+   "facility": false
+  },
+  {
+   "code": "99",
+   "name": "Other place of service",
+   "facility": false
+  }
+ ]
+}

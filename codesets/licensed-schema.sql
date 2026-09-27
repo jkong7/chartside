@@ -1,0 +1,11 @@
+CREATE TABLE ptp (col1 TEXT NOT NULL, col2 TEXT NOT NULL, eff TEXT NOT NULL, del TEXT, modifier INTEGER NOT NULL, rationale TEXT);
+CREATE INDEX ptp_pair ON ptp (col1, col2);
+CREATE TABLE mue (code TEXT PRIMARY KEY, value INTEGER NOT NULL, mai INTEGER NOT NULL, rationale TEXT);
+CREATE TABLE article (id TEXT PRIMARY KEY, version TEXT, display_id TEXT, title TEXT, eff TEXT, end_date TEXT);
+CREATE TABLE article_contractor (article_id TEXT, contractor_number TEXT, contractor_name TEXT);
+CREATE INDEX article_contractor_num ON article_contractor (contractor_number);
+CREATE TABLE article_hcpc (article_id TEXT, code TEXT, grp TEXT);
+CREATE INDEX article_hcpc_code ON article_hcpc (code);
+CREATE TABLE article_icd (article_id TEXT, code TEXT, grp TEXT);
+CREATE INDEX article_icd_lookup ON article_icd (article_id, grp, code);
+CREATE TABLE meta (id TEXT PRIMARY KEY, content TEXT);

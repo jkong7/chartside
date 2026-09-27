@@ -1,0 +1,212 @@
+{
+  "public": [
+    {
+      "id": "icd10cm-2026-apr",
+      "kind": "icd10cm",
+      "name": "ICD-10-CM FY2026 (April 1, 2026 update)",
+      "publisher": "CDC National Center for Health Statistics; mirrored by CMS",
+      "version": "FY2026-April",
+      "effective": {
+        "from": "2026-04-01",
+        "to": "2026-09-30"
+      },
+      "license": "US government work, free to use in the United States. ICD-10-CM is the NCHS clinical modification of WHO ICD-10, used with WHO permission.",
+      "files": {
+        "order": {
+          "url": "https://www.cms.gov/files/zip/april-1-2026-code-descriptions-tabular-order.zip",
+          "member": "icd10cm_order_2026.txt"
+        },
+        "tabular": {
+          "url": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Publications/ICD10CM/2026-update/icd10cm-April-1-2026-XML.zip",
+          "member": "icd10c-tabular-April-1-2026.xml"
+        }
+      }
+    },
+    {
+      "id": "icd10cm-2027",
+      "kind": "icd10cm",
+      "name": "ICD-10-CM FY2027",
+      "publisher": "CDC National Center for Health Statistics; mirrored by CMS",
+      "version": "FY2027",
+      "effective": {
+        "from": "2026-10-01",
+        "to": "2027-09-30"
+      },
+      "license": "US government work, free to use in the United States. ICD-10-CM is the NCHS clinical modification of WHO ICD-10, used with WHO permission.",
+      "files": {
+        "order": {
+          "url": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Publications/ICD10CM/2027/icd10cm-code-descriptions-2027.zip",
+          "member": "icd10cm-order-2027.txt"
+        },
+        "tabular": {
+          "url": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Publications/ICD10CM/2027/icd10cm-table-and-index-2027.zip",
+          "member": "icd10cm-tabular_-2027.xml"
+        }
+      }
+    },
+    {
+      "id": "hcpcs-2026-oct",
+      "kind": "hcpcs",
+      "name": "HCPCS Level II, October 2026 quarterly update",
+      "publisher": "Centers for Medicare & Medicaid Services",
+      "version": "2026-Q4",
+      "effective": {
+        "from": "2026-10-01",
+        "to": "2026-12-31"
+      },
+      "license": "CMS-maintained Level II codes are free to use. CDT (D-codes, American Dental Association) and CPT (AMA) content are excluded from this build.",
+      "files": {
+        "codes": {
+          "url": "https://www.cms.gov/files/zip/october-2026-alpha-numeric-hcpcs-file.zip",
+          "member": "HCPC2026_OCT_ANWEB_09232026.txt"
+        }
+      }
+    },
+    {
+      "id": "pfs-2026-d",
+      "kind": "pfs",
+      "name": "Medicare Physician Fee Schedule relative values, RVU26D",
+      "publisher": "Centers for Medicare & Medicaid Services",
+      "version": "RVU26D",
+      "effective": {
+        "from": "2026-01-01",
+        "to": "2026-12-31"
+      },
+      "license": "US government data. Only numeric relative values and indicators are kept; CPT descriptors (AMA) are stripped.",
+      "files": {
+        "rvu": {
+          "url": "https://www.cms.gov/files/zip/rvu26d-updated-08-26-2026.zip",
+          "member": "PPRRVU2026_Oct_nonQPP.csv"
+        },
+        "rvuQp": {
+          "url": "https://www.cms.gov/files/zip/rvu26d-updated-08-26-2026.zip",
+          "member": "PPRRVU2026_Oct_QPP.csv"
+        },
+        "gpci": {
+          "url": "https://www.cms.gov/files/zip/rvu26d-updated-08-26-2026.zip",
+          "member": "GPCI2026.csv"
+        }
+      }
+    },
+    {
+      "id": "hcc-v28-2026",
+      "kind": "hcc",
+      "name": "CMS-HCC risk adjustment model V28, payment year 2026 (midyear final)",
+      "publisher": "Centers for Medicare & Medicaid Services",
+      "version": "V28-PY2026",
+      "effective": {
+        "from": "2025-01-01",
+        "to": "2026-12-31"
+      },
+      "license": "US government data.",
+      "files": {
+        "package": {
+          "url": "https://www.cms.gov/files/zip/2026-midyear-final-model-software-python.zip",
+          "member": "CMS_HCC_v28_2026_T_package_v3.zip"
+        }
+      }
+    },
+    {
+      "id": "asp-2026-oct",
+      "kind": "asp",
+      "name": "Medicare Part B drug and vaccine payment allowance limits, October 2026",
+      "publisher": "Centers for Medicare & Medicaid Services",
+      "version": "2026-Q4",
+      "effective": {
+        "from": "2026-10-01",
+        "to": "2026-12-31"
+      },
+      "license": "US government data. Only codes and payment limits are kept; CPT descriptors (AMA) are stripped.",
+      "files": {
+        "limits": {
+          "url": "https://www.cms.gov/files/zip/october-2026-medicare-part-b-payment-limit-files-final.zip",
+          "member": "section 508 version of October 2026 Medicare Part B Payment Limit File 091626.csv"
+        },
+        "notPayable": {
+          "url": "https://www.cms.gov/files/zip/october-2026-medicare-part-b-payment-limit-files-final.zip",
+          "member": "section 508 version of October 2026 Drugs Not Payable Under Part B 091426.csv"
+        }
+      }
+    },
+    {
+      "id": "clfs-2026-q4",
+      "kind": "clfs",
+      "name": "Medicare Clinical Laboratory Fee Schedule, CY2026 Q4",
+      "publisher": "Centers for Medicare & Medicaid Services",
+      "version": "26CLABQ4",
+      "effective": {
+        "from": "2026-10-01",
+        "to": "2026-12-31"
+      },
+      "license": "US government data. Only codes, indicators, and rates are kept; CPT descriptors (AMA) are stripped.",
+      "files": {
+        "rates": {
+          "url": "https://www.cms.gov/files/zip/26clabq4.zip",
+          "member": "PUF_CLFS_CY2026_Q4V1.csv"
+        }
+      }
+    }
+  ],
+  "licensed": [
+    {
+      "id": "ncci-ptp-2026q4",
+      "kind": "ncci-ptp",
+      "name": "Medicare NCCI procedure-to-procedure edits, practitioner, 2026 Q4 (v32.3)",
+      "publisher": "Centers for Medicare & Medicaid Services",
+      "version": "2026-Q4-v32.3",
+      "effective": {
+        "from": "2026-10-01",
+        "to": "2026-12-31"
+      },
+      "license": "Contains CPT (AMA). Downloaded under the CMS/AMA point-and-click license for internal use only; never redistributed.",
+      "files": {
+        "f1": {
+          "url": "https://www.cms.gov/files/zip/medicare-ncci-2026q4-practitioner-ptp-edits-ccipra-v323r0-f1.zip"
+        },
+        "f2": {
+          "url": "https://www.cms.gov/files/zip/medicare-ncci-2026q4-practitioner-ptp-edits-ccipra-v323r0-f2.zip"
+        },
+        "f3": {
+          "url": "https://www.cms.gov/files/zip/medicare-ncci-2026q4-practitioner-ptp-edits-ccipra-v323r0-f3.zip"
+        },
+        "f4": {
+          "url": "https://www.cms.gov/files/zip/medicare-ncci-2026q4-practitioner-ptp-edits-ccipra-v323r0-f4.zip"
+        }
+      }
+    },
+    {
+      "id": "ncci-mue-2026q4",
+      "kind": "ncci-mue",
+      "name": "Medicare NCCI medically unlikely edits, practitioner services, 2026 Q4",
+      "publisher": "Centers for Medicare & Medicaid Services",
+      "version": "2026-Q4",
+      "effective": {
+        "from": "2026-10-01",
+        "to": "2026-12-31"
+      },
+      "license": "Contains CPT (AMA). Internal use under the CMS/AMA license; never redistributed.",
+      "files": {
+        "mue": {
+          "url": "https://www.cms.gov/files/zip/medicare-ncci-2026-q4-practitioner-services-mue-table.zip"
+        }
+      }
+    },
+    {
+      "id": "mcd-articles",
+      "kind": "mcd",
+      "name": "Medicare Coverage Database: current LCD billing and coding articles",
+      "publisher": "Centers for Medicare & Medicaid Services",
+      "version": "weekly",
+      "effective": {
+        "from": "2026-01-01",
+        "to": "2099-12-31"
+      },
+      "license": "Contains CPT (AMA), CDT (ADA), and UB-04 (AHA) content. Internal use under the MCD license terms; never redistributed.",
+      "files": {
+        "articles": {
+          "url": "https://downloads.cms.gov/medicare-coverage-database/downloads/exports/current_article.zip"
+        }
+      }
+    }
+  ]
+}

@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:all": "vitest run && playwright test",
-    "test:pg": "vitest run --no-file-parallelism && playwright test"
+    "test:pg": "vitest run --no-file-parallelism && playwright test",
+    "codesets:build": "node scripts/codesets.mjs",
+    "codesets:licensed": "node scripts/codesets.mjs --licensed"
   },
   "engines": {
     "node": ">=22.13"
