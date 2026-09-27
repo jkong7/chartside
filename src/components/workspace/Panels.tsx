@@ -1,0 +1,334 @@
+"use client";
+
+import { useState } from "react";
+import { api, copyText } from "@/lib/client";
+import type { CodingResult, MdmElement, PatientSummary, StagedOrder } from "@/lib/types";
+import { Alert, Check, Copy, Globe, Info, Link as LinkIcon, X } from "../icons";
+import { Empty, Spinner } from "../ui";
+import type { Bundle } from "./types";
+
+const LEVEL_TONE: Record<MdmElement["level"], string> = {
+  straightforward: "bg-sunken text-ink-2",
+  low: "bg-info-50 text-info",
+  moderate: "bg-brand-50 text-brand",
+  high: "bg-rec-50 text-rec",
+};
+
+function EvidenceButton({ ids, onCite }: { ids: string[]; onCite: (ids: string[]) => void }) {
+  if (!ids.length) return <span className="text-xs text-ink-4">no link</span>;
+  return (
+    <button className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline" onClick={() => onCite(ids)}>
+      <LinkIcon size={12} /> {ids.length} source{ids.length > 1 ? "s" : ""}
+    </button>
+  );
+}
+
+export function CodesPanel({ coding, onCite }: { coding?: CodingResult; onCite: (ids: string[]) => void }) {
+  if (!coding) return <Empty title="Codes appear after the note is drafted." />;
+  const { em } = coding;
+  const risk = em.auditRisk;
+  return (
+    <div className="space-y-5" data-testid="codes-panel">
+      <div className="card p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="label">E/M level · {em.patientType} patient · MDM</p>
+            <p className="font-serif text-4xl" data-testid="em-code">{em.code}</p>
+            <p className={`pill mt-1 capitalize ${LEVEL_TONE[em.level]}`}>{em.level} complexity</p>
+            {em.timeBased && <p className="mt-2 text-xs text-ink-3">Time alternative: {em.timeBased.minutes} min recorded → {em.timeBased.code} if total time is documented</p>}
+          </div>
+          <div className="w-64">
+            <p className="label">Audit defensibility</p>
+            <div className="h-2 overflow-hidden rounded-full bg-sunken"><div className={`h-full ${risk.score >= 80 ? "bg-ok" : risk.score >= 60 ? "bg-warn" : "bg-rec"}`} style={{ width: `${risk.score}%` }} /></div>
+            <p className="mt-1 text-sm"><span className="font-semibold">{risk.score}/100</span> · {risk.direction === "balanced" ? "balanced" : risk.direction === "under" ? "possible undercoding" : "overcoding risk"}</p>
+            <ul className="mt-1 space-y-0.5 text-xs text-ink-3">{risk.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          {([["Problems addressed", em.problems], ["Data reviewed / ordered", em.data], ["Risk of management", em.risk]] as const).map(([title, el]) => (
+            <div key={title} className="rounded-lg border border-line p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-ink-2">{title}</p>
+                <span className={`pill text-[10px] capitalize ${LEVEL_TONE[el.level]}`}>{el.level}</span>
+              </div>
+              <ul className="mt-2 space-y-1 text-xs text-ink-2">{el.reasons.map((r) => <li key={r}>• {r}</li>)}</ul>
+              <div className="mt-2"><EvidenceButton ids={el.evidence} onCite={onCite} /></div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="card overflow-hidden">
+        <p className="border-b border-line px-4 py-2.5 text-[13px] font-semibold uppercase tracking-wide text-ink-2">Diagnoses · ICD-10-CM</p>
+        <table className="w-full text-sm">
+          <tbody>
+            {coding.diagnoses.map((d, i) => (
+              <tr key={d.code + i} className="border-b border-line last:border-0" data-testid="dx-row">
+                <td className="w-24 px-4 py-2.5 font-mono font-medium">{d.code}</td>
+                <td className="py-2.5 pr-3"><p className="font-medium">{d.label}</p><p className="text-xs text-ink-3">{d.rationale}</p></td>
+                <td className="w-24 pr-3 text-right text-xs text-ink-3">{Math.round(d.confidence * 100)}%</td>
+                <td className="w-28 pr-4 text-right"><EvidenceButton ids={d.evidence} onCite={onCite} /></td>
+              </tr>
+            ))}
+            {!coding.diagnoses.length && <tr><td className="px-4 py-3 text-ink-3">No diagnoses identified.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {(coding.hcc.length > 0 || coding.cdi.length > 0) && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="card p-4">
+            <p className="text-[13px] font-semibold uppercase tracking-wide text-ink-2">Risk adjustment (HCC)</p>
+            {coding.hcc.length ? coding.hcc.map((h) => (
+              <div key={h.code + h.label} className="mt-2 text-sm"><p><span className="font-mono">{h.code}</span> · {h.label}</p><p className="text-xs text-ink-3">{h.rationale}</p></div>
+            )) : <p className="mt-2 text-sm text-ink-3">No risk-adjusting conditions addressed.</p>}
+          </div>
+          <div className="card p-4" data-testid="cdi">
+            <p className="text-[13px] font-semibold uppercase tracking-wide text-ink-2">Documentation improvement</p>
+            {coding.cdi.length ? coding.cdi.map((c) => (
+              <p key={c.message} className="mt-2 flex gap-2 text-sm text-ink-2"><Info size={15} className="mt-0.5 shrink-0 text-info" />{c.message}</p>
+            )) : <p className="mt-2 text-sm text-ink-3">Nothing to improve.</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const KIND_LABEL: Record<StagedOrder["kind"], string> = { lab: "Lab", imaging: "Imaging", medication: "Rx", referral: "Referral", procedure: "Procedure", vaccine: "Vaccine", follow_up: "Follow-up" };
+
+export function OrdersPanel({ encounterId, orders, locked, onChange, onCite }: { encounterId: string; orders: StagedOrder[]; locked: boolean; onChange: (o: StagedOrder[]) => void; onCite: (ids: string[]) => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function set(o: StagedOrder, status: StagedOrder["status"], override = false) {
+    setBusy(o.id);
+    setErr(null);
+    try {
+      const r = await api<{ order: StagedOrder }>(`/encounters/${encounterId}/orders/${o.id}`, { method: "PATCH", body: { status, override } });
+      onChange(orders.map((x) => (x.id === o.id ? r.order : x)));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not update order");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const safe = orders.filter((o) => o.status === "staged" && !o.alerts.some((a) => a.level !== "info"));
+  if (!orders.length) return <Empty title="No orders were discussed in this visit." />;
+  return (
+    <div className="space-y-3" data-testid="orders-panel">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-ink-2">Orders heard during the visit are staged here. Nothing is sent until you accept it.</p>
+        {!locked && safe.length > 1 && (
+          <button className="btn-outline" onClick={async () => { for (const o of safe) await set(o, "accepted"); }} data-testid="accept-safe">
+            <Check /> Accept {safe.length} without alerts
+          </button>
+        )}
+      </div>
+      {err && <p className="rounded-lg bg-rec-50 px-3 py-2 text-sm text-rec" role="alert">{err}</p>}
+      {orders.map((o) => {
+        const block = o.alerts.some((a) => a.level === "block");
+        return (
+          <div key={o.id} className={`card p-4 ${o.status === "rejected" ? "opacity-60" : ""}`} data-testid="order-row" data-status={o.status}>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="pill bg-sunken text-ink-2">{KIND_LABEL[o.kind]}</span>
+              <div className="min-w-0 flex-1">
+                <p className={`font-medium ${o.status === "rejected" ? "line-through" : ""}`}>{o.name}</p>
+                <p className="text-xs text-ink-3">{[o.detail, o.problem].filter(Boolean).join(" · ")}</p>
+              </div>
+              <EvidenceButton ids={o.evidence} onCite={onCite} />
+              {o.status === "staged" && !locked ? (
+                <div className="flex gap-1.5">
+                  <button className="btn-outline px-2.5 py-1 text-xs" disabled={busy === o.id} onClick={() => set(o, "rejected")}><X size={13} /> Reject</button>
+                  {block ? (
+                    <button className="btn-danger px-2.5 py-1 text-xs" disabled={busy === o.id} onClick={() => set(o, "accepted", true)}>Override &amp; accept</button>
+                  ) : (
+                    <button className="btn-primary px-2.5 py-1 text-xs" disabled={busy === o.id} onClick={() => set(o, "accepted")} data-testid="accept-order"><Check size={13} /> Accept</button>
+                  )}
+                </div>
+              ) : (
+                <span className={`pill ${o.status === "accepted" ? "bg-ok-50 text-ok" : o.status === "rejected" ? "bg-sunken text-ink-3" : "bg-sunken text-ink-2"}`}>{o.status}</span>
+              )}
+              {o.status !== "staged" && !locked && <button className="text-xs text-ink-3 hover:underline" onClick={() => set(o, "staged")}>Undo</button>}
+            </div>
+            {o.alerts.length > 0 && (
+              <ul className="mt-3 space-y-1">
+                {o.alerts.map((a) => (
+                  <li key={a.message} className={`flex items-start gap-2 rounded-md px-2.5 py-1.5 text-xs ${a.level === "block" ? "bg-rec-50 text-rec" : a.level === "warn" ? "bg-warn-50 text-warn" : "bg-info-50 text-info"}`} data-testid={`alert-${a.level}`}>
+                    {a.level === "info" ? <Info size={13} className="mt-px shrink-0" /> : <Alert size={13} className="mt-px shrink-0" />}
+                    {a.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const LANGS: Record<string, string> = { en: "English", es: "Español", zh: "中文", vi: "Tiếng Việt" };
+
+export function SummaryPanel({ b, onFlags }: { b: Bundle; onFlags: () => void }) {
+  const summaries = b.artifacts.summaries ?? {};
+  const langs = Object.keys(summaries);
+  const [lang, setLang] = useState(langs.includes(b.encounter.outputLang) ? b.encounter.outputLang : langs[0] ?? "en");
+  const [extra, setExtra] = useState<Record<string, PatientSummary>>({});
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [share, setShare] = useState<string | null>(b.artifacts.share ? `/s/${b.artifacts.share.token}` : null);
+  const [copied, setCopied] = useState(false);
+  const all = { ...summaries, ...extra };
+  const s = all[lang];
+
+  async function translate(to: string) {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await api<{ summary: PatientSummary }>(`/encounters/${b.encounter.id}/summary`, { body: { lang: to } });
+      setExtra((x) => ({ ...x, [to]: r.summary }));
+      setLang(to);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Translation failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const text = s ? [s.greeting, ...s.sections.flatMap((x) => [``, x.title, ...x.items.map((i) => `• ${i}`)])].join("\n") : "";
+  return (
+    <div className="grid gap-5 lg:grid-cols-[1fr_300px]" data-testid="summary-panel">
+      <div className="card">
+        <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2.5">
+          {Object.keys(all).map((l) => (
+            <button key={l} className={`pill ${l === lang ? "bg-brand text-white" : "bg-sunken text-ink-2"}`} onClick={() => setLang(l)}>{LANGS[l] ?? l}</button>
+          ))}
+          <div className="relative ml-1">
+            <select className="input w-auto py-1 text-xs" value="" onChange={(e) => e.target.value && translate(e.target.value)} disabled={busy} aria-label="Translate summary">
+              <option value="">+ Translate…</option>
+              {Object.entries(LANGS).filter(([k]) => !all[k]).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </div>
+          {busy && <Spinner className="text-brand" />}
+          {s?.readingGrade ? <span className={`pill ml-auto ${s.readingGrade <= 8 ? "bg-ok-50 text-ok" : "bg-warn-50 text-warn"}`} data-testid="reading-grade">Grade {s.readingGrade} reading level</span> : null}
+        </div>
+        {err && <p className="mx-4 mt-3 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn">{err}</p>}
+        {s ? (
+          <div className="space-y-4 px-5 py-4 text-[15px] leading-7" lang={s.lang}>
+            {s.warnings.map((w) => <p key={w} className="rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn">{w}</p>)}
+            <p className="font-serif text-lg">{s.greeting}</p>
+            {s.sections.map((sec) => (
+              <div key={sec.title}>
+                <p className="font-semibold">{sec.title}</p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-5">{sec.items.map((i) => <li key={i}>{i}</li>)}</ul>
+              </div>
+            ))}
+          </div>
+        ) : <div className="p-5"><Empty title="No summary yet." /></div>}
+      </div>
+      <div className="space-y-4">
+        <div className="card p-4">
+          <p className="font-semibold">Send to patient</p>
+          <p className="mt-1 text-sm text-ink-3">A private link shows the summary and the transcript, and lets the patient flag anything that doesn&apos;t match what they said.</p>
+          <div className="mt-3 flex flex-col gap-2">
+            <button className="btn-outline" onClick={async () => { await copyText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>{copied ? <Check className="text-ok" /> : <Copy />} Copy summary</button>
+            <button className="btn-primary" onClick={async () => { const r = await api<{ url: string }>(`/encounters/${b.encounter.id}/share`, { method: "POST" }); setShare(r.url); }} data-testid="share">
+              <Globe /> {share ? "Patient link ready" : "Create patient link"}
+            </button>
+            {share && (
+              <a href={share} target="_blank" rel="noreferrer" className="break-all rounded-lg bg-sunken px-3 py-2 font-mono text-xs text-brand" data-testid="share-link">{typeof window !== "undefined" ? window.location.origin : ""}{share}</a>
+            )}
+          </div>
+        </div>
+        <div className="card p-4" data-testid="patient-flags">
+          <p className="font-semibold">Patient corrections</p>
+          {b.patientFlags.length ? (
+            <ul className="mt-2 space-y-2">
+              {b.patientFlags.map((f) => (
+                <li key={f.id} className={`rounded-lg border px-3 py-2 text-sm ${f.resolved ? "border-line opacity-60" : "border-warn/40 bg-warn-50"}`}>
+                  <p className="text-xs text-ink-3">On &ldquo;{f.item}&rdquo;</p>
+                  <p className="mt-0.5">{f.comment}</p>
+                  {!f.resolved && <button className="mt-1 text-xs font-medium text-brand" onClick={async () => { await api(`/encounters/${b.encounter.id}/flags`, { method: "PATCH", body: { flagId: f.id } }); onFlags(); }}>Mark reviewed</button>}
+                </li>
+              ))}
+            </ul>
+          ) : <p className="mt-1 text-sm text-ink-3">None yet.</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function LettersPanel({ letters }: { letters?: { specialty: string; text: string }[] }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  if (!letters?.length) return <Empty title="No referrals were made in this visit.">Referral letters are drafted automatically when you refer a patient.</Empty>;
+  return (
+    <div className="space-y-4" data-testid="letters-panel">
+      {letters.map((l) => (
+        <div key={l.specialty} className="card">
+          <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
+            <p className="text-[13px] font-semibold uppercase tracking-wide text-ink-2">Referral · {l.specialty}</p>
+            <button className="btn-ghost px-2 py-1 text-xs" onClick={async () => { await copyText(l.text); setCopied(l.specialty); setTimeout(() => setCopied(null), 1500); }}>{copied === l.specialty ? <Check size={14} className="text-ok" /> : <Copy size={14} />} Copy</button>
+          </div>
+          <pre className="whitespace-pre-wrap px-5 py-4 font-serif text-[15px] leading-7">{l.text}</pre>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const ACTION_LABEL: Record<string, string> = {
+  "consent.granted": "Consent recorded",
+  "consent.declined": "Patient declined recording",
+  "capture.started": "Ambient capture started",
+  "capture.manual": "Manual documentation started",
+  "capture.paused": "Capture paused",
+  "capture.resumed": "Capture resumed",
+  "capture.reset": "Capture reset",
+  "note.generated": "Note drafted",
+  "note.edited": "Note edited",
+  "note.signed": "Note signed",
+  "order.accepted": "Order accepted",
+  "order.rejected": "Order rejected",
+  "order.staged": "Order returned to staged",
+  "transcript.redacted": "Transcript line redacted",
+  "transcript.unredacted": "Transcript line restored",
+  "summary.shared": "Patient link created",
+  "patient.flagged": "Patient flagged a correction",
+  "export.fhir": "FHIR bundle exported",
+  "export.text": "Note copied for EHR",
+  assist: "Assistant used",
+};
+
+export function AuditPanel({ b }: { b: Bundle }) {
+  const c = b.consent;
+  return (
+    <div className="grid gap-5 lg:grid-cols-[1fr_340px]" data-testid="audit-panel">
+      <div className="card">
+        <p className="border-b border-line px-4 py-2.5 text-[13px] font-semibold uppercase tracking-wide text-ink-2">Audit trail</p>
+        <ol className="divide-y divide-line">
+          {b.audit.map((a) => (
+            <li key={a.id} className="flex gap-3 px-4 py-2.5 text-sm">
+              <span className="w-20 shrink-0 font-mono text-xs text-ink-3">{new Date(a.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}</span>
+              <span className="flex-1">{ACTION_LABEL[a.action] ?? a.action}{a.action === "note.generated" && a.detail.supportedPct !== undefined ? ` · ${a.detail.supportedPct}% linked · ${a.detail.omissions} omission flag(s)` : ""}{a.action.startsWith("order.") && a.detail.order ? ` · ${a.detail.order}` : ""}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+      <div className="card p-4">
+        <p className="font-semibold">Consent record</p>
+        {c ? (
+          <dl className="mt-2 space-y-2 text-sm">
+            <div><dt className="label">Decision</dt><dd className="capitalize">{c.decision} · {c.method}</dd></div>
+            <div><dt className="label">Location</dt><dd>{c.state}{c.allParty ? " · all-party consent state" : ""}</dd></div>
+            <div><dt className="label">Script</dt><dd className="font-mono text-xs">{c.scriptVersion}</dd></div>
+            <div><dt className="label">Statement</dt><dd className="text-ink-2">{c.statement}</dd></div>
+            <div><dt className="label">SHA-256</dt><dd className="break-all font-mono text-[11px] text-ink-3">{c.digest}</dd></div>
+          </dl>
+        ) : <p className="mt-1 text-sm text-ink-3">No consent recorded.</p>}
+      </div>
+    </div>
+  );
+}

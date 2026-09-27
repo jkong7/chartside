@@ -32,16 +32,17 @@ export const GET = authed<{ id: string }>((_req, user, { id }) => {
 export const PATCH = authed<{ id: string }>(async (req, user, { id }) => {
   const enc = encounters.get(user.id, id);
   if (!enc) return fail("Encounter not found", 404);
-  const b = await body<Partial<Encounter> & { action?: "start" | "pause" | "resume" | "reset" }>(req);
+  const b = await body<Partial<Encounter> & { action?: "start" | "pause" | "resume" | "reset"; manual?: boolean }>(req);
   const patch: Partial<Encounter> = {};
   for (const k of ["reason", "visitType", "templateId", "setting", "inputLang", "outputLang", "patientId"] as const) if (b[k] !== undefined) (patch as Record<string, unknown>)[k] = b[k];
   if (b.action === "start") {
     const consent = consents.latest(enc.id);
-    if (!consent || consent.decision !== "granted") return fail("Record patient consent before starting ambient capture", 409);
+    if (!consent) return fail("Record patient consent before starting ambient capture", 409);
+    if (consent.decision !== "granted" && !b.manual) return fail("The patient declined recording. Only manual documentation is available.", 409);
     if (enc.status === "signed") return fail("This visit is already signed", 409);
     patch.status = "recording";
     patch.startedAt = enc.startedAt ?? new Date().toISOString();
-    audit.log(user.id, enc.id, "capture.started", {});
+    audit.log(user.id, enc.id, b.manual ? "capture.manual" : "capture.started", {});
   }
   if (b.action === "pause") { patch.status = "paused"; audit.log(user.id, enc.id, "capture.paused", {}); }
   if (b.action === "resume") { patch.status = "recording"; audit.log(user.id, enc.id, "capture.resumed", {}); }

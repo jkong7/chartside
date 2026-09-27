@@ -20,7 +20,7 @@ function numbersIn(s: string) {
 export function scoreSupport(note: Note, utterances: Utterance[], chart?: Chart): Note {
   const byId = new Map(utterances.map((u) => [u.id, u]));
   const chartText = chart ? JSON.stringify(chart).toLowerCase() : "";
-  const allText = utterances.map((u) => u.text).join(" ").toLowerCase();
+  const allText = utterances.map((u) => u.text).join(" ").toLowerCase().replace(/(\d{2,3})\s+over\s+(\d{2,3})/g, "$1/$2 $1 $2");
   const sections = note.sections.map((sec) => ({
     ...sec,
     sentences: sec.sentences.map((s): NoteSentence => {

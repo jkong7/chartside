@@ -21,7 +21,7 @@ export const POST = authed<{ id: string }>(async (req, user, { id }) => {
   let prev = (utterances.list(enc.id).at(-1)?.speaker ?? null) as "clinician" | "patient" | null;
   const rows = items.map((u) => {
     const auto = !u.speaker || u.speaker === "auto";
-    const speaker: Speaker = auto ? guessSpeaker(u.text, prev === "clinician" || prev === "patient" ? prev : null) : u.speaker as Speaker;
+    const speaker: Speaker = auto ? guessSpeaker(u.text, prev === "clinician" || prev === "patient" ? prev : null) : (u.speaker as Speaker);
     prev = speaker === "other" ? prev : speaker;
     return { speaker, speakerSource: auto ? ("auto" as const) : ("manual" as const), text: u.text.trim().slice(0, 2000), tStart: u.tStart ?? 0, tEnd: u.tEnd ?? u.tStart ?? 0, lang: u.lang ?? enc.inputLang };
   });
