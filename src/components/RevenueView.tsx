@@ -16,12 +16,16 @@ const CATEGORY: Record<string, string> = {
   hcc: "Risk adjustment (HCC) suspects",
   preventive: "Preventive / wellness visits due",
   specificity: "Diagnosis specificity",
+  part_d: "Part D vaccines to bill outside Part B",
+  prolonged: "Prolonged services",
 };
+
+const pct = (n: number | null) => (n === null ? "—" : `${n}%`);
 
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function RevenueView({ data }: { data: Data }) {
-  const [tab, setTab] = useState<"queue" | "leakage" | "pa">("queue");
+  const [tab, setTab] = useState<"queue" | "denials" | "ar" | "leakage" | "pa">("queue");
   const [filter, setFilter] = useState<string>("all");
   const rows = useMemo(() => data.rows.filter((r) => filter === "all" || r.status === filter), [data.rows, filter]);
   const s = (k: string) => data.byStatus[k] ?? { count: 0, charges: 0 };
@@ -29,28 +33,78 @@ export default function RevenueView({ data }: { data: Data }) {
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
       <h1 className="font-serif text-3xl">Revenue</h1>
-      <p className="mt-1 text-sm text-ink-2">Claims are built from signed notes and accepted orders, checked against payer edits, and routed here for pre-bill review. Fees use an illustrative schedule.</p>
+      <p className="mt-1 text-sm text-ink-2">Claims are built from signed notes and accepted orders, validated against official ICD-10-CM, HCPCS, Medicare fee schedule, and CMS edit data, and tracked from pre-bill review through payment.</p>
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="revenue-kpis">
         <Kpi label="Needs review" value={s("needs_review").count} hint={money(s("needs_review").charges)} tone={s("needs_review").count ? "warn" : "ink"} />
         <Kpi label="Ready / approved" value={s("ready").count + s("approved").count} hint={money(s("ready").charges + s("approved").charges)} tone="brand" />
-        <Kpi label="Submitted" value={s("submitted").count} hint={money(s("submitted").charges)} tone="ok" />
+        <Kpi label="Collected" value={money(data.kpis.collected)} hint={`of ${money(data.kpis.expectedAllowed)} expected allowed`} tone="ok" />
         <Kpi label="Missed revenue found" value={money(data.totals.leakageValue)} hint={`${Object.values(data.leakage).reduce((n, l) => n + l.count, 0)} opportunities`} tone="warn" />
       </div>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5" data-testid="rcm-kpis">
+        <Kpi label="A/R outstanding" value={money(data.kpis.outstanding)} hint={`${data.kpis.claimsSubmitted} submitted`} />
+        <Kpi label="First-pass resolution" value={pct(data.kpis.firstPassRate)} hint={`${data.kpis.claimsAdjudicated} adjudicated`} tone="brand" />
+        <Kpi label="Denial rate" value={pct(data.kpis.denialRate)} tone={data.kpis.denialRate ? "warn" : "ink"} />
+        <Kpi label="Net collection rate" value={pct(data.kpis.netCollectionRate)} hint="(paid + patient) ÷ allowed" />
+        <Kpi label="Charge lag" value={data.kpis.avgChargeLagDays === null ? "—" : `${data.kpis.avgChargeLagDays} d`} hint="date of service to submission" />
+      </div>
       <div className="mt-6">
-        <Tabs<"queue" | "leakage" | "pa">
+        <Tabs<"queue" | "denials" | "ar" | "leakage" | "pa">
           value={tab}
           onChange={setTab}
           tabs={[
             { id: "queue", label: "Claims queue", badge: <span className="pill bg-sunken text-[10px]">{data.rows.length}</span> },
+            { id: "denials", label: "Denials", badge: data.denials.length ? <span className="pill bg-rec-50 text-[10px] text-rec">{data.denials.length}</span> : null },
+            { id: "ar", label: "A/R aging" },
             { id: "leakage", label: "Missed revenue" },
             { id: "pa", label: "Prior authorizations", badge: paOpen.length ? <span className="pill bg-warn-50 text-[10px] text-warn">{paOpen.length}</span> : null },
           ]}
         />
       </div>
+      {tab === "denials" && (
+        <div className="card mt-4 overflow-x-auto" data-testid="denials">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead className="text-left text-[11px] uppercase tracking-wide text-ink-3"><tr><th className="px-4 py-2">Date</th><th>Patient</th><th>Payer</th><th>Root cause</th><th>CARC</th><th className="text-right">Open</th><th className="px-4">Next step</th></tr></thead>
+            <tbody>
+              {data.denials.map((d) => (
+                <tr key={d.encounterId} className="border-t border-line align-top" data-testid="denial-row">
+                  <td className="px-4 py-2.5 whitespace-nowrap">{new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</td>
+                  <td className="py-2.5"><Link className="font-medium text-brand hover:underline" href={`/encounters/${d.encounterId}?tab=billing`}>{d.patient}</Link></td>
+                  <td className="py-2.5">{d.payer}</td>
+                  <td className="py-2.5 capitalize" data-testid="denial-category">{d.category.replace("_", " ")}</td>
+                  <td className="py-2.5 font-mono text-xs">{d.carcs.join(", ")}</td>
+                  <td className="py-2.5 text-right font-mono">{money(d.amount)}</td>
+                  <td className="px-4 py-2.5 text-xs text-ink-2">{d.appeal ? `Appeal ${d.appeal}` : d.action}</td>
+                </tr>
+              ))}
+              {!data.denials.length && <tr><td colSpan={7} className="px-4 py-8 text-center text-ink-3">No open denials.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {tab === "ar" && (
+        <div className="card mt-4 p-5" data-testid="ar-aging">
+          <p className="text-[13px] font-semibold uppercase tracking-wide text-ink-2">Accounts receivable by days since service</p>
+          {(() => {
+            const max = Math.max(1, ...data.aging.map((a) => a.amount));
+            return (
+              <div className="mt-4 space-y-2.5">
+                {data.aging.map((a) => (
+                  <div key={a.label} className="grid grid-cols-[72px_1fr_110px] items-center gap-3 text-sm" data-testid="aging-bucket">
+                    <span className="text-ink-2">{a.label} d</span>
+                    <div className="h-3 rounded-full bg-sunken"><div className="h-3 rounded-full bg-brand" style={{ width: `${(a.amount / max) * 100}%` }} /></div>
+                    <span className="text-right font-mono">{money(a.amount)} <span className="text-xs text-ink-3">({a.count})</span></span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+          <p className="mt-4 text-xs text-ink-3">Outstanding = expected allowed on accepted claims awaiting payment, plus billed amounts on open denials. Write-offs to date: {money(data.kpis.writeOffs)}.</p>
+        </div>
+      )}
       {tab === "queue" && (
         <div className="mt-4">
           <div className="flex flex-wrap gap-1.5">
-            {["all", "needs_review", "ready", "approved", "on_hold", "submitted"].map((f) => (
+            {["all", "needs_review", "ready", "approved", "on_hold", "rejected", "accepted", "paid", "partial", "denied", "appealed", "closed"].filter((f) => f === "all" || data.byStatus[f]).map((f) => (
               <button key={f} className={`pill ${filter === f ? "bg-brand text-white" : "bg-sunken text-ink-2"}`} onClick={() => setFilter(f)}>{f === "all" ? "All" : f.replace("_", " ")}</button>
             ))}
           </div>

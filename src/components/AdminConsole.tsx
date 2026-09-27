@@ -39,7 +39,7 @@ interface Data {
   audit: { id: string; action: string; detail: Record<string, unknown>; created_at: string; user_name: string | null; encounter_id: string | null }[];
 }
 
-type Tab = "members" | "sso" | "analytics" | "audit" | "org";
+type Tab = "members" | "sso" | "billing" | "analytics" | "audit" | "org";
 
 const ACTION_LABEL: Record<string, string> = {
   "user.login": "Signed in",
@@ -87,7 +87,7 @@ function describe(a: Data["audit"][number], members: Member[]) {
 export default function AdminConsole({ initial, me, tab: initialTab, redirectOrigin }: { initial: Data; me: { id: string; role: Role }; tab?: string; redirectOrigin: string | null }) {
   const router = useRouter();
   const [d, setD] = useState(initial);
-  const [tab, setTab] = useState<Tab>((["members", "sso", "analytics", "audit", "org"].includes(initialTab ?? "") ? initialTab : "members") as Tab);
+  const [tab, setTab] = useState<Tab>((["members", "sso", "billing", "analytics", "audit", "org"].includes(initialTab ?? "") ? initialTab : "members") as Tab);
   const [toast, setToast] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -141,6 +141,7 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
           tabs={[
             { id: "members", label: "Members" },
             { id: "sso", label: "Single sign-on" },
+            { id: "billing", label: "Billing & code sets" },
             { id: "analytics", label: "Clinician analytics" },
             { id: "audit", label: "Audit log" },
             { id: "org", label: "Organization" },
@@ -313,6 +314,8 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
         </form>
       )}
 
+      {tab === "billing" && <BillingAdmin onSaved={(m) => setToast(m)} />}
+
       {tab === "analytics" && (
         <div className="card mt-5 overflow-x-auto" data-testid="org-analytics">
           <table className="w-full min-w-[640px] text-sm">
@@ -380,6 +383,106 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
         </form>
       )}
       <Toast message={toast} onDone={() => setToast(null)} />
+    </div>
+  );
+}
+
+interface BillingData {
+  settings: { locality: string; chargeMultiplier: number; qualifyingApm: boolean; commercialMultiplier: number; medicaidMultiplier: number; npi?: string; tin?: string; taxonomy?: string; demoIdentifiers?: boolean };
+  localities: { key: string; label: string; mac: string }[];
+  codesets: {
+    public: { id: string; name: string; version: string; effective: { from: string; to: string }; stats: Record<string, number>; builtAt: string; artifact: { sha256: string }; files: { url: string; sha256: string; bytes: number }[] }[];
+    pos: { name: string; source: string; retrieved: string };
+    licensed: { loaded: false } | { loaded: true; acceptedAt: string; acceptedBy: string; sources: { id: string; name: string; version: string; rows?: unknown }[] };
+  };
+}
+
+function BillingAdmin({ onSaved }: { onSaved: (m: string) => void }) {
+  const [d, setD] = useState<BillingData | null>(null);
+  const [form, setForm] = useState<BillingData["settings"] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api<BillingData>("/admin/billing").then((x) => { setD(x); setForm(x.settings); }).catch((e) => setErr(e instanceof Error ? e.message : "Could not load billing settings"));
+  }, []);
+  if (!d || !form) return <div className="mt-6 text-ink-3">{err ?? <Spinner />}</div>;
+  const set = (patch: Partial<BillingData["settings"]>) => setForm({ ...form, ...patch });
+  return (
+    <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+      <form
+        className="card space-y-4 p-5"
+        data-testid="billing-form"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          setErr(null);
+          try {
+            const r = await api<{ settings: BillingData["settings"] }>("/admin/billing", { method: "PUT", body: form });
+            setForm(r.settings);
+            onSaved("Billing settings saved.");
+          } catch (x) {
+            setErr(x instanceof Error ? x.message : "Could not save");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <p className="font-semibold">Billing provider & pricing</p>
+        {form.demoIdentifiers && <p className="rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn" data-testid="demo-identifiers">Demo NPI and tax ID are in use. Replace them before submitting real claims.</p>}
+        <div className="grid grid-cols-2 gap-3">
+          <div><label className="label" htmlFor="b-npi">Billing NPI</label><input className="input font-mono" id="b-npi" value={form.npi ?? ""} onChange={(e) => set({ npi: e.target.value })} /></div>
+          <div><label className="label" htmlFor="b-tin">Tax ID (EIN)</label><input className="input font-mono" id="b-tin" value={form.tin ?? ""} onChange={(e) => set({ tin: e.target.value })} /></div>
+        </div>
+        <div>
+          <label className="label" htmlFor="b-loc">Medicare payment locality</label>
+          <select className="input" id="b-loc" value={form.locality} onChange={(e) => set({ locality: e.target.value })}>{d.localities.map((l) => <option key={l.key} value={l.key}>{l.label} (MAC {l.mac})</option>)}</select>
+          <p className="mt-1 text-xs text-ink-3">Sets the GPCIs for Medicare pricing and the MAC whose LCD articles apply.</p>
+        </div>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.qualifyingApm} onChange={(e) => set({ qualifyingApm: e.target.checked })} /> Qualifying APM participant (2026 conversion factor $33.5675 instead of $33.4009)</label>
+        <div className="grid grid-cols-3 gap-3">
+          <div><label className="label" htmlFor="b-cm">Charge × Medicare</label><input className="input" id="b-cm" type="number" step="0.05" value={form.chargeMultiplier} onChange={(e) => set({ chargeMultiplier: Number(e.target.value) })} /></div>
+          <div><label className="label" htmlFor="b-com">Commercial ×</label><input className="input" id="b-com" type="number" step="0.05" value={form.commercialMultiplier} onChange={(e) => set({ commercialMultiplier: Number(e.target.value) })} /></div>
+          <div><label className="label" htmlFor="b-mcd">Medicaid ×</label><input className="input" id="b-mcd" type="number" step="0.05" value={form.medicaidMultiplier} onChange={(e) => set({ medicaidMultiplier: Number(e.target.value) })} /></div>
+        </div>
+        <p className="text-xs text-ink-3">Your charge master is the national Medicare amount times the charge multiplier. Commercial and Medicaid expected payments are estimates until you load contracted fee schedules.</p>
+        {err && <p className="rounded-lg bg-rec-50 px-3 py-2 text-sm text-rec" role="alert">{err}</p>}
+        <div className="flex justify-end"><button className="btn-primary" disabled={busy} data-testid="billing-save">{busy ? <Spinner /> : <Check />} Save</button></div>
+      </form>
+
+      <div className="space-y-4">
+        <div className="card overflow-x-auto" data-testid="codeset-status">
+          <p className="border-b border-line px-4 py-2.5 text-[13px] font-semibold uppercase tracking-wide text-ink-2">Official code sets</p>
+          <table className="w-full min-w-[560px] text-sm">
+            <thead className="text-left text-[11px] uppercase tracking-wide text-ink-3"><tr><th className="px-4 py-2">Code set</th><th>Version</th><th>Effective</th><th className="px-4">Source files (SHA-256)</th></tr></thead>
+            <tbody>
+              {d.codesets.public.map((c) => (
+                <tr key={c.id} className="border-t border-line align-top" data-testid="codeset-row">
+                  <td className="px-4 py-2"><p className="font-medium">{c.name}</p><p className="text-xs text-ink-3">{Object.entries(c.stats).map(([k, v]) => `${v.toLocaleString()} ${k}`).join(" · ")}</p></td>
+                  <td className="py-2 font-mono text-xs">{c.version}</td>
+                  <td className="py-2 text-xs">{c.effective.from} → {c.effective.to}</td>
+                  <td className="px-4 py-2 text-xs">{c.files.map((f) => <p key={f.url} className="truncate"><a className="text-brand hover:underline" href={f.url} target="_blank" rel="noreferrer">{new URL(f.url).hostname}{new URL(f.url).pathname.split("/").slice(-1)[0] ? `/…/${new URL(f.url).pathname.split("/").slice(-1)[0]}` : ""}</a> <span className="font-mono text-ink-4">{f.sha256.slice(0, 12)}…</span></p>)}</td>
+                </tr>
+              ))}
+              <tr className="border-t border-line"><td className="px-4 py-2 font-medium">{d.codesets.pos.name}</td><td className="py-2 text-xs">retrieved {d.codesets.pos.retrieved}</td><td /><td className="px-4 py-2 text-xs"><a className="text-brand hover:underline" href={d.codesets.pos.source} target="_blank" rel="noreferrer">cms.gov</a></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="card p-4 text-sm" data-testid="licensed-status">
+          <p className="font-semibold">NCCI, MUE, and Medicare Coverage Database</p>
+          {d.codesets.licensed.loaded ? (
+            <>
+              <p className="mt-1 text-ok">Loaded · license accepted by {d.codesets.licensed.acceptedBy} on {new Date(d.codesets.licensed.acceptedAt).toLocaleDateString()}</p>
+              <ul className="mt-1 text-xs text-ink-2">{d.codesets.licensed.sources.map((x) => <li key={x.id}>{x.name} · {x.version}</li>)}</ul>
+            </>
+          ) : (
+            <>
+              <p className="mt-1 text-ink-2">Not loaded. These CMS files contain CPT content licensed by the AMA, so Chartside never ships them. Your administrator downloads them after accepting the CMS/AMA terms:</p>
+              <pre className="mt-2 rounded-lg bg-sunken p-2 font-mono text-xs">npm run codesets:licensed -- --accept-cms-ama-license</pre>
+              <p className="mt-1 text-xs text-ink-3">Until then, Chartside applies its own clearly labeled clinical-necessity rules instead of MAC-specific LCD articles.</p>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

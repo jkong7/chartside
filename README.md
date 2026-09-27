@@ -31,7 +31,7 @@ Chartside is built on a study of the ten leading ambient scribes: Abridge, Micro
    - **Ask Chartside:** answers questions about the visit with transcript citations, or edits the note on request.
 6. **Sign.** Signing is blocked while orders are unreviewed or sentences are unsupported (you can override with an explicit confirmation). Accepted orders with blocking alerts can't be signed. At signing, Chartside learns style rules from your edits.
 7. **Export.** Copy for the EHR, or download a FHIR R4 document Bundle (Composition, DocumentReference, Condition, MedicationRequest, ServiceRequest).
-8. **Billing.** Signing turns the note and accepted orders into a professional claim with E/M and modifier 25, G2211, point-of-care tests (QW), vaccine product and administration codes, diagnosis pointers, and place of service. Payer-style claim edits run on it. Missed revenue is listed with dollar values. Prior-authorization packets score payer criteria against transcript evidence and draft a medical-necessity letter. The **Revenue** page is a pre-bill review queue (approve, hold, submit, 837P export), a missed-revenue report, and a prior-auth worklist.
+8. **Billing.** Signing turns the note and accepted orders into a professional claim, validated and priced from official code sets (see [Coding & revenue cycle](#coding--revenue-cycle)). Prior-authorization packets score payer criteria against transcript evidence and draft a medical-necessity letter. The **Revenue** page tracks every claim from pre-bill review through clearinghouse acceptance, payment, denial, and appeal.
 9. **Insights.** Median time to sign, unedited-sign rate, after-hours signing, evidence coverage, omissions caught, capture rate by visit type, coaching, and learned rules.
 
 ## EHR integration (Epic / SMART on FHIR)
@@ -51,6 +51,68 @@ Chartside is a SMART on FHIR R4 app. It works with Epic's sandbox and with any S
 3. Select the APIs: Patient.Read, Condition.Search (Problems), MedicationRequest.Search, AllergyIntolerance.Search, Observation.Search (Labs, Vitals), Encounter.Read, DocumentReference.Create (Clinical Notes).
 4. Set `SMART_CLIENT_ID` to the non-production client ID. `SMART_ISS` defaults to Epic's sandbox (`https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4`).
 5. Launch from Epic's sandbox launcher.
+
+## Coding & revenue cycle
+
+Every code Chartside suggests, prices, or edits comes from an official, versioned source, and every edit shows which rule and release produced it. None of the ten scribes we studied publishes its code-set provenance; see [docs/research/revenue-cycle-coding.md](docs/research/revenue-cycle-coding.md).
+
+**Official sources.** `npm run codesets:build` downloads the government files and records each file's SHA-256 in `codesets/manifest.json`. A later run refuses a silently re-posted file unless you pass `--update`. It then writes compact, versioned artifacts to `codesets/dist`, and a unit test re-verifies their hashes.
+
+| Code set | Source | Used for |
+|---|---|---|
+| ICD-10-CM FY2026 (April 1 update) and FY2027 | CDC NCHS order files and tabular XML | Validity and billable level by date of service; the release is chosen by DOS (9/30 vs 10/1). Also Excludes1, code-first / use-additional, 7th characters, and specificity options |
+| HCPCS Level II, October 2026 | CMS quarterly file | Level II codes, modifiers, and add/termination dates |
+| Physician fee schedule RVU26D and GPCIs | CMS | Allowed amounts with locality GPCIs, facility vs non-facility by POS, the 2026 conversion factors ($33.4009, or $33.5675 for qualifying APM participants), and Medicare status indicators |
+| Clinical lab fee schedule, 2026 Q4 | CMS | Lab and CLIA-waived (QW) pricing |
+| Part B drug and vaccine payment limits, October 2026 | CMS ASP files | Vaccine pricing and coinsurance |
+| Vaccine administration rates, 2026 | CMS | Locality-adjusted G0008/G0009/G0010 |
+| CMS-HCC V28, payment year 2026 | CMS model software | HCC mapping with the model's age and sex conditions, hierarchies, interactions, and relative factors |
+| Place of service | CMS | POS validity and the facility rate differential |
+
+**What it catches** (each edit is tagged with its source):
+- **Diagnosis codes:**
+  - codes that are invalid, header-level, or missing a 7th character (with the official options);
+  - Excludes1 conflicts;
+  - manifestation codes listed first or without their etiology;
+  - use-additional codes the medication list implies (Z79.4, Z79.84, Z79.85);
+  - maternity age and sex conflicts.
+- **Medicare-only codes and non-covered services:**
+  - non-covered services, such as 99397, which Medicare doesn't pay (use G0438/G0439);
+  - 99417 billed to Medicare instead of G2212, plus the G2212 time thresholds;
+  - G2211 with modifier 25, which is allowed only alongside an AWV, vaccine administration, or a Part B preventive service.
+- **Vaccines:**
+  - 90471 billed instead of G0008/G0009/G0010;
+  - Part D vaccines (Shingrix, routine Tdap) on a Part B claim;
+  - vaccines with no current payment limit, such as discontinued quadrivalent flu vaccines.
+- **Code and modifier validity:** inactive HCPCS codes and invalid modifiers.
+- **Specificity queries.** Unspecified diagnoses get a query written to ACDIS/AHIMA compliant-query practice: a non-leading question, the official ICD-10-CM options, "clinically undetermined", and nothing preselected. The clinician's answer updates the diagnosis, adds a clarification to the note, and re-prices the claim.
+- **Risk adjustment.** The V28 raw risk score is computed per visit, with superseded HCCs shown. Suspects on the problem list that haven't been captured this calendar year are listed with the score they would add, plus a reminder to code them only when clinically assessed.
+
+**Licensed edits.** NCCI procedure-to-procedure and MUE edits, and Medicare Coverage Database LCD billing articles (covered diagnoses by MAC), contain AMA CPT content. Chartside never ships them. An administrator runs `npm run codesets:licensed -- --accept-cms-ama-license` to download them into `data/codesets/licensed` under the CMS/AMA terms. Once loaded, claims get:
+- PTP edits by modifier indicator and effective date;
+- MUE unit limits with the adjudication indicator;
+- MAC-specific LCD coverage checks for the org's locality.
+
+Until then, Chartside applies its own clearly labeled clinical-necessity rules. CPT descriptors are never displayed; lines show Chartside's own service summaries or official HCPCS Level II text.
+
+**Lifecycle.**
+1. Pre-bill review: approve or hold.
+2. Submission through a pluggable clearinghouse adapter. The built-in sandbox runs front-end checks: NPI check digit, tax ID, and open errors.
+3. Acceptance or rejection with a control number.
+4. ERA posting at the official allowed amount, with CO-45 contractual and PR-2 coinsurance adjustments, or manual posting from an EOB.
+5. Denial root-cause categories mapped from CARCs.
+6. An appeal letter built from the signed note, with the outcome recorded.
+7. Corrected claims (frequency 7) and write-offs.
+
+The Revenue page reports:
+- collected vs expected allowed;
+- A/R aging buckets;
+- first-pass resolution and denial rates;
+- net collection rate;
+- charge lag;
+- a denials worklist.
+
+Admin → Billing & code sets holds the billing NPI and TIN, the Medicare locality, the charge-master multiplier, commercial and Medicaid estimate multipliers, and qualifying-APM status. It also shows every loaded code set with versions and source hashes.
 
 ## Organizations, roles & SSO
 
@@ -90,6 +152,8 @@ Every account belongs to one or more organizations. Patients, visits, templates,
 ## Architecture
 
 ```
+codesets/                 Official code-set sources (sources.json), pinned hashes (manifest.json), built artifacts (dist/)
+scripts/codesets.mjs      Downloads, verifies, and builds the code sets; --licensed for NCCI/MUE/MCD after license acceptance
 src/
   app/                    Next.js 16 App Router: pages + REST route handlers under /api
   components/             UI: workspace (capture, note editor, panels, transcript, assistant), pages
@@ -111,6 +175,8 @@ src/
     fhir/                 SMART client (discovery, PKCE, token exchange/refresh), FHIR→chart mapping, DocumentReference builder, token crypto
     audio/                Browser recorder, offline upload queue, voice features, Deepgram live client, segment player
     llm.ts                Claude provider (structured outputs via @anthropic-ai/sdk)
+    codesets/             Loader for the official code sets: ICD-10-CM releases by DOS, HCPCS, MPFS/GPCI, CLFS, ASP, HCC V28, POS, licensed NCCI/LCD
+    rcm/                  Diagnosis review and CDI queries, claim reference (pricing and Medicare/NCCI/LCD rules), risk scores, remittance and appeals
     sso/                  OIDC discovery, PKCE, ID-token signature and claim verification
     roles.ts              Roles and their descriptions
     server/               Org-scoped repositories, permission policy, auth, SSO, admin, pipeline, seeding, insights
@@ -130,14 +196,17 @@ npm run dev            # http://localhost:3100
 
 Create an account. This creates your organization with you as its owner. Each new account gets today's five-patient demo clinic plus two weeks of signed history. Open a visit, record consent, and choose **Play demo conversation** to watch a full visit, or **Start listening** in Chrome to use your microphone.
 
-Optional configuration is in `.env.example`: `ANTHROPIC_API_KEY`, `CHARTSIDE_MODEL`, `CHARTSIDE_ENGINE=local`, `DEEPGRAM_API_KEY`, `SMART_CLIENT_ID`/`SMART_ISS`/`SMART_ALLOWED_ISS`, `CHARTSIDE_SECRET` (encrypts EHR tokens and SSO client secrets), `CHARTSIDE_DB` (SQLite path), `DATABASE_URL` (Postgres), and `SSO_REDIRECT_URI` (override when running behind a proxy).
+Optional configuration is in `.env.example`: `ANTHROPIC_API_KEY`, `CHARTSIDE_MODEL`, `CHARTSIDE_ENGINE=local`, `DEEPGRAM_API_KEY`, `SMART_CLIENT_ID`/`SMART_ISS`/`SMART_ALLOWED_ISS`, `CHARTSIDE_SECRET` (encrypts EHR tokens and SSO client secrets), `CHARTSIDE_DB` (SQLite path), `DATABASE_URL` (Postgres), `SSO_REDIRECT_URI` (override when running behind a proxy), and `CHARTSIDE_CODESETS_DIR` / `CHARTSIDE_LICENSED_DIR` (code-set locations).
 
 ## Tests
 
 ```bash
-npm test               # 81 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
-                       # org scoping, RBAC, admin rules, OIDC token verification, SSO provisioning, Claude + Deepgram (mock servers)
-npm run test:e2e       # 24 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR and OIDC servers, and a fake microphone
+npm test               # 103 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
+                       # org scoping, RBAC, admin rules, OIDC token verification, SSO provisioning, Claude + Deepgram (mock servers),
+                       # official code sets (hash verification, DOS release selection, pricing, HCC V28), diagnosis review, Medicare rules,
+                       # NCCI/MUE/LCD logic, and the claim lifecycle
+npm run codesets:build # re-download and rebuild the official code sets (verifies pinned hashes)
+npm run test:e2e       # 26 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR and OIDC servers, and a fake microphone
 npm run test:pg        # both suites against Postgres (DATABASE_URL must point at a disposable database)
 npm run typecheck
 ```
@@ -153,7 +222,13 @@ The end-to-end suite covers:
 - templates, insights and settings, and patients
 - a microphone visit with a fake audio device: live diarized captions, chunk upload through an offline period, post-visit re-transcription, audio playback, and retention purge
 - an interpreted visit with a flagged dosing discrepancy
-- the revenue cycle: claim edits, approve, submit, 837P, prior auth, and the Revenue queue
+- the revenue cycle:
+  - official pricing and cited edits;
+  - clearinghouse acceptance and ERA posting;
+  - a denial and appeal;
+  - A/R aging;
+  - a CDI query answered by the clinician;
+  - admin billing settings and code-set provenance
 - organizations: an owner invites a scribe who drafts a note that only the clinician can sign, role changes (scribe to coder), disabling a member, multi-org switching, the audit log and analytics
 - SSO: configuring an OIDC provider, just-in-time provisioning, SSO-required domains blocking passwords, and rejected sign-ins (forged signature, denied user)
 - an Epic-style EHR launch (sign-in resume, chart and encounter import, note write-back), a standalone connection with resync and a filing-error state, and refusal of unknown EHRs

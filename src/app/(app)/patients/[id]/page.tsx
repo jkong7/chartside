@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import CoverageCard from "@/components/CoverageCard";
 import ResyncButton from "@/components/ResyncButton";
 import StartVisitButton from "@/components/StartVisitButton";
 import { systemLabel } from "@/lib/server/ehr";
 import { Avatar, StatusPill } from "@/components/ui";
 import { ageFrom } from "@/lib/engine/text";
 import { requireUser } from "@/lib/server/auth";
+import { can } from "@/lib/server/policy";
 import { artifacts, encounters, notes, patients } from "@/lib/server/repo";
 import type { CodingResult } from "@/lib/types";
 
@@ -35,6 +37,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
         <div className="card p-4"><p className="label">Medications</p>{p.chart.medications.length ? p.chart.medications.map((m) => <p key={m.name} className="text-sm">{m.name} <span className="text-ink-3">{[m.dose, m.frequency].filter(Boolean).join(" ")}</span></p>) : <p className="text-sm text-ink-3">None</p>}</div>
         <div className="card p-4"><p className="label">Allergies</p>{p.chart.allergies.length ? p.chart.allergies.map((a) => <p key={a.substance} className="text-sm text-rec">{a.substance}{a.reaction ? ` (${a.reaction})` : ""}</p>) : <p className="text-sm text-ink-3">NKDA</p>}</div>
       </div>
+      <div className="mt-4 max-w-xl"><CoverageCard patientId={p.id} initial={p.chart.coverage} canEdit={can(user, "patients.write") || can(user, "billing.review")} /></div>
       <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-ink-3">Visits</h2>
       <div className="card mt-2 divide-y divide-line">
         {rows.map(({ e, coding, n }) => {
