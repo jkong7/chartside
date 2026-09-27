@@ -52,6 +52,32 @@ Chartside is a SMART on FHIR R4 app. It works with Epic's sandbox and with any S
 4. Set `SMART_CLIENT_ID` to the non-production client ID. `SMART_ISS` defaults to Epic's sandbox (`https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4`).
 5. Launch from Epic's sandbox launcher.
 
+## Organizations, roles & SSO
+
+Every account belongs to one or more organizations. Patients, visits, templates, claims, and the audit trail are scoped to the organization, and people who belong to several organizations switch between them from the sidebar.
+
+| Role | Visits and notes | Sign | Claims | Admin |
+|---|---|---|---|---|
+| Owner / Admin | Org-wide; document their own visits | Their own visits | Review, approve, submit | Members, invites, SSO, org analytics, audit log |
+| Clinician | Their own visits | Their own visits | Their own claims (read-only review) | — |
+| Scribe | Org-wide; capture visits and edit drafts for any clinician | Never. The note waits for the treating clinician | — | — |
+| Coder / biller | Org-wide, read-only | — | Review, edit, approve, submit, 837P | — |
+| Viewer | Org-wide, read-only | — | Read-only | — |
+
+- **Enforcement.** Permissions are checked on the server for every route (403 with a plain-language reason). The UI hides what a role can't do: scribes see "Awaiting Dr. X's signature", coders get a read-only note with the billing queue, and admin pages redirect.
+- **Admin console** (`/admin`):
+  - Change roles, disable or remove members. Disabling a member revokes their sessions immediately. There must always be an active owner, only owners manage owners, and nobody can change their own access.
+  - Invitation links that carry a role and expire in 7 days. An invitee signs up with the invited email, or an existing user accepts and gains the org.
+  - Organization settings, per-clinician analytics (time to sign, unedited-sign rate, after-hours signing, evidence coverage), and an org-wide audit log.
+- **Single sign-on (OIDC).** Works with Okta, Microsoft Entra ID, Google Workspace, Ping, or any OpenID Connect provider. Each organization sets:
+  - the issuer, client ID and client secret (stored AES-256-GCM encrypted);
+  - the email domains it claims;
+  - the default role for new users;
+  - just-in-time provisioning;
+  - "require SSO", which blocks password sign-in and registration for those domains.
+
+  Sign-in uses the authorization-code flow with PKCE, state and nonce. Every ID token is verified: RS256/PS256/ES256 signature against the provider's JWKS (with key rotation), issuer, audience/azp, expiry, nonce, and a verified email in a claimed domain. Identities are linked by issuer and subject. Rejections are audited. The redirect URI is `<origin>/sso/callback`.
+
 ## Audio & speech
 
 - **Recording.** The browser records Opus audio in 4-second chunks. Chunks go into an IndexedDB-backed upload queue that survives network drops and page reloads, and retries with backoff. The server stores chunks per visit, serves the stitched recording with HTTP Range support, and deletes it per the retention policy (default: at signing).
@@ -85,30 +111,34 @@ src/
     fhir/                 SMART client (discovery, PKCE, token exchange/refresh), FHIR→chart mapping, DocumentReference builder, token crypto
     audio/                Browser recorder, offline upload queue, voice features, Deepgram live client, segment player
     llm.ts                Claude provider (structured outputs via @anthropic-ai/sdk)
-    server/               SQLite repositories, auth, pipeline, seeding, insights
-    db.ts                 node:sqlite schema (no native dependencies)
+    sso/                  OIDC discovery, PKCE, ID-token signature and claim verification
+    roles.ts              Roles and their descriptions
+    server/               Org-scoped repositories, permission policy, auth, SSO, admin, pipeline, seeding, insights
+    db.ts                 Async data layer: node:sqlite by default, Postgres when DATABASE_URL is set
 ```
 
 **Two engines, one verifier.** With `ANTHROPIC_API_KEY` set, Claude (`claude-opus-5` by default) drafts the note as structured JSON that cites utterance IDs. It also translates summaries into any language and handles free-form assistant requests. Without a key, the deterministic on-device engine does all of this offline. Either way the on-device engine re-verifies the draft: it scores evidence, flags unsupported numbers, detects omissions, computes codes, and stages orders with safety checks. If Claude errors or declines, Chartside falls back to the local engine and says so in the note.
 
 ## Run it
 
-Requires Node 22.13+ (uses the built-in `node:sqlite`).
+Requires Node 22.13+. By default Chartside stores data in SQLite through the built-in `node:sqlite`, with no native dependencies. Set `DATABASE_URL=postgres://…` to run on Postgres instead; the schema is created on first start.
 
 ```bash
 npm install
 npm run dev            # http://localhost:3100
 ```
 
-Create an account. Each new account gets today's five-patient demo clinic plus two weeks of signed history. Open a visit, record consent, and choose **Play demo conversation** to watch a full visit, or **Start listening** in Chrome to use your microphone.
+Create an account. This creates your organization with you as its owner. Each new account gets today's five-patient demo clinic plus two weeks of signed history. Open a visit, record consent, and choose **Play demo conversation** to watch a full visit, or **Start listening** in Chrome to use your microphone.
 
-Optional configuration is in `.env.example`: `ANTHROPIC_API_KEY`, `CHARTSIDE_MODEL`, `CHARTSIDE_ENGINE=local`, `DEEPGRAM_API_KEY`, `SMART_CLIENT_ID`/`SMART_ISS`/`SMART_ALLOWED_ISS`, `CHARTSIDE_SECRET`, and `CHARTSIDE_DB`.
+Optional configuration is in `.env.example`: `ANTHROPIC_API_KEY`, `CHARTSIDE_MODEL`, `CHARTSIDE_ENGINE=local`, `DEEPGRAM_API_KEY`, `SMART_CLIENT_ID`/`SMART_ISS`/`SMART_ALLOWED_ISS`, `CHARTSIDE_SECRET` (encrypts EHR tokens and SSO client secrets), `CHARTSIDE_DB` (SQLite path), `DATABASE_URL` (Postgres), and `SSO_REDIRECT_URI` (override when running behind a proxy).
 
 ## Tests
 
 ```bash
-npm test               # 69 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow, Claude + Deepgram (mock servers)
-npm run test:e2e       # 21 Playwright end-to-end flows against a production build, mock Deepgram and SMART/FHIR servers, and a fake microphone
+npm test               # 81 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
+                       # org scoping, RBAC, admin rules, OIDC token verification, SSO provisioning, Claude + Deepgram (mock servers)
+npm run test:e2e       # 24 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR and OIDC servers, and a fake microphone
+npm run test:pg        # both suites against Postgres (DATABASE_URL must point at a disposable database)
 npm run typecheck
 ```
 
@@ -124,6 +154,8 @@ The end-to-end suite covers:
 - a microphone visit with a fake audio device: live diarized captions, chunk upload through an offline period, post-visit re-transcription, audio playback, and retention purge
 - an interpreted visit with a flagged dosing discrepancy
 - the revenue cycle: claim edits, approve, submit, 837P, prior auth, and the Revenue queue
+- organizations: an owner invites a scribe who drafts a note that only the clinician can sign, role changes (scribe to coder), disabling a member, multi-org switching, the audit log and analytics
+- SSO: configuring an OIDC provider, just-in-time provisioning, SSO-required domains blocking passwords, and rejected sign-ins (forged signature, denied user)
 - an Epic-style EHR launch (sign-in resume, chart and encounter import, note write-back), a standalone connection with resync and a filing-error state, and refusal of unknown EHRs
 
 ## Notes

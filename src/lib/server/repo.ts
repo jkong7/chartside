@@ -656,7 +656,7 @@ export const audit = {
   forEncounter: async (encId: string) =>
     (await all<{ id: string; action: string; detail: string; created_at: string; user_name: string | null }>("SELECT a.id, a.action, a.detail, a.created_at, u.name AS user_name FROM audit a LEFT JOIN users u ON u.id = a.user_id WHERE a.encounter_id = ? ORDER BY a.ord", encId)).map((r) => ({ ...r, detail: j<Record<string, unknown>>(r.detail, {}) })),
   forOrg: async (orgId: string, limit = 200) =>
-    (await all<{ id: string; action: string; detail: string; created_at: string; user_name: string | null; encounter_id: string | null }>("SELECT a.id, a.action, a.detail, a.created_at, a.encounter_id, u.name AS user_name FROM audit a LEFT JOIN users u ON u.id = a.user_id WHERE a.org_id = ? ORDER BY a.ord DESC LIMIT ?", orgId, limit)).map((r) => ({ ...r, detail: j<Record<string, unknown>>(r.detail, {}) })),
+    (await all<{ id: string; action: string; detail: string; created_at: string; user_name: string | null; encounter_id: string | null }>("SELECT a.id, a.action, a.detail, a.created_at, a.encounter_id, u.name AS user_name FROM audit a LEFT JOIN users u ON u.id = a.user_id WHERE a.org_id = ? ORDER BY a.created_at DESC, a.ord DESC LIMIT ?", orgId, limit)).map((r) => ({ ...r, detail: j<Record<string, unknown>>(r.detail, {}) })),
   retime: (encId: string, action: string, iso: string, not = false) => run(`UPDATE audit SET created_at = ? WHERE encounter_id = ? AND action ${not ? "!=" : "="} ?`, iso, encId, action),
 };
 
