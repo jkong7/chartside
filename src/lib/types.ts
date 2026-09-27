@@ -147,6 +147,8 @@ export interface Patient {
   pronouns: string;
   language: string;
   chart: Chart;
+  externalSystem?: string | null;
+  externalId?: string | null;
 }
 
 export type EncounterStatus = "scheduled" | "recording" | "paused" | "processing" | "review" | "signed";
@@ -168,6 +170,8 @@ export interface Encounter {
   durationS: number;
   signedAt: string | null;
   createdAt: string;
+  externalSystem?: string | null;
+  externalId?: string | null;
 }
 
 export interface ConsentRecord {

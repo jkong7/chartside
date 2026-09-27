@@ -37,6 +37,7 @@ export interface UserPrefs {
   outputLang?: string;
   autoInsertNormals?: boolean;
   audioRetentionDays?: number;
+  autoFileEhr?: boolean;
   finalPass?: boolean;
 }
 
@@ -97,6 +98,8 @@ interface PatientRow {
   language: string;
   chart: string;
   created_at: string;
+  external_system: string | null;
+  external_id: string | null;
 }
 
 const toPatient = (r: PatientRow): Patient => ({
@@ -108,6 +111,8 @@ const toPatient = (r: PatientRow): Patient => ({
   pronouns: r.pronouns,
   language: r.language,
   chart: { problems: [], medications: [], allergies: [], ...j<Partial<Chart>>(r.chart, {}) } as Chart,
+  externalSystem: r.external_system,
+  externalId: r.external_id,
 });
 
 export const patients = {
@@ -122,6 +127,12 @@ export const patients = {
     return patients.get(userId, id)!;
   },
   updateChart: (userId: string, id: string, chart: Chart) => run("UPDATE patients SET chart = ? WHERE user_id = ? AND id = ?", JSON.stringify(chart), userId, id),
+  byExternal: (userId: string, system: string, externalId: string) => {
+    const r = get<PatientRow>("SELECT * FROM patients WHERE user_id = ? AND external_system = ? AND external_id = ?", userId, system, externalId);
+    return r ? toPatient(r) : undefined;
+  },
+  link: (userId: string, id: string, system: string, externalId: string, demo: { name: string; dob: string; sex: string; mrn: string; language: string }) =>
+    run("UPDATE patients SET external_system = ?, external_id = ?, name = ?, dob = ?, sex = ?, mrn = ?, language = ? WHERE user_id = ? AND id = ?", system, externalId, demo.name, demo.dob, demo.sex, demo.mrn, demo.language, userId, id),
 };
 
 interface EncounterRow {
@@ -141,6 +152,8 @@ interface EncounterRow {
   duration_s: number;
   signed_at: string | null;
   created_at: string;
+  external_system: string | null;
+  external_id: string | null;
 }
 
 const toEncounter = (r: EncounterRow): Encounter => ({
@@ -160,6 +173,8 @@ const toEncounter = (r: EncounterRow): Encounter => ({
   durationS: r.duration_s,
   signedAt: r.signed_at,
   createdAt: r.created_at,
+  externalSystem: r.external_system,
+  externalId: r.external_id,
 });
 
 export const encounters = {
@@ -183,6 +198,11 @@ export const encounters = {
     );
     return encounters.get(userId, id)!;
   },
+  byExternal: (userId: string, system: string, externalId: string) => {
+    const r = get<EncounterRow>("SELECT * FROM encounters WHERE user_id = ? AND external_system = ? AND external_id = ?", userId, system, externalId);
+    return r ? toEncounter(r) : undefined;
+  },
+  link: (userId: string, id: string, system: string, externalId: string) => run("UPDATE encounters SET external_system = ?, external_id = ? WHERE user_id = ? AND id = ?", system, externalId, userId, id),
   update: (userId: string, id: string, patch: Partial<Encounter>) => {
     const cur = encounters.get(userId, id);
     if (!cur) return undefined;

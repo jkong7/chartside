@@ -177,6 +177,12 @@ CREATE TABLE IF NOT EXISTS claims (
 `;
 
 const MIGRATIONS = [
+  "CREATE TABLE IF NOT EXISTS smart_launches (state TEXT PRIMARY KEY, user_id TEXT NOT NULL, iss TEXT NOT NULL, launch TEXT, verifier TEXT NOT NULL, token_endpoint TEXT NOT NULL, redirect_uri TEXT NOT NULL, created_at TEXT NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS ehr_connections (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, iss TEXT NOT NULL, token_endpoint TEXT NOT NULL, access_token TEXT NOT NULL, refresh_token TEXT, expires_at TEXT NOT NULL, scope TEXT NOT NULL DEFAULT '', patient TEXT, encounter TEXT, fhir_user TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
+  "ALTER TABLE patients ADD COLUMN external_system TEXT",
+  "ALTER TABLE patients ADD COLUMN external_id TEXT",
+  "ALTER TABLE encounters ADD COLUMN external_system TEXT",
+  "ALTER TABLE encounters ADD COLUMN external_id TEXT",
   "ALTER TABLE utterances ADD COLUMN voice TEXT",
   "ALTER TABLE utterances ADD COLUMN confidence REAL",
   "ALTER TABLE utterances ADD COLUMN source TEXT NOT NULL DEFAULT 'live'",
