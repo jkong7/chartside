@@ -1,6 +1,6 @@
 # Hands-on UI teardown
 
-Source material: vendor product pages, live hero demos, and the App Store screenshot sets for each iOS app, saved under `research/ui/appstore/*.jpg`. Each vendor below is described as a clinician would move through it.
+Source material: vendor product pages, live hero demos, and the App Store screenshot sets for each iOS app, saved under App Store listings (screenshots reviewed locally, not redistributed). Each vendor below is described as a clinician would move through it.
 
 ## Abridge (Abridge for Clinicians, plus inside Epic Haiku/Hyperdrive)
 - **Worklist**: header reads "WORKLIST", with a TODAY date chip, a filter, and a red "+" button. Each patient card shows the scheduled time, name, and DOB, plus a status on the right: recording duration with a note icon, a paused timer, or an empty dashed circle for not started.
