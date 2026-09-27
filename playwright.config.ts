@@ -22,6 +22,12 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } }],
   webServer: [
     {
+      command: "node tests/e2e/mock-fhir.mjs",
+      url: "http://localhost:3297/stats",
+      reuseExistingServer: false,
+      env: { MOCK_FHIR_PORT: "3297" },
+    },
+    {
       command: "node tests/e2e/mock-deepgram.mjs",
       url: "http://localhost:3299/stats",
       reuseExistingServer: false,
@@ -39,6 +45,9 @@ export default defineConfig({
         DEEPGRAM_API_KEY: "test-key",
         DEEPGRAM_BASE_URL: "http://localhost:3299",
         DEEPGRAM_WS_URL: "ws://localhost:3299/v1/listen",
+        SMART_CLIENT_ID: "chartside-test",
+        SMART_ISS: "http://localhost:3297/fhir",
+        SMART_LABEL: "Epic",
       },
     },
   ],
