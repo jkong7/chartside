@@ -16,7 +16,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
   if (!p) notFound();
   const visits = encounters.list(user.id, { patientId: id }).reverse();
   return (
-    <div className="mx-auto max-w-5xl px-8 py-8">
+    <div className="mx-auto max-w-5xl px-4 py-6 md:px-8 md:py-8">
       <Link href="/patients" className="text-sm text-ink-3 hover:text-ink">← Patients</Link>
       <div className="mt-4 flex items-center gap-4">
         <Avatar name={p.name} size={52} />

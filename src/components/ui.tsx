@@ -18,7 +18,7 @@ export function StatusPill({ status }: { status: EncounterStatus }) {
   return (
     <span className={`pill whitespace-nowrap ${s.cls}`} data-status={status}>
       <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
-      {s.label}
+      <span className="max-sm:sr-only">{s.label}</span>
     </span>
   );
 }

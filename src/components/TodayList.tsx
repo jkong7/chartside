@@ -33,7 +33,7 @@ export default function TodayList({ rows, patients }: { rows: TodayRow[]; patien
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-8 py-8">
+    <div className="mx-auto max-w-5xl px-4 py-6 md:px-8 md:py-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm text-ink-3">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</p>
@@ -66,23 +66,23 @@ export default function TodayList({ rows, patients }: { rows: TodayRow[]; patien
           return (
             <li key={r.id}>
               <Link href={`/encounters/${r.id}`} className={`card flex items-center gap-4 px-4 py-3.5 transition-shadow hover:shadow-md ${done ? "opacity-80" : ""}`} data-testid="visit-row">
-                <div className="w-20 shrink-0 whitespace-nowrap text-right">
+                <div className="w-16 shrink-0 whitespace-nowrap text-right sm:w-20">
                   <p className="font-mono text-sm font-medium">{fmtTime(r.scheduledAt)}</p>
                   <p className="text-[11px] text-ink-3">{TYPE_LABEL[r.visitType] ?? r.visitType}</p>
                 </div>
-                <div className="h-10 w-px bg-line" />
-                {r.patient ? <Avatar name={r.patient.name} /> : <Avatar name="?" />}
+                <div className="hidden h-10 w-px bg-line sm:block" />
+                <span className="hidden sm:inline-flex">{r.patient ? <Avatar name={r.patient.name} /> : <Avatar name="?" />}</span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">
+                  <p className="font-medium sm:truncate">
                     {r.patient?.name ?? "Unassigned patient"}
-                    {r.patient && <span className="ml-2 text-sm font-normal text-ink-3">{age(r.patient.dob)}{r.patient.sex} · MRN {r.patient.mrn}</span>}
+                    {r.patient && <span className="ml-2 block text-sm font-normal text-ink-3 sm:inline">{age(r.patient.dob)}{r.patient.sex} · MRN {r.patient.mrn}</span>}
                   </p>
                   <p className="truncate text-sm text-ink-2">{r.reason || "No reason given"}</p>
                   {r.patient?.openLoops?.length && !done ? (
                     <p className="mt-0.5 truncate text-xs text-warn">Last visit plan: {r.patient.openLoops.join(" · ")}</p>
                   ) : null}
                 </div>
-                <StatusPill status={r.status} />
+                <span className="shrink-0"><StatusPill status={r.status} /></span>
                 <span className={`hidden w-24 justify-end sm:flex ${done ? "text-ink-3" : "text-brand"} text-sm font-medium`}>
                   {r.status === "scheduled" ? (<span className="flex items-center gap-1"><Mic size={14} /> Start</span>) : r.status === "signed" ? "View" : "Open"}
                 </span>

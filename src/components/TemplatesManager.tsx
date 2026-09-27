@@ -91,7 +91,7 @@ export default function TemplatesManager({ initial }: { initial: Template[] }) {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-8 py-8">
+    <div className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-8">
       <h1 className="font-serif text-3xl">Templates</h1>
       <p className="mt-1 text-sm text-ink-2">Choose how notes are structured. Duplicate a system template to make it your own; the preview re-renders a demo visit as you edit.</p>
       <div className="mt-6 grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1.1fr)_minmax(0,1fr)]">

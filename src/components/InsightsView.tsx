@@ -64,7 +64,7 @@ function DailyBars({ title, unit, data, fmt }: { title: string; unit: string; da
 export default function InsightsView({ insights: i, rules }: { insights: Insights; rules: StyleRule[] }) {
   const learned = rules.filter((r) => r.source === "learned");
   return (
-    <div className="mx-auto max-w-6xl px-8 py-8">
+    <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
       <h1 className="font-serif text-3xl">Insights</h1>
       <p className="mt-1 text-sm text-ink-2">Your last {i.windowDays} days. Computed from your own signing activity, not vendor benchmarks.</p>
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="kpis">

@@ -18,7 +18,7 @@ export default function Sidebar({ user, engine }: { user: { name: string; specia
   const path = usePathname();
   const router = useRouter();
   return (
-    <aside className="sticky top-0 flex h-screen w-[220px] shrink-0 flex-col border-r border-line bg-surface">
+    <aside className="sticky top-0 hidden h-screen w-[220px] shrink-0 flex-col border-r border-line bg-surface md:flex">
       <Link href="/today" className="flex items-center gap-2.5 px-5 py-5">
         <Logo size={26} />
         <span className="font-serif text-xl">Chartside</span>
@@ -57,5 +57,23 @@ export default function Sidebar({ user, engine }: { user: { name: string; specia
         </button>
       </div>
     </aside>
+  );
+}
+
+export function MobileNav() {
+  const path = usePathname();
+  return (
+    <nav className="sticky top-0 z-30 flex items-center gap-1 overflow-x-auto border-b border-line bg-surface px-3 py-2 md:hidden" aria-label="Main">
+      <Link href="/today" className="mr-1 shrink-0"><Logo size={24} /></Link>
+      {NAV.map((n) => {
+        const Icon = n.icon;
+        const active = path.startsWith(n.href) || (n.href === "/today" && path.startsWith("/encounters"));
+        return (
+          <Link key={n.href} href={n.href} className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm ${active ? "bg-brand-50 text-brand" : "text-ink-2"}`}>
+            <Icon size={15} /> {n.label}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }

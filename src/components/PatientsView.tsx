@@ -34,7 +34,7 @@ export default function PatientsView({ patients }: { patients: (Patient & { visi
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-8 py-8">
+    <div className="mx-auto max-w-5xl px-4 py-6 md:px-8 md:py-8">
       <div className="flex items-end justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl">Patients</h1>
