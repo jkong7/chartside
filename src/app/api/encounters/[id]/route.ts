@@ -1,7 +1,8 @@
 import { llmEnabled, llmModel } from "@/lib/llm";
 import { authed, body, fail, json } from "@/lib/server/http";
+import { speechConfig } from "@/lib/server/audio";
 import { consentScript } from "@/lib/server/pipeline";
-import { artifacts, audit, consents, encounters, feedback, notes, orders, patientFlags, patients, templates, utterances } from "@/lib/server/repo";
+import { artifacts, audioChunks, audit, consents, encounters, feedback, notes, orders, patientFlags, patients, templates, utterances } from "@/lib/server/repo";
 import type { Encounter } from "@/lib/types";
 
 export const GET = authed<{ id: string }>((_req, user, { id }) => {
@@ -26,6 +27,11 @@ export const GET = authed<{ id: string }>((_req, user, { id }) => {
     feedback: feedback.forEncounter(enc.id),
     patientFlags: patientFlags.list(enc.id),
     engine: { llm: llmEnabled(), model: llmEnabled() ? llmModel() : null },
+    audio: (() => {
+      const c = audioChunks.list(enc.id);
+      return { chunks: c.length, bytes: c.reduce((n, x) => n + x.bytes, 0), durationMs: c.at(-1)?.tMs ?? 0, retentionDays: user.prefs.audioRetentionDays ?? 0 };
+    })(),
+    speech: speechConfig(),
   });
 });
 

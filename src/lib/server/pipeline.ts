@@ -14,6 +14,8 @@ import { systemTemplate } from "../engine/templates";
 import { ageFrom } from "../engine/text";
 import { detectOmissions, scoreSupport, supportStats } from "../engine/verify";
 import type { ConsentRecord, Encounter, Note, OmissionFlag, Patient, PatientSummary } from "../types";
+import { deleteAudio, finalPass, localDiarize, purgeExpired, retentionDays } from "./audio";
+import { checkInterpretation } from "../engine/interpreter";
 import { artifacts, audit, consents, encounters, notes, orders, patients, styleRules, templates, utterances, users, type User } from "./repo";
 
 export const CONSENT_SCRIPT_VERSION = "2026.09-a";
@@ -75,11 +77,21 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   if (!enc) throw new Error("Encounter not found");
   if (opts.templateId && opts.templateId !== enc.templateId) enc = encounters.update(user.id, encId, { templateId: opts.templateId })!;
   const template = templateFor(user, enc);
-  const utts = utterances.list(enc.id);
-  const { facts, patient } = factsFor(user, enc);
-  const rules = styleRules.list(user.id);
   const warnings: string[] = [];
   const started = Date.now();
+  if (opts.engine !== "local" && user.prefs.finalPass !== false && !utterances.list(enc.id).some((u) => u.source === "final")) {
+    try {
+      await finalPass(user, enc);
+    } catch (err) {
+      warnings.push(`High-accuracy re-transcription was unavailable (${err instanceof Error ? err.message : "error"}); the live transcript was used.`);
+    }
+  }
+  localDiarize(user, enc);
+  const utts = utterances.list(enc.id);
+  if (!utts.length) throw new Error("Audio was recorded but no transcript is available. Add DEEPGRAM_API_KEY for server-side transcription, or type the conversation.");
+  const { facts, patient } = factsFor(user, enc);
+  const rules = styleRules.list(user.id);
+  const interpretation = checkInterpretation(utts);
 
   let note: Note | null = null;
   const useLlm = llmEnabled() && opts.engine !== "local";
@@ -125,6 +137,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   artifacts.set(enc.id, "omissions", omissions);
   artifacts.set(enc.id, "summaries", summaries);
   artifacts.set(enc.id, "letters", letters);
+  artifacts.set(enc.id, "interpreter", interpretation);
   artifacts.set(enc.id, "facts", {
     chiefComplaint: facts.chiefComplaint,
     problems: facts.problems.map((p) => ({ key: p.key, label: p.label, icd10: p.icd10, status: p.status ?? null })),
@@ -188,6 +201,8 @@ export function signEncounter(user: User, encId: string, opts: { force?: boolean
   const edited = genText !== finText;
   const editRatio = editDistanceRatio(genText, finText);
   audit.log(user.id, enc.id, "note.signed", { edited, editRatio, learned: candidates.length, forced: !!opts.force, overrides: blockers });
+  if (retentionDays(user) === 0) deleteAudio(user.id, enc.id, "signed (retention: delete at signing)");
+  purgeExpired(user);
   return { signed: true, blockers: [] as string[], learned: candidates.length };
 }
 

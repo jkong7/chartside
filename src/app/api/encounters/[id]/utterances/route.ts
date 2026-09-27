@@ -1,7 +1,8 @@
 import { guessSpeaker } from "@/lib/engine/extract";
+import { detectLang } from "@/lib/engine/lang";
 import { authed, body, fail, json } from "@/lib/server/http";
 import { encounters, utterances } from "@/lib/server/repo";
-import type { Speaker } from "@/lib/types";
+import type { Speaker, VoiceFeatures } from "@/lib/types";
 
 interface In {
   text: string;
@@ -9,6 +10,14 @@ interface In {
   tStart?: number;
   tEnd?: number;
   lang?: string;
+  voice?: VoiceFeatures;
+  confidence?: number;
+  speakerLabel?: string;
+}
+
+function cleanVoice(v?: VoiceFeatures): VoiceFeatures | null {
+  if (!v || [v.pitch, v.centroid, v.energy, v.frames].some((x) => typeof x !== "number" || !Number.isFinite(x))) return null;
+  return { pitch: v.pitch, centroid: v.centroid, energy: v.energy, frames: Math.round(v.frames) };
 }
 
 export const POST = authed<{ id: string }>(async (req, user, { id }) => {
@@ -23,7 +32,19 @@ export const POST = authed<{ id: string }>(async (req, user, { id }) => {
     const auto = !u.speaker || u.speaker === "auto";
     const speaker: Speaker = auto ? guessSpeaker(u.text, prev === "clinician" || prev === "patient" ? prev : null) : (u.speaker as Speaker);
     prev = speaker === "other" ? prev : speaker;
-    return { speaker, speakerSource: auto ? ("auto" as const) : ("manual" as const), text: u.text.trim().slice(0, 2000), tStart: u.tStart ?? 0, tEnd: u.tEnd ?? u.tStart ?? 0, lang: u.lang ?? enc.inputLang };
+    const detected = detectLang(u.text);
+    const lang = u.lang?.slice(0, 2) || (detected === "und" ? enc.inputLang : detected);
+    return {
+      speaker,
+      speakerSource: auto ? ("auto" as const) : ("manual" as const),
+      text: u.text.trim().slice(0, 2000),
+      tStart: u.tStart ?? 0,
+      tEnd: u.tEnd ?? u.tStart ?? 0,
+      lang,
+      voice: cleanVoice(u.voice),
+      confidence: typeof u.confidence === "number" ? u.confidence : null,
+      source: "live" as const,
+    };
   });
   const saved = utterances.append(enc.id, rows);
   const last = saved.at(-1);
