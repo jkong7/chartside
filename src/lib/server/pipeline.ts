@@ -223,7 +223,7 @@ export async function assist(user: User, encId: string, message: string) {
       }
       result = { reply: out.reply, citations: out.citations, note: patched, action: patched ? "edit" : "answer" };
     } catch {
-      // keep local result
+      result = { ...result, reply: `${result.reply}\n\nClaude was unavailable, so this answer comes from the on-device engine.` };
     }
   }
   if (result.note && enc.status !== "signed") {

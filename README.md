@@ -1,0 +1,94 @@
+# Chartside
+
+Ambient clinical documentation you can verify. Chartside listens to a visit and drafts a specialty-ready note, ICD-10 and E/M codes, staged orders, a plain-language patient summary, and referral letters. Every sentence in the note links back to the moment in the conversation it came from.
+
+Chartside is built on a study of the ten leading ambient scribes: Abridge, Microsoft Dragon Copilot, Epic AI Charting, Ambience, Commure, Suki, Nabla, Heidi, DeepScribe, and Freed. See [docs/COMPETITIVE-ANALYSIS.md](docs/COMPETITIVE-ANALYSIS.md) for the synthesis and [docs/research](docs/research) for the sourced deep dives. It combines what those products do best and adds a trust layer none of them ship:
+- an omission detector
+- unsupported-claim flags
+- a provable consent ledger
+- live coverage nudges
+- order safety checks
+- an audit-defensibility meter for coding
+- a patient correction loop
+
+## Clinician workflow
+
+1. **Today.** The schedule shows status pills: ready to record → recording → drafting → ready for review → signed. Each row also shows the patient's last visit plan.
+2. **Pre-visit brief.** Problems, medications, allergies, recent labs, and last visit's plan. Pick the template and the conversation and summary languages.
+3. **Consent.** Read the script, pick the patient's state, and record the decision. All-party states require every person in the room to agree. The record is hashed, and the attestation is written by the system, never by the model. If the patient declines, ambient capture stays off and manual documentation remains available.
+4. **Capture.** Three ways to feed the visit:
+   - Live microphone (Web Speech API), with a level meter and a silent-mic alarm.
+   - A demo conversation you can play back.
+   - Typed or pasted transcript.
+
+   Speakers are auto-detected and can be corrected with one click, and any line can be redacted. The coverage rail tracks HPI elements, red-flag questions for the chief complaint, and closing steps, and nudges you on what's missing.
+5. **Review.**
+   - **Note:** a trust bar, "said in the visit, missing from the note" flags, and click-any-sentence evidence. Templated normals stay pending until you accept them. Sections are edited line by line and keep their evidence links, with 👍/👎 and copy on each.
+   - **Codes:** E/M from the MDM elements, ICD-10, HCC with MEAT, CDI, and an audit meter.
+   - **Orders:** accept or reject, with safety alerts.
+   - **Patient summary:** reading grade, translation, and a share link.
+   - **Letters and Audit.**
+   - **Ask Chartside:** answers questions about the visit with transcript citations, or edits the note on request.
+6. **Sign.** Signing is blocked while orders are unreviewed or sentences are unsupported (you can override with an explicit confirmation). Accepted orders with blocking alerts can't be signed. At signing, Chartside learns style rules from your edits.
+7. **Export.** Copy for the EHR, or download a FHIR R4 document Bundle (Composition, DocumentReference, Condition, MedicationRequest, ServiceRequest).
+8. **Insights.** Median time to sign, unedited-sign rate, after-hours signing, evidence coverage, omissions caught, capture rate by visit type, coaching, and learned rules.
+
+## Architecture
+
+```
+src/
+  app/                    Next.js 16 App Router: pages + REST route handlers under /api
+  components/             UI: workspace (capture, note editor, panels, transcript, assistant), pages
+  lib/
+    engine/               On-device clinical engine (pure TypeScript, no network)
+      lexicon.ts          Symptoms, conditions→ICD-10, meds, orderables, referrals, exam systems, consent states
+      extract.ts          Transcript → structured facts with utterance evidence (negation, Q/A linking,
+                          HPI attributes, med actions, vitals, results, exam, problems, plan attribution)
+      note.ts             Template-driven note composer (every sentence carries evidence)
+      verify.ts           Support scoring + omission detector
+      coding.ts           ICD-10, 2021 E/M MDM levels, HCC/MEAT, CDI, audit defensibility
+      orders.ts           Order staging + safety checks
+      coverage.ts         Live HPI / red-flag / closing coverage
+      summary.ts          Patient summary (EN/ES) with reading grade
+      letter.ts, style.ts, assist.ts
+    llm.ts                Claude provider (structured outputs via @anthropic-ai/sdk)
+    server/               SQLite repositories, auth, pipeline, seeding, insights
+    db.ts                 node:sqlite schema (no native dependencies)
+```
+
+**Two engines, one verifier.** With `ANTHROPIC_API_KEY` set, Claude (`claude-opus-5` by default) drafts the note as structured JSON that cites utterance IDs. It also translates summaries into any language and handles free-form assistant requests. Without a key, the deterministic on-device engine does all of this offline. Either way the on-device engine re-verifies the draft: it scores evidence, flags unsupported numbers, detects omissions, computes codes, and stages orders with safety checks. If Claude errors or declines, Chartside falls back to the local engine and says so in the note.
+
+## Run it
+
+Requires Node 22.13+ (uses the built-in `node:sqlite`).
+
+```bash
+npm install
+npm run dev            # http://localhost:3100
+```
+
+Create an account. Each new account gets today's five-patient demo clinic plus two weeks of signed history. Open a visit, record consent, and choose **Play demo conversation** to watch a full visit, or **Start listening** in Chrome to use your microphone.
+
+Optional configuration is in `.env.example`: `ANTHROPIC_API_KEY`, `CHARTSIDE_MODEL`, `CHARTSIDE_ENGINE=local`, and `CHARTSIDE_DB`.
+
+## Tests
+
+```bash
+npm test               # 33 unit tests: extraction, notes, verification, coding, orders, summaries, style, Claude provider (mock server)
+npm run test:e2e       # 13 Playwright end-to-end flows against a production build
+npm run typecheck
+```
+
+The end-to-end suite covers:
+- auth
+- a full ambient visit from consent to signed FHIR export
+- transcript redaction with redraft
+- pediatric allergy blocking, Spanish summary, and the patient correction loop
+- all-party and declined consent
+- a pasted-transcript strep visit
+- the assistant
+- templates, insights and settings, and patients
+
+## Notes
+
+Chartside is a demonstration product. The demo patients are fictional. Do not use it with real patient data without a HIPAA business associate agreement, a security review, and your organization's approval. Coding and order suggestions are decision support and must be reviewed by a licensed clinician.

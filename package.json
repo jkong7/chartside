@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "seed": "node --experimental-strip-types scripts/seed.ts"
+    "test:all": "vitest run && playwright test"
   },
   "engines": {
     "node": ">=22.13"
