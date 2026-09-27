@@ -7,7 +7,7 @@ import { api } from "@/lib/client";
 import { Logo } from "./icons";
 import { Spinner } from "./ui";
 
-export default function AuthForm({ mode }: { mode: "login" | "register" }) {
+export default function AuthForm({ mode, next }: { mode: "login" | "register"; next?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,8 +23,11 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
           ? { email: f.get("email"), password: f.get("password") }
           : { email: f.get("email"), password: f.get("password"), name: f.get("name"), specialty: f.get("specialty"), demo: f.get("demo") === "on" },
       });
-      router.push("/today");
-      router.refresh();
+      if (next) window.location.assign(next);
+      else {
+        router.push("/today");
+        router.refresh();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setBusy(false);
@@ -39,6 +42,7 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
           <span className="font-serif text-2xl">Chartside</span>
         </Link>
         <form onSubmit={submit} className="card space-y-4 p-6 shadow-sm">
+          {next?.startsWith("/smart/") && <p className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand">Sign in to continue launching Chartside from your EHR.</p>}
           <div>
             <h1 className="text-lg font-semibold">{mode === "login" ? "Sign in" : "Create your clinician account"}</h1>
             <p className="mt-1 text-sm text-ink-3">{mode === "login" ? "Welcome back." : "Your workspace comes with a demo clinic day you can record against."}</p>
@@ -75,7 +79,7 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
             {mode === "login" ? "Sign in" : "Create account"}
           </button>
           <p className="text-center text-sm text-ink-3">
-            {mode === "login" ? (<>New to Chartside? <Link className="font-medium text-brand" href="/register">Create an account</Link></>) : (<>Already have an account? <Link className="font-medium text-brand" href="/login">Sign in</Link></>)}
+            {mode === "login" ? (<>New to Chartside? <Link className="font-medium text-brand" href={next ? `/register?next=${encodeURIComponent(next)}` : "/register"}>Create an account</Link></>) : (<>Already have an account? <Link className="font-medium text-brand" href="/login">Sign in</Link></>)}
           </p>
         </form>
       </div>

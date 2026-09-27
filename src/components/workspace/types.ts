@@ -20,6 +20,8 @@ export interface Bundle {
     share?: { token: string };
     interpreter?: import("@/lib/engine/interpreter").InterpreterCheck;
     claim?: import("@/lib/engine/billing").Claim;
+    ehr_link?: import("@/lib/server/ehr").EhrLink;
+    ehr_filing?: import("@/lib/server/ehr").EhrFiling;
     priorAuth?: import("@/lib/engine/priorauth").PaPacket[];
   };
   orders: StagedOrder[];

@@ -67,10 +67,11 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
     setSigning(true);
     try {
       const r = await fetch(`/api/encounters/${id}/sign`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ force }) });
-      const data = (await r.json()) as { signed: boolean; blockers: string[]; learned?: number; error?: string };
+      const data = (await r.json()) as { signed: boolean; blockers: string[]; learned?: number; error?: string; filing?: { status: string; reference?: string; message?: string } | null };
       if (data.signed) {
         setSignOpen(false);
-        setToast(data.learned ? `Signed. Chartside learned ${data.learned} style preference${data.learned > 1 ? "s" : ""} from your edits.` : "Note signed.");
+        const filed = data.filing ? (data.filing.status === "filed" ? ` Filed to ${b?.artifacts.ehr_link?.system ?? "the EHR"}.` : ` Filing to ${b?.artifacts.ehr_link?.system ?? "the EHR"} failed.`) : "";
+        setToast(`${data.learned ? `Signed. Chartside learned ${data.learned} style preference${data.learned > 1 ? "s" : ""} from your edits.` : "Note signed."}${filed}`);
         await load();
       } else {
         setBlockers(data.blockers ?? [data.error ?? "Could not sign"]);
@@ -105,6 +106,23 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
         <p className="truncate text-xs text-ink-3">{enc.reason || "No reason given"} · {fmtDate(enc.scheduledAt)} {fmtTime(enc.scheduledAt)}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+        {b.artifacts.ehr_link && (
+          <span className="pill whitespace-nowrap bg-info-50 text-info" data-testid="ehr-chip" title={`${b.artifacts.ehr_link.iss}\nPatient/${b.artifacts.ehr_link.patient}${b.artifacts.ehr_link.encounter ? `\nEncounter/${b.artifacts.ehr_link.encounter}` : ""}`}>
+            {b.artifacts.ehr_link.system} · {b.artifacts.ehr_link.encounter ? "encounter linked" : "patient linked"}
+          </span>
+        )}
+        {locked && b.artifacts.ehr_filing && (
+          b.artifacts.ehr_filing.status === "filed" ? (
+            <span className="pill whitespace-nowrap bg-ok-50 text-ok" data-testid="ehr-filed" title={b.artifacts.ehr_filing.reference}><Check size={12} /> Filed to {b.artifacts.ehr_link?.system ?? "EHR"}</span>
+          ) : (
+            <button className="pill whitespace-nowrap bg-rec-50 text-rec" data-testid="ehr-retry" title={b.artifacts.ehr_filing.message} onClick={async () => { const r = await fetch(`/api/encounters/${id}/ehr/file`, { method: "POST" }); const j = await r.json(); setToast(j.filing?.status === "filed" ? "Filed to the EHR." : `Filing failed: ${j.filing?.message ?? j.error}`); await load(); }}>
+              <Alert size={12} /> Filing failed · retry
+            </button>
+          )
+        )}
+        {locked && b.artifacts.ehr_link && !b.artifacts.ehr_filing && (
+          <button className="btn-outline" data-testid="ehr-file" onClick={async () => { await fetch(`/api/encounters/${id}/ehr/file`, { method: "POST" }); await load(); }}>File to {b.artifacts.ehr_link.system}</button>
+        )}
         <StatusPill status={enc.status} />
         {reviewable && (
           <>

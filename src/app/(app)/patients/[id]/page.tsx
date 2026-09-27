@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import ResyncButton from "@/components/ResyncButton";
 import StartVisitButton from "@/components/StartVisitButton";
+import { systemLabel } from "@/lib/server/ehr";
 import { Avatar, StatusPill } from "@/components/ui";
 import { ageFrom } from "@/lib/engine/text";
 import { requireUser } from "@/lib/server/auth";
@@ -21,9 +23,10 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
       <div className="mt-4 flex items-center gap-4">
         <Avatar name={p.name} size={52} />
         <div className="flex-1">
-          <h1 className="font-serif text-3xl">{p.name}</h1>
+          <h1 className="font-serif text-3xl">{p.name} {p.externalSystem && <span className="pill ml-2 align-middle bg-info-50 font-sans text-xs text-info" data-testid="ehr-linked">Linked to {systemLabel(p.externalSystem)}</span>}</h1>
           <p className="text-sm text-ink-2">{ageFrom(p.dob)}{p.sex} · DOB {p.dob} · MRN {p.mrn}{p.pronouns ? ` · ${p.pronouns}` : ""} · prefers {({ en: "English", es: "Spanish", zh: "Mandarin", vi: "Vietnamese" } as Record<string, string>)[p.language] ?? p.language}</p>
         </div>
+        {p.externalSystem && <ResyncButton patientId={p.id} system={systemLabel(p.externalSystem)} />}
         <StartVisitButton patientId={p.id} />
       </div>
       <div className="mt-6 grid gap-4 md:grid-cols-3">

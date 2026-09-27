@@ -9,7 +9,7 @@ import { Spinner } from "./ui";
 
 const STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 
-export default function SettingsView({ user, templates, rules: initialRules, engine, speech }: { user: { name: string; email: string; specialty: string; prefs: { defaultTemplate?: string; state?: string; outputLang?: string; audioRetentionDays?: number; finalPass?: boolean } }; templates: { id: string; name: string }[]; rules: StyleRule[]; engine: { llm: boolean; model: string | null }; speech: { provider: string; live: boolean } }) {
+export default function SettingsView({ user, templates, rules: initialRules, engine, speech, ehr }: { ehr?: React.ReactNode; user: { name: string; email: string; specialty: string; prefs: { defaultTemplate?: string; state?: string; outputLang?: string; audioRetentionDays?: number; finalPass?: boolean } }; templates: { id: string; name: string }[]; rules: StyleRule[]; engine: { llm: boolean; model: string | null }; speech: { provider: string; live: boolean } }) {
   const router = useRouter();
   const [rules, setRules] = useState(initialRules);
   const [busy, setBusy] = useState(false);
@@ -49,6 +49,8 @@ export default function SettingsView({ user, templates, rules: initialRules, eng
         <label className="col-span-full flex items-center gap-2 text-sm text-ink-2"><input type="checkbox" name="finalPass" className="accent-brand" defaultChecked={user.prefs.finalPass !== false} /> Re-transcribe the full recording with speaker separation when a visit ends (uses the speech provider)</label>
         <div className="col-span-full flex items-center justify-end gap-3">{saved && <span className="text-sm text-ok" role="status">Saved</span>}<button className="btn-primary" disabled={busy}>{busy && <Spinner />} Save</button></div>
       </form>
+
+      {ehr}
 
       <div className="card p-5" data-testid="speech-settings">
         <p className="text-sm font-semibold">Speech &amp; audio</p>
