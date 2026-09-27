@@ -3,6 +3,8 @@ import { DEMO_PATIENTS, type DemoPatient } from "../demo/scripts";
 import type { Note } from "../types";
 import { encounters, notes, orders, patients, utterances, type User } from "./repo";
 import { processEncounter, recordConsent, saveNoteEdits, signEncounter } from "./pipeline";
+import { claimAction } from "./revenue";
+import { claims } from "./repo";
 
 const ARCHIVE: { from: string; name: string; first: string; dob: string; mrn: string; daysAgo: number; time: string; edit: boolean; late?: boolean }[] = [
   { from: "gonzalez", name: "Linda Park", first: "Linda", dob: "1964-08-02", mrn: "099120", daysAgo: 13, time: "09:00", edit: true },
@@ -102,6 +104,15 @@ export async function seedArchive(user: User) {
     run("UPDATE encounters SET signed_at = ? WHERE id = ?", iso, enc.id);
     run("UPDATE audit SET created_at = ? WHERE encounter_id = ? AND action = 'note.signed'", iso, enc.id);
     run("UPDATE audit SET created_at = ? WHERE encounter_id = ? AND action != 'note.signed'", ended.toISOString(), enc.id);
+    const claim = claims.get(enc.id);
+    if (claim && !claim.content.edits.some((e) => e.severity === "error")) {
+      if (a.daysAgo >= 7) {
+        claimAction(user, enc.id, "approve", {});
+        claimAction(user, enc.id, "submit", {});
+      } else if (a.daysAgo === 5) {
+        claimAction(user, enc.id, "hold", { note: "Verify secondary insurance before submitting" });
+      }
+    }
   }
 }
 

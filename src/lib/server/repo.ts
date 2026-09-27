@@ -488,3 +488,29 @@ export const audioChunks = {
   remove: (encId: string) => run("DELETE FROM audio_chunks WHERE encounter_id = ?", encId),
   expired: (before: string) => all<{ encounter_id: string }>("SELECT DISTINCT a.encounter_id FROM audio_chunks a JOIN encounters e ON e.id = a.encounter_id WHERE e.signed_at IS NOT NULL AND e.signed_at <= ?", before).map((r) => r.encounter_id),
 };
+
+export interface ClaimRecord {
+  encounterId: string;
+  status: "draft" | "needs_review" | "ready" | "approved" | "on_hold" | "submitted";
+  content: import("../engine/billing").Claim;
+  history: { at: string; action: string; note?: string }[];
+  reviewerNote: string;
+  updatedAt: string;
+}
+
+export const claims = {
+  get: (encId: string): ClaimRecord | undefined => {
+    const r = get<{ encounter_id: string; status: string; content: string; reviewer_note: string; updated_at: string }>("SELECT * FROM claims WHERE encounter_id = ?", encId);
+    if (!r) return undefined;
+    const c = j<{ claim: ClaimRecord["content"]; history: ClaimRecord["history"] }>(r.content, { claim: null as never, history: [] });
+    return { encounterId: r.encounter_id, status: r.status as ClaimRecord["status"], content: c.claim, history: c.history ?? [], reviewerNote: r.reviewer_note, updatedAt: r.updated_at };
+  },
+  save: (userId: string, encId: string, status: ClaimRecord["status"], claim: ClaimRecord["content"], history: ClaimRecord["history"], note?: string) => {
+    run(
+      "INSERT INTO claims (encounter_id, user_id, status, content, reviewer_note, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(encounter_id) DO UPDATE SET status = excluded.status, content = excluded.content, reviewer_note = COALESCE(?, claims.reviewer_note), updated_at = excluded.updated_at",
+      encId, userId, status, JSON.stringify({ claim, history }), note ?? "", now(), note ?? null,
+    );
+    return claims.get(encId)!;
+  },
+  list: (userId: string) => all<{ encounter_id: string }>("SELECT encounter_id FROM claims WHERE user_id = ? ORDER BY updated_at DESC", userId).map((r) => claims.get(r.encounter_id)!),
+};

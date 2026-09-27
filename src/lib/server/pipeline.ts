@@ -16,7 +16,9 @@ import { detectOmissions, scoreSupport, supportStats } from "../engine/verify";
 import type { ConsentRecord, Encounter, Note, OmissionFlag, Patient, PatientSummary } from "../types";
 import { deleteAudio, finalPass, localDiarize, purgeExpired, retentionDays } from "./audio";
 import { checkInterpretation } from "../engine/interpreter";
-import { artifacts, audit, consents, encounters, notes, orders, patients, styleRules, templates, utterances, users, type User } from "./repo";
+import { buildClaim, claimStatus } from "../engine/billing";
+import { buildPriorAuths } from "../engine/priorauth";
+import { artifacts, audit, claims, consents, encounters, notes, orders, patients, styleRules, templates, utterances, users, type User } from "./repo";
 
 export const CONSENT_SCRIPT_VERSION = "2026.09-a";
 
@@ -144,11 +146,36 @@ export async function processEncounter(user: User, encId: string, opts: { templa
     interpreter: facts.interpreter,
     languages: facts.languages,
   });
-  orders.replace(enc.id, staged);
+  const savedOrders = orders.replace(enc.id, staged);
+  const billCtx = billingContext(enc, patient, patientType, minutes, savedOrders);
+  artifacts.set(enc.id, "claim", buildClaim(facts, coding, billCtx));
+  const prevPa = artifacts.get<import("../engine/priorauth").PaPacket[]>(enc.id, "priorAuth") ?? [];
+  artifacts.set(enc.id, "priorAuth", buildPriorAuths(facts, coding, savedOrders, paContext(user, enc, patient)).map((p) => ({ ...p, submission: prevPa.find((x) => x.service === p.service)?.submission ?? p.submission })));
   encounters.update(user.id, enc.id, { status: "review", endedAt: enc.endedAt ?? new Date().toISOString() });
   const stats = supportStats(note);
   audit.log(user.id, enc.id, "note.generated", { engine: note.meta.engine, model: note.meta.model ?? null, template: template.id, ms: Date.now() - started, sentences: stats.total, supportedPct: stats.pct, omissions: omissions.length });
   return { note, warnings };
+}
+
+function billingContext(enc: Encounter, patient: Patient | null, patientType: "new" | "established", minutes: number, list: import("../types").StagedOrder[], final = false) {
+  return { age: patient ? ageFrom(patient.dob, new Date(enc.scheduledAt)) : 40, sex: patient?.sex ?? "X", setting: enc.setting, patientType, chart: patient?.chart, minutes, orders: list, at: new Date(enc.scheduledAt), final } as const;
+}
+
+function paContext(user: User, enc: Encounter, patient: Patient | null) {
+  const bmi = Number.parseFloat(patient?.chart.vitals?.BMI ?? "");
+  return { chart: patient?.chart, patientName: patient?.name ?? "Patient", dob: patient?.dob ?? "", clinician: user.name, date: new Date(enc.scheduledAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }), bmi: Number.isFinite(bmi) ? bmi : undefined };
+}
+
+export function finalizeClaim(user: User, enc: Encounter) {
+  const { facts, patient } = factsFor(user, enc);
+  const coding = artifacts.get<ReturnType<typeof computeCoding>>(enc.id, "coding");
+  if (!coding) return null;
+  const patientType = coding.em.patientType;
+  const minutes = Math.round((enc.durationS || 0) / 60);
+  const claim = buildClaim(facts, coding, billingContext(enc, patient, patientType, minutes, orders.list(enc.id), true));
+  const existing = claims.get(enc.id);
+  const status = claimStatus(claim);
+  return claims.save(user.id, enc.id, status, claim, [...(existing?.history ?? []), { at: new Date().toISOString(), action: "created", note: status === "ready" ? "No edits; ready to submit" : `${claim.edits.filter((e) => e.severity !== "info").length} edit(s) need review` }]);
 }
 
 export function saveNoteEdits(user: User, encId: string, note: Note) {
@@ -201,6 +228,7 @@ export function signEncounter(user: User, encId: string, opts: { force?: boolean
   const edited = genText !== finText;
   const editRatio = editDistanceRatio(genText, finText);
   audit.log(user.id, enc.id, "note.signed", { edited, editRatio, learned: candidates.length, forced: !!opts.force, overrides: blockers });
+  finalizeClaim(user, encounters.get(user.id, enc.id)!);
   if (retentionDays(user) === 0) deleteAudio(user.id, enc.id, "signed (retention: delete at signing)");
   purgeExpired(user);
   return { signed: true, blockers: [] as string[], learned: candidates.length };
