@@ -1,11 +1,11 @@
 import TodayList, { type TodayRow } from "@/components/TodayList";
-import { currentUser } from "@/lib/server/auth";
+import { requireUser } from "@/lib/server/auth";
 import { encounters, patients } from "@/lib/server/repo";
 
 export const dynamic = "force-dynamic";
 
 export default async function Today() {
-  const user = (await currentUser())!;
+  const user = await requireUser();
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   const end = new Date(start.getTime() + 86400000);

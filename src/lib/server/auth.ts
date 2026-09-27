@@ -1,5 +1,6 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { sessions, users, type User } from "./repo";
 
 export const SESSION_COOKIE = "cs_session";
@@ -47,3 +48,9 @@ export function publicUser(u: User) {
 }
 
 export { users };
+
+export async function requireUser(): Promise<User> {
+  const u = await currentUser();
+  if (!u) redirect("/login");
+  return u;
+}

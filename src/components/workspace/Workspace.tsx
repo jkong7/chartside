@@ -182,7 +182,7 @@ export default function Workspace({ id }: { id: string }) {
               />
             )}
             {tab === "codes" && <CodesPanel coding={b.artifacts.coding} onCite={(ids) => cite(ids)} />}
-            {tab === "orders" && <OrdersPanel encounterId={id} orders={b.orders} locked={locked} onChange={(o: StagedOrder[]) => setB((x) => (x ? { ...x, orders: o } : x))} onCite={(ids) => cite(ids)} />}
+            {tab === "orders" && <OrdersPanel encounterId={id} orders={b.orders} locked={locked} onChange={(fn: (o: StagedOrder[]) => StagedOrder[]) => setB((x) => (x ? { ...x, orders: fn(x.orders) } : x))} onCite={(ids) => cite(ids)} />}
             {tab === "summary" && <SummaryPanel b={b} onFlags={load} />}
             {tab === "letters" && <LettersPanel letters={b.artifacts.letters} />}
             {tab === "audit" && <AuditPanel b={b} />}

@@ -97,7 +97,7 @@ export function CodesPanel({ coding, onCite }: { coding?: CodingResult; onCite: 
 
 const KIND_LABEL: Record<StagedOrder["kind"], string> = { lab: "Lab", imaging: "Imaging", medication: "Rx", referral: "Referral", procedure: "Procedure", vaccine: "Vaccine", follow_up: "Follow-up" };
 
-export function OrdersPanel({ encounterId, orders, locked, onChange, onCite }: { encounterId: string; orders: StagedOrder[]; locked: boolean; onChange: (o: StagedOrder[]) => void; onCite: (ids: string[]) => void }) {
+export function OrdersPanel({ encounterId, orders, locked, onChange, onCite }: { encounterId: string; orders: StagedOrder[]; locked: boolean; onChange: (fn: (o: StagedOrder[]) => StagedOrder[]) => void; onCite: (ids: string[]) => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -106,7 +106,7 @@ export function OrdersPanel({ encounterId, orders, locked, onChange, onCite }: {
     setErr(null);
     try {
       const r = await api<{ order: StagedOrder }>(`/encounters/${encounterId}/orders/${o.id}`, { method: "PATCH", body: { status, override } });
-      onChange(orders.map((x) => (x.id === o.id ? r.order : x)));
+      onChange((list) => list.map((x) => (x.id === o.id ? r.order : x)));
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not update order");
     } finally {

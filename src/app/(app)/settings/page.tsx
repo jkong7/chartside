@@ -1,12 +1,12 @@
 import SettingsView from "@/components/SettingsView";
 import { llmEnabled, llmModel } from "@/lib/llm";
-import { currentUser } from "@/lib/server/auth";
+import { requireUser } from "@/lib/server/auth";
 import { styleRules, templates } from "@/lib/server/repo";
 
 export const dynamic = "force-dynamic";
 
 export default async function Settings() {
-  const user = (await currentUser())!;
+  const user = await requireUser();
   return (
     <SettingsView
       user={{ name: user.name, email: user.email, specialty: user.specialty, prefs: user.prefs }}

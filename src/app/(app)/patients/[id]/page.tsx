@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import StartVisitButton from "@/components/StartVisitButton";
 import { Avatar, StatusPill } from "@/components/ui";
 import { ageFrom } from "@/lib/engine/text";
-import { currentUser } from "@/lib/server/auth";
+import { requireUser } from "@/lib/server/auth";
 import { artifacts, encounters, notes, patients } from "@/lib/server/repo";
 import type { CodingResult } from "@/lib/types";
 
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export default async function PatientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const user = (await currentUser())!;
+  const user = await requireUser();
   const p = patients.get(user.id, id);
   if (!p) notFound();
   const visits = encounters.list(user.id, { patientId: id }).reverse();

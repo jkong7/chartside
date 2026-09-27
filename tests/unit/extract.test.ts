@@ -79,3 +79,14 @@ describe("extractFacts", () => {
     expect(guessSpeaker("How long has this been going on?", "patient")).toBe("clinician");
   });
 });
+
+describe("symptom phrasing", () => {
+  it("recognizes body-part-first complaints", () => {
+    const facts = extractFacts([
+      { id: "a", seq: 0, speaker: "patient", text: "My throat has been sore for three days and it hurts to swallow.", tStart: 0, tEnd: 3 },
+      { id: "b", seq: 1, speaker: "patient", text: "My lower back has been hurting since Monday.", tStart: 3, tEnd: 6 },
+    ]);
+    expect(facts.symptoms.map((s) => s.key)).toEqual(["sore_throat", "back_pain"]);
+    expect(facts.symptoms[0].duration).toBe("three days");
+  });
+});
