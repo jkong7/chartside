@@ -181,6 +181,7 @@ export const MEDICATIONS: MedDef[] = [
   { name: "albuterol", patterns: [w("albuterol|proair|ventolin|rescue inhaler")], cls: "short-acting bronchodilator", rx: true },
   { name: "fluticasone", patterns: [w("fluticasone|flonase|flovent")], cls: "corticosteroid", rx: false },
   { name: "budesonide-formoterol", patterns: [w("symbicort|budesonide")], cls: "ICS/LABA", rx: true },
+  { name: "tiotropium", patterns: [w("tiotropium|tiotropio|spiriva")], cls: "LAMA", rx: true },
   { name: "montelukast", patterns: [w("montelukast|singulair")], cls: "leukotriene antagonist", rx: true },
   { name: "cetirizine", patterns: [w("cetirizine|zyrtec")], cls: "antihistamine", rx: false },
   { name: "loratadine", patterns: [w("loratadine|claritin")], cls: "antihistamine", rx: false },

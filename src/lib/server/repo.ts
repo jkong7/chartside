@@ -36,6 +36,8 @@ export interface UserPrefs {
   state?: string;
   outputLang?: string;
   autoInsertNormals?: boolean;
+  audioRetentionDays?: number;
+  finalPass?: boolean;
 }
 
 const j = <T>(s: string | null | undefined, fallback: T): T => {
@@ -204,6 +206,9 @@ interface UttRow {
   t_end: number;
   lang: string;
   redacted: number;
+  voice: string | null;
+  confidence: number | null;
+  source: string;
 }
 
 const toUtt = (r: UttRow): Utterance => ({
@@ -216,21 +221,35 @@ const toUtt = (r: UttRow): Utterance => ({
   tEnd: r.t_end,
   lang: r.lang,
   redacted: !!r.redacted,
+  voice: r.voice ? j(r.voice, null) : null,
+  confidence: r.confidence,
+  source: (r.source ?? "live") as Utterance["source"],
 });
+
+function insertUtt(encId: string, seq: number, it: Omit<Utterance, "id" | "seq">) {
+  const id = uid("u_");
+  run(
+    "INSERT INTO utterances (id, encounter_id, seq, speaker, speaker_source, text, t_start, t_end, lang, redacted, voice, confidence, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    id, encId, seq, it.speaker, it.speakerSource ?? "auto", it.text, it.tStart, it.tEnd, it.lang ?? "en", it.redacted ? 1 : 0, it.voice ? JSON.stringify(it.voice) : null, it.confidence ?? null, it.source ?? "live",
+  );
+  return { ...it, id, seq } as Utterance;
+}
 
 export const utterances = {
   list: (encId: string) => all<UttRow>("SELECT * FROM utterances WHERE encounter_id = ? ORDER BY seq", encId).map(toUtt),
   append: (encId: string, items: Omit<Utterance, "id" | "seq">[]) =>
     tx(() => {
       const last = get<{ m: number | null }>("SELECT MAX(seq) AS m FROM utterances WHERE encounter_id = ?", encId)?.m ?? -1;
-      return items.map((it, i) => {
-        const id = uid("u_");
-        run(
-          "INSERT INTO utterances (id, encounter_id, seq, speaker, speaker_source, text, t_start, t_end, lang, redacted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-          id, encId, last + 1 + i, it.speaker, it.speakerSource ?? "auto", it.text, it.tStart, it.tEnd, it.lang ?? "en", it.redacted ? 1 : 0,
-        );
-        return { ...it, id, seq: last + 1 + i } as Utterance;
-      });
+      return items.map((it, i) => insertUtt(encId, last + 1 + i, it));
+    }),
+  replaceAll: (encId: string, items: Omit<Utterance, "id" | "seq">[]) =>
+    tx(() => {
+      run("DELETE FROM utterances WHERE encounter_id = ?", encId);
+      return items.map((it, i) => insertUtt(encId, i, it));
+    }),
+  setSpeakers: (encId: string, map: Record<string, Utterance["speaker"]>) =>
+    tx(() => {
+      for (const [id, speaker] of Object.entries(map)) run("UPDATE utterances SET speaker = ? WHERE encounter_id = ? AND id = ? AND speaker_source = 'auto'", speaker, encId, id);
     }),
   update: (encId: string, id: string, patch: { speaker?: string; text?: string; redacted?: boolean }) => {
     const cur = get<UttRow>("SELECT * FROM utterances WHERE encounter_id = ? AND id = ?", encId, id);
@@ -451,3 +470,21 @@ export function encounterByShareToken(token: string) {
   const e = get<EncounterRow>("SELECT * FROM encounters WHERE id = ?", r.encounter_id);
   return e ? toEncounter(e) : undefined;
 }
+
+export interface AudioChunk {
+  id: string;
+  seq: number;
+  tMs: number;
+  bytes: number;
+  mime: string;
+  path: string;
+}
+
+export const audioChunks = {
+  add: (encId: string, c: Omit<AudioChunk, "id">) => {
+    run("INSERT INTO audio_chunks (id, encounter_id, seq, t_ms, bytes, mime, path, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(encounter_id, seq) DO UPDATE SET bytes = excluded.bytes, path = excluded.path, t_ms = excluded.t_ms", uid("aud_"), encId, c.seq, c.tMs, c.bytes, c.mime, c.path, now());
+  },
+  list: (encId: string) => all<{ id: string; seq: number; t_ms: number; bytes: number; mime: string; path: string }>("SELECT id, seq, t_ms, bytes, mime, path FROM audio_chunks WHERE encounter_id = ? ORDER BY seq", encId).map((r) => ({ id: r.id, seq: r.seq, tMs: r.t_ms, bytes: r.bytes, mime: r.mime, path: r.path })),
+  remove: (encId: string) => run("DELETE FROM audio_chunks WHERE encounter_id = ?", encId),
+  expired: (before: string) => all<{ encounter_id: string }>("SELECT DISTINCT a.encounter_id FROM audio_chunks a JOIN encounters e ON e.id = a.encounter_id WHERE e.signed_at IS NOT NULL AND e.signed_at <= ?", before).map((r) => r.encounter_id),
+};

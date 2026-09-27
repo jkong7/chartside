@@ -10,6 +10,16 @@ export interface Utterance {
   tEnd: number;
   lang?: string;
   redacted?: boolean;
+  voice?: VoiceFeatures | null;
+  confidence?: number | null;
+  source?: "live" | "final" | "typed";
+}
+
+export interface VoiceFeatures {
+  pitch: number;
+  centroid: number;
+  energy: number;
+  frames: number;
 }
 
 export type SentenceKind = "fact" | "default" | "carried" | "clinician" | "system";

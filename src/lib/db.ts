@@ -155,9 +155,39 @@ CREATE TABLE IF NOT EXISTS audit (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS audit_enc ON audit(encounter_id, created_at);
+CREATE TABLE IF NOT EXISTS audio_chunks (
+  id TEXT PRIMARY KEY,
+  encounter_id TEXT NOT NULL REFERENCES encounters(id) ON DELETE CASCADE,
+  seq INTEGER NOT NULL,
+  t_ms INTEGER NOT NULL,
+  bytes INTEGER NOT NULL,
+  mime TEXT NOT NULL,
+  path TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(encounter_id, seq)
+);
+CREATE TABLE IF NOT EXISTS claims (
+  encounter_id TEXT PRIMARY KEY REFERENCES encounters(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  content TEXT NOT NULL,
+  reviewer_note TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL
+);
 `;
 
+const MIGRATIONS = [
+  "ALTER TABLE utterances ADD COLUMN voice TEXT",
+  "ALTER TABLE utterances ADD COLUMN confidence REAL",
+  "ALTER TABLE utterances ADD COLUMN source TEXT NOT NULL DEFAULT 'live'",
+];
+
 let instance: DatabaseSync | null = null;
+
+export function dataDir() {
+  const file = dbPath();
+  return file === ":memory:" ? path.join(process.cwd(), "data") : path.dirname(file);
+}
 
 export function dbPath() {
   return process.env.CHARTSIDE_DB ?? path.join(process.cwd(), "data", "chartside.db");
@@ -170,6 +200,13 @@ export function db(): DatabaseSync {
   const conn = new DatabaseSync(file);
   conn.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
   conn.exec(SCHEMA);
+  for (const m of MIGRATIONS) {
+    try {
+      conn.exec(m);
+    } catch {
+      continue;
+    }
+  }
   instance = conn;
   return conn;
 }

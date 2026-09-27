@@ -105,6 +105,8 @@ function hpiSentences(b: Builder, facts: Facts, ctx: NoteContext, verbosity: str
   const who = p ? `${p.name.split(" ")[0]} is a ${age}-year-old ${sexWord(p.sex, age ?? 30)}` : "Patient";
   const hx = history.length ? ` with a history of ${joinList(history)}` : "";
   out.push(b.s(`${who}${hx} who presents for ${reason}`, cc?.evidence ?? chronicAssessed[0]?.evidence.slice(0, 1) ?? []));
+  const nonEnglish = facts.languages.filter((l) => l !== "en" && l !== "und");
+  if (facts.interpreter && nonEnglish.length) out.push(b.s(`Visit conducted with an interpreter; patient's preferred language is ${nonEnglish.map((l) => ({ es: "Spanish", zh: "Mandarin", vi: "Vietnamese" } as Record<string, string>)[l] ?? l).join(", ")}`, [], "system"));
   if (child && facts.symptoms.length) out.push(b.s("History provided by parent", facts.symptoms.filter((x) => !x.negated).flatMap((x) => x.evidence).slice(0, 2)));
 
   const primary = isFollowUp && ccFact ? ccFact : ccFact && !isFollowUp ? ccFact : undefined;

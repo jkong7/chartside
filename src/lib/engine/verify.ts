@@ -14,7 +14,7 @@ export function sectionKeyFor(template: Template, kinds: string[]) {
 }
 
 function numbersIn(s: string) {
-  return (s.match(/\b\d+(?:\.\d+)?(?:\/\d+)?\b/g) ?? []).filter((n) => !/^[1-9]$/.test(n));
+  return (s.replace(/\b\d{1,3}-year-old\b/g, "").match(/\b\d+(?:\.\d+)?(?:\/\d+)?\b/g) ?? []).filter((n) => !/^[1-9]$/.test(n));
 }
 
 export function scoreSupport(note: Note, utterances: Utterance[], chart?: Chart): Note {

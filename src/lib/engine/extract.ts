@@ -208,6 +208,7 @@ const MED_INDICATIONS: Record<string, string[]> = {
   "H2 blocker": ["gerd"],
   "short-acting bronchodilator": ["asthma", "copd", "bronchitis"],
   "ICS/LABA": ["asthma", "copd"],
+  LAMA: ["copd"],
   "leukotriene antagonist": ["asthma", "allergic_rhinitis"],
   corticosteroid: ["allergic_rhinitis", "asthma", "sinusitis"],
   antihistamine: ["allergic_rhinitis", "uri"],
@@ -439,6 +440,7 @@ function conditionMentions(text: string) {
         if (def.key === "lbp" && out.some((o) => o.def.key === "lbp")) break;
         if (taken.some(([a, b]) => span[0] >= a && span[1] <= b) && def.key !== "t2dm") break;
         if (negatedAt(text, m.index) && !/\bno (?:better|improvement)\b/i.test(text)) break;
+        if (/^\s*(?:vaccine|shot|vaccination|booster|immunization)/i.test(text.slice(m.index + m[0].length))) break;
         out.push({ def, index: m.index });
         taken.push(span);
         break;
@@ -501,7 +503,7 @@ const RESULTS: { name: string; re: RegExp; abnormal: (v: number) => boolean; uni
 ];
 
 const EXAM_CUE = /\b(take a (?:quick )?(?:listen|look)|let me (?:listen|look|check|feel|examine|press)|examine|exam(?:ination)?|deep breath|breathe in|say ah|follow my finger|lie back|press (?:here|on)|squeeze my|push against|straight leg)\b/i;
-const EXAM_OBS = /\b(sounds?|looks?|feels?|is|are|seems?|appears?|no|not|clear|normal|red|swollen|tender|bulging|good|fine|ok(?:ay)?|intact|full|limited|decreased|positive|negative)\b/i;
+const EXAM_OBS = /\b(sounds?|looks?|feels?|hear|see|notice|is|are|seems?|appears?|no|not|clear|normal|red|swollen|tender|bulging|good|fine|ok(?:ay)?|intact|full|limited|decreased|positive|negative)\b/i;
 const ABNORMAL = /\b(red|reddened|erythema(?:tous)?|bulging|tender(?:ness)?|wheez\w*|crackles|rales|rhonchi|swollen|swelling|enlarged|decreased|diminished|limited|positive|murmur|irregular|rash|elevated|exudate|effusion|spasm|pitting|droop|weak(?:ness)?|fluid)\b/i;
 const PLAN_CUE = /\b(so here's (?:the|my) plan|here's what (?:I|we)|the plan|let's (?:start|go ahead|do|get|try|order|check)|I(?:'m going to| will| want to) (?:order|start|send|prescribe|refer|check|increase|bump)|what I'd like to do)\b/i;
 
@@ -544,7 +546,7 @@ export function extractFacts(utterances: Utterance[], chart?: Chart, who?: { pro
   const patientQuestions: Facts["patientQuestions"] = [];
   const asked = { meds: [] as string[], allergies: [] as string[], social: [] as string[], questions: [] as string[] };
   const languages = unique(utts.map((u) => u.lang ?? "en"));
-  let interpreter = utts.some((u) => u.speaker === "other" && /\b(interpret|translat)/i.test(u.text));
+  let interpreter = utts.some((u) => u.speaker === "other" && /\b(interpret|translat)/i.test(u.text)) || (languages.includes("en") && languages.includes("es") && utts.some((u) => u.speaker === "other"));
 
   let activeSymptom: string | null = null;
   let currentProblem: string | null = null;
@@ -611,13 +613,15 @@ export function extractFacts(utterances: Utterance[], chart?: Chart, who?: { pro
   for (let i = 0; i < utts.length; i++) {
     const u = utts[i];
     const text = u.text;
+    if (u.lang && u.lang !== "en" && u.lang !== "und") continue;
     const sp = speakerOf(u);
 
-    pendingAnswer = !!pendingQuestion && sp === "patient";
+    const answering = sp === "patient" || (sp === "other" && (u.lang ?? "en") === "en");
+    pendingAnswer = !!pendingQuestion && answering;
     pendingAnswerSymptoms = pendingAnswer ? pendingQuestion!.symptoms.map((x) => x.def.key) : [];
     void pendingAnswer;
     if (sp === "clinician") questionTarget = null;
-    if (pendingQuestion && sp === "patient") {
+    if (pendingQuestion && answering) {
       const t = text.trim();
       if (pendingQuestion.symptoms.length) {
         const denies = DENY.test(t);
@@ -1067,15 +1071,21 @@ export function allergyConflicts(medName: string, allergySubstances: string[]) {
   return unique(hits);
 }
 
-export function guessSpeaker(text: string, prev: "clinician" | "patient" | null): "clinician" | "patient" {
+const CLINICIAN_CUES = /\b(let me|let's|I'm going to (?:order|start|check|listen|examine|prescribe|refer|send)|I want you to|I'd like you to|take a deep breath|any (?:fever|chills|allergies|questions|nausea|pain|cough|shortness)|how long has|on a scale of|your (?:blood pressure|a1c|lungs|heart|labs|ears?|throat|exam|results)|I recommend|the plan|we'll|go ahead and|sounds like|looks like|I think (?:this|it|you)|prescription|follow up|milligrams|what brings you|tell me (?:more|about)|how are you doing with)\b/gi;
+const PATIENT_CUES = /\b(I've been|I have been|I feel|I'm feeling|it hurts|my (?:back|head|chest|stomach|knee|throat|ear|son|daughter|husband|wife|job|mom|kids)|I can't|I don't know|I take|I'm taking|I tried|I think it started|it started|thank you|okay,? doc|doctor|me duele|tengo|estoy|mi (?:hijo|hija|esposo|esposa))\b/gi;
+
+export function speakerScore(text: string) {
   const t = text.trim();
-  const clinicianCues = /\b(let me|let's|I'm going to (?:order|start|check|listen|examine|prescribe|refer|send)|I want you to|I'd like you to|take a deep breath|any (?:fever|chills|allergies|questions)|how long has|on a scale of|your (?:blood pressure|a1c|lungs|heart|labs|ears?|throat)|I recommend|the plan|we'll|go ahead and|sounds like|looks like|I think (?:this|it|you)|prescription|follow up)\b/i;
-  const patientCues = /\b(I've been|I have been|I feel|I'm feeling|it hurts|my (?:back|head|chest|stomach|knee|throat|ear|son|daughter|husband|wife|job|mom)|I can't|I don't know|I take|I'm taking|I tried|I think it started|it started|thank you|okay,? doc|doctor)\b/i;
-  const c = clinicianCues.test(t);
-  const p = patientCues.test(t);
-  if (c && !p) return "clinician";
-  if (p && !c) return "patient";
-  if (/\?\s*$/.test(t) && /^(how|what|when|where|any|do you|did you|have you|are you|is it|can you)\b/i.test(t)) return "clinician";
+  const c = (t.match(CLINICIAN_CUES) ?? []).length;
+  const p = (t.match(PATIENT_CUES) ?? []).length;
+  const q = /\?\s*$/.test(t) && /^(how|what|when|where|any|do you|did you|have you|are you|is it|can you)\b/i.test(t) ? 1 : 0;
+  return c + q - p;
+}
+
+export function guessSpeaker(text: string, prev: "clinician" | "patient" | null): "clinician" | "patient" {
+  const score = speakerScore(text);
+  if (score > 0) return "clinician";
+  if (score < 0) return "patient";
   if (prev) return prev === "clinician" ? "patient" : "clinician";
   return "clinician";
 }
