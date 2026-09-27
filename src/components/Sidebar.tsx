@@ -3,19 +3,62 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { api } from "@/lib/client";
-import { Calendar, Chart, Gear, Layout, Logo, Logout, Receipt, Users } from "./icons";
+import { roleLabel, type Role } from "@/lib/roles";
+import { Calendar, Chart, Gear, Layout, Logo, Logout, Receipt, Shield, Users } from "./icons";
 import { Avatar } from "./ui";
 
-const NAV = [
+const NAV: { href: string; label: string; icon: typeof Calendar; roles?: Role[] }[] = [
   { href: "/today", label: "Today", icon: Calendar },
   { href: "/patients", label: "Patients", icon: Users },
-  { href: "/templates", label: "Templates", icon: Layout },
-  { href: "/revenue", label: "Revenue", icon: Receipt },
-  { href: "/insights", label: "Insights", icon: Chart },
+  { href: "/templates", label: "Templates", icon: Layout, roles: ["owner", "admin", "clinician", "scribe"] },
+  { href: "/revenue", label: "Revenue", icon: Receipt, roles: ["owner", "admin", "clinician", "coder", "viewer"] },
+  { href: "/insights", label: "Insights", icon: Chart, roles: ["owner", "admin", "clinician", "viewer"] },
+  { href: "/admin", label: "Admin", icon: Shield, roles: ["owner", "admin"] },
   { href: "/settings", label: "Settings", icon: Gear },
 ];
 
-export default function Sidebar({ user, engine }: { user: { name: string; specialty: string }; engine: string }) {
+export interface SidebarUser {
+  name: string;
+  specialty: string;
+  role: Role;
+  orgId: string;
+  orgName: string;
+  orgs: { id: string; name: string; role: Role }[];
+}
+
+const navFor = (role: Role) => NAV.filter((n) => !n.roles || n.roles.includes(role));
+
+function OrgSwitcher({ user }: { user: SidebarUser }) {
+  const router = useRouter();
+  if (user.orgs.length < 2) {
+    return (
+      <div className="mx-3 mb-3 rounded-lg border border-line px-3 py-2" data-testid="org-name">
+        <p className="truncate text-sm font-medium">{user.orgName}</p>
+        <p className="text-[11px] text-ink-3">{roleLabel(user.role)}</p>
+      </div>
+    );
+  }
+  return (
+    <div className="mx-3 mb-3">
+      <label className="sr-only" htmlFor="org-switch">Organization</label>
+      <select
+        id="org-switch"
+        className="input py-1.5 text-sm"
+        data-testid="org-switch"
+        value={user.orgId}
+        onChange={async (e) => {
+          await api("/orgs/switch", { body: { orgId: e.target.value } });
+          router.push("/today");
+          router.refresh();
+        }}
+      >
+        {user.orgs.map((o) => <option key={o.id} value={o.id}>{o.name} · {roleLabel(o.role)}</option>)}
+      </select>
+    </div>
+  );
+}
+
+export default function Sidebar({ user, engine }: { user: SidebarUser; engine: string }) {
   const path = usePathname();
   const router = useRouter();
   return (
@@ -24,8 +67,9 @@ export default function Sidebar({ user, engine }: { user: { name: string; specia
         <Logo size={26} />
         <span className="font-serif text-xl">Chartside</span>
       </Link>
-      <nav className="flex-1 space-y-0.5 px-3">
-        {NAV.map((n) => {
+      <OrgSwitcher user={user} />
+      <nav className="flex-1 space-y-0.5 px-3" data-testid="nav">
+        {navFor(user.role).map((n) => {
           const active = path.startsWith(n.href) || (n.href === "/today" && path.startsWith("/encounters"));
           const Icon = n.icon;
           return (
@@ -43,7 +87,7 @@ export default function Sidebar({ user, engine }: { user: { name: string; specia
         <Avatar name={user.name} size={32} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{user.name}</p>
-          <p className="truncate text-xs text-ink-3">{user.specialty}</p>
+          <p className="truncate text-xs text-ink-3">{user.role === "clinician" || user.role === "owner" || user.role === "admin" ? user.specialty : roleLabel(user.role)}</p>
         </div>
         <button
           className="btn-ghost px-2"
@@ -61,12 +105,12 @@ export default function Sidebar({ user, engine }: { user: { name: string; specia
   );
 }
 
-export function MobileNav() {
+export function MobileNav({ role }: { role: Role }) {
   const path = usePathname();
   return (
     <nav className="sticky top-0 z-30 flex items-center gap-1 overflow-x-auto border-b border-line bg-surface px-3 py-2 md:hidden" aria-label="Main">
       <Link href="/today" className="mr-1 shrink-0"><Logo size={24} /></Link>
-      {NAV.map((n) => {
+      {navFor(role).map((n) => {
         const Icon = n.icon;
         const active = path.startsWith(n.href) || (n.href === "/today" && path.startsWith("/encounters"));
         return (
