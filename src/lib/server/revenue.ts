@@ -3,19 +3,23 @@ import type { PaPacket } from "../engine/priorauth";
 import { ageFrom } from "../engine/text";
 import type { CodingResult } from "../types";
 import { factsFor } from "./pipeline";
+import { payerFor, referenceFor } from "./rcm";
 import { artifacts, claims, encounters, patients, users, type ClaimRecord, type User } from "./repo";
 
 export async function revalidate(user: User, encId: string, claim: Claim) {
   const enc = (await encounters.get(user, encId))!;
   const { facts, patient } = await factsFor(user, enc);
   const coding = (await artifacts.get<CodingResult>(enc.id, "coding")) ?? null;
+  const age = patient ? ageFrom(patient.dob, new Date(enc.scheduledAt)) : 40;
   return validateClaim(claim, facts, coding, {
-    age: patient ? ageFrom(patient.dob, new Date(enc.scheduledAt)) : 40,
+    age,
     sex: patient?.sex ?? "X",
     setting: enc.setting,
     patientType: coding?.em.patientType ?? "established",
     chart: patient?.chart,
     minutes: Math.round(enc.durationS / 60),
+    payer: claim.payer ?? payerFor(patient, age),
+    ref: await referenceFor(enc, user.orgId),
   });
 }
 

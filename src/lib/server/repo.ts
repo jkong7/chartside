@@ -101,6 +101,7 @@ export interface SsoConfig {
 export interface OrgSettings {
   sso?: SsoConfig;
   shareTemplates?: boolean;
+  billing?: Partial<import("../rcm/reference").BillingSettings>;
 }
 
 interface OrgRow {

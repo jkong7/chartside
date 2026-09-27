@@ -12,6 +12,7 @@ export interface CodingContext {
   minutes: number;
   chart?: Chart;
   pediatric?: boolean;
+  hccFor?: (icd10: string) => { hcc: string; label: string }[];
 }
 
 function problemsElement(facts: Facts, ctx?: CodingContext): MdmElement {
@@ -161,11 +162,12 @@ export function computeCoding(facts: Facts, ctx: CodingContext): CodingResult {
   const hcc: CodeSuggestion[] = [];
   const cdi: CodingResult["cdi"] = [];
   for (const p of facts.problems) {
-    if (p.def?.hcc) {
+    const mapped = ctx.hccFor ? ctx.hccFor(p.icd10) : [];
+    for (const m of mapped) {
       const meat = { monitor: p.evidence.length > 0, evaluate: facts.results.length > 0, assess: !!p.status || p.plan.some((x) => x.type === "reasoning"), treat: p.plan.some((x) => x.type === "medication" || x.type === "order") };
       const met = Object.entries(meat).filter(([, v]) => v).map(([k]) => k.toUpperCase());
-      hcc.push({ code: p.def.hcc, system: "HCC", label: `${p.label} (${p.icd10})`, rationale: `MEAT support: ${met.join(", ") || "none"}`, evidence: p.evidence.slice(0, 3), confidence: met.length >= 2 ? 0.9 : 0.5, problem: p.key });
-      if (met.length < 2) cdi.push({ problem: p.key, message: `${p.label} is risk-adjusting but lacks MEAT documentation (monitor, evaluate, assess, treat).`, evidence: p.evidence.slice(0, 2) });
+      hcc.push({ code: m.hcc, system: "CMS-HCC V28", label: `${m.label} (${p.icd10})`, rationale: `MEAT support: ${met.join(", ") || "none"}`, evidence: p.evidence.slice(0, 3), confidence: met.length >= 2 ? 0.9 : 0.5, problem: p.key });
+      if (met.length < 2) cdi.push({ problem: p.key, message: `${p.label} maps to ${m.hcc} (${m.label}) but lacks MEAT documentation (monitor, evaluate, assess, treat).`, evidence: p.evidence.slice(0, 2) });
     }
     if (p.def?.cdi && (p.icd10 === p.def.icd10 || /\.9$/.test(p.icd10))) cdi.push({ problem: p.key, message: p.def.cdi, evidence: p.evidence.slice(0, 2) });
     if (/unspecified (?:side|ear)/i.test(p.label)) cdi.push({ problem: p.key, message: `Document laterality for ${p.label.split(",")[0].toLowerCase()} to use a specific code.`, evidence: p.evidence.slice(0, 2) });

@@ -18,7 +18,7 @@ function setup(key: string, opts: { accept?: boolean; setting?: "in-person" | "t
 }
 
 describe("claim builder", () => {
-  it("bills a Medicare chronic-care visit with vaccine, modifier 25, and G2211", () => {
+  it("bills a Medicare chronic-care visit with vaccine, Medicare admin code G0009, modifier 25, and G2211", () => {
     const { claim } = setup("morales");
     expect(claim.payer).toBe("Medicare");
     expect(claim.dx.map((x) => x.code)).toEqual(["J44.9", "Z23"]);
@@ -26,10 +26,11 @@ describe("claim builder", () => {
     expect(byCpt["99214"].modifiers).toEqual(["25"]);
     expect(byCpt["99214"].pointers).toEqual(["A"]);
     expect(byCpt["90677"].pointers).toEqual(["B"]);
-    expect(byCpt["90471"]).toBeTruthy();
+    expect(byCpt.G0009.pointers).toEqual(["B"]);
+    expect(byCpt["90471"]).toBeUndefined();
     expect(byCpt.G2211).toBeTruthy();
     expect(claim.edits.filter((e) => e.severity !== "info")).toEqual([]);
-    expect(claim.totals.charges).toBe(427);
+    expect(claim.totals.charges).toBe(436);
   });
 
   it("offers G2211 as a payer-dependent opportunity for commercial patients and never bills send-out labs", () => {
@@ -94,7 +95,7 @@ describe("claim edits", () => {
   it("renders an 837P with claim, diagnosis, and service line segments", () => {
     const { claim } = setup("morales");
     const edi = to837(claim, { claimId: "CS123", patient: { name: "Ana Morales", dob: "1954-10-12", sex: "F", mrn: "100603" }, provider: { name: "Dr. Avery Chen", npi: "1234567893" }, date: "2026-09-27" });
-    expect(edi).toContain("CLM*CS123*427.00");
+    expect(edi).toContain("CLM*CS123*436.00");
     expect(edi).toContain("HI*ABK:J449*ABF:Z23~");
     expect(edi).toContain("SV1*HC:99214:25*132.00*UN*1***1~");
     expect(edi).toMatch(/^ISA\*/);

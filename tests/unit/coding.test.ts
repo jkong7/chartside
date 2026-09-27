@@ -8,11 +8,11 @@ import { demo } from "./helpers";
 describe("coding", () => {
   it("levels MDM from two of three elements", () => {
     const { facts, patient } = demo("gonzalez");
-    const c = computeCoding(facts, { patientType: "established", minutes: 18, chart: patient.chart });
+    const c = computeCoding(facts, { patientType: "established", minutes: 18, chart: patient.chart, hccFor: (code) => (code.startsWith("E11") ? [{ hcc: "HCC38", label: "Diabetes with No, Glycemic, or Unspecified Complications" }] : []) });
     expect(c.em.code).toBe("99214");
     expect(c.em.problems.level).toBe("moderate");
     expect(c.em.risk.reasons[0]).toMatch(/Prescription drug management/);
-    expect(c.hcc[0].code).toBe("HCC 38");
+    expect(c.hcc[0]).toMatchObject({ code: "HCC38", system: "CMS-HCC V28" });
     expect(c.cdi.some((x) => /BMI 31.6/.test(x.message))).toBe(true);
   });
 

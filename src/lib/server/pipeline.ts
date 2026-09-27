@@ -18,6 +18,7 @@ import { deleteAudio, finalPass, localDiarize, purgeExpired, retentionDays } fro
 import { checkInterpretation } from "../engine/interpreter";
 import { buildClaim, claimStatus } from "../engine/billing";
 import { buildPriorAuths } from "../engine/priorauth";
+import { enrichCoding, hccMapper, payerFor, referenceFor } from "./rcm";
 import { canSign, Forbidden } from "./policy";
 import { artifacts, audit, claims, consents, encounters, notes, orders, patients, styleRules, templates, utterances, users, type User } from "./repo";
 
@@ -120,7 +121,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   const pediatric = patient ? ageFrom(patient.dob) < 18 : false;
   const priorVisits = (await encounters.list(user, { patientId: enc.patientId ?? "__none__" })).filter((e) => e.id !== enc!.id && e.status === "signed").length;
   const patientType = enc.visitType === "new" || (!patient?.chart.priorVisits?.length && !priorVisits) ? "new" : "established";
-  const coding = computeCoding(facts, { patientType, minutes, chart: patient?.chart, pediatric });
+  const coding = await enrichCoding(user, enc, patient, computeCoding(facts, { patientType, minutes, chart: patient?.chart, pediatric, hccFor: hccMapper(patient, enc.scheduledAt) }), facts);
   const staged = stageOrders(facts, { chart: patient?.chart, ageYears: patient ? ageFrom(patient.dob) : undefined, now: new Date(enc.scheduledAt) });
   const coverage = computeCoverage(facts, { visitType: enc.visitType });
 
@@ -153,7 +154,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
     languages: facts.languages,
   });
   const savedOrders = await orders.replace(enc.id, staged);
-  const billCtx = billingContext(enc, patient, patientType, minutes, savedOrders);
+  const billCtx = { ...billingContext(enc, patient, patientType, minutes, savedOrders), ref: await referenceFor(enc, user.orgId) };
   await artifacts.set(enc.id, "claim", buildClaim(facts, coding, billCtx));
   const prevPa = (await artifacts.get<import("../engine/priorauth").PaPacket[]>(enc.id, "priorAuth")) ?? [];
   await artifacts.set(enc.id, "priorAuth", buildPriorAuths(facts, coding, savedOrders, paContext(clinician.name, enc, patient)).map((p) => ({ ...p, submission: prevPa.find((x) => x.service === p.service)?.submission ?? p.submission })));
@@ -164,7 +165,8 @@ export async function processEncounter(user: User, encId: string, opts: { templa
 }
 
 function billingContext(enc: Encounter, patient: Patient | null, patientType: "new" | "established", minutes: number, list: import("../types").StagedOrder[], final = false) {
-  return { age: patient ? ageFrom(patient.dob, new Date(enc.scheduledAt)) : 40, sex: patient?.sex ?? "X", setting: enc.setting, patientType, chart: patient?.chart, minutes, orders: list, at: new Date(enc.scheduledAt), final } as const;
+  const age = patient ? ageFrom(patient.dob, new Date(enc.scheduledAt)) : 40;
+  return { age, sex: patient?.sex ?? "X", setting: enc.setting, patientType, chart: patient?.chart, minutes, orders: list, at: new Date(enc.scheduledAt), final, payer: payerFor(patient, age) } as const;
 }
 
 function paContext(clinicianName: string, enc: Encounter, patient: Patient | null) {
@@ -178,7 +180,7 @@ export async function finalizeClaim(user: User, enc: Encounter) {
   if (!coding) return null;
   const patientType = coding.em.patientType;
   const minutes = Math.round((enc.durationS || 0) / 60);
-  const claim = buildClaim(facts, coding, billingContext(enc, patient, patientType, minutes, await orders.list(enc.id), true));
+  const claim = buildClaim(facts, coding, { ...billingContext(enc, patient, patientType, minutes, await orders.list(enc.id), true), ref: await referenceFor(enc, user.orgId) });
   const existing = await claims.get(enc.id);
   const status = claimStatus(claim);
   return claims.save(enc.userId, enc.id, status, claim, [...(existing?.history ?? []), { at: new Date().toISOString(), action: "created", note: status === "ready" ? "No edits; ready to submit" : `${claim.edits.filter((e) => e.severity !== "info").length} edit(s) need review` }]);

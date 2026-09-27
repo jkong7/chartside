@@ -136,6 +136,14 @@ export interface Chart {
   family?: string[];
   priorVisits?: PriorVisit[];
   egfr?: number;
+  coverage?: CoverageInfo;
+}
+
+export interface CoverageInfo {
+  payer: "Medicare" | "Medicare Advantage" | "Medicaid" | "Commercial" | "Self-pay";
+  plan?: string;
+  memberId?: string;
+  hccSegment?: string;
 }
 
 export interface Patient {
@@ -208,7 +216,7 @@ export interface StagedOrder {
 
 export interface CodeSuggestion {
   code: string;
-  system: "ICD-10-CM" | "CPT" | "HCC";
+  system: "ICD-10-CM" | "CPT" | "HCC" | "CMS-HCC V28";
   label: string;
   rationale: string;
   evidence: string[];
@@ -236,6 +244,61 @@ export interface CodingResult {
   };
   hcc: CodeSuggestion[];
   cdi: { message: string; problem: string; evidence: string[] }[];
+  dxDetail?: DxDetail[];
+  risk?: RiskSummary;
+  reference?: { label: string; version: string }[];
+}
+
+export interface RuleSource {
+  set: string;
+  version: string;
+  ref?: string;
+}
+
+export interface DxIssue {
+  severity: "error" | "warning" | "info";
+  rule: string;
+  message: string;
+  source: RuleSource;
+  codes?: string[];
+}
+
+export interface CdiQuery {
+  id: string;
+  code: string;
+  problem?: string;
+  question: string;
+  options: { code: string; label: string }[];
+  evidence: string[];
+  source: RuleSource;
+  answer?: { code: string | null; label: string; by: string; at: string } | null;
+}
+
+export interface DxDetail {
+  code: string;
+  label: string;
+  official: string | null;
+  billable: boolean;
+  release: string | null;
+  chapter: string | null;
+  hccs: { hcc: string; label: string }[];
+  issues: DxIssue[];
+  query?: CdiQuery;
+  problem?: string;
+}
+
+export interface RiskSummary {
+  segment: string;
+  segmentLabel: string;
+  total: number;
+  demographic: { variable: string; label: string; factor: number };
+  hccs: { hcc: string; label: string; factor: number; codes: string[]; droppedBy?: string }[];
+  interactions: { variable: string; label: string; factor: number }[];
+  count: { variable: string; label: string; factor: number } | null;
+  suspects: { code: string; label: string; hccs: { hcc: string; label: string }[]; delta: number; reason: string }[];
+  recaptureYear: { captured: string[]; outstanding: string[] };
+  note: string;
+  source: RuleSource;
 }
 
 export interface CoverageItem {

@@ -76,7 +76,6 @@ export interface ConditionDef {
   patterns: RegExp[];
   chronic: boolean;
   systemic?: boolean;
-  hcc?: string;
   cdi?: string;
   plain: { en: string; es: string };
   precautions?: { en: string[]; es: string[] };
@@ -92,7 +91,7 @@ export const CONDITIONS: ConditionDef[] = [
     specific: [{ when: w("kidney disease|CKD"), icd10: "I12.9", label: "Hypertensive chronic kidney disease" }],
   },
   {
-    key: "t2dm", label: "Type 2 diabetes mellitus", icd10: "E11.9", chronic: true, hcc: "HCC 38",
+    key: "t2dm", label: "Type 2 diabetes mellitus", icd10: "E11.9", chronic: true,
     patterns: [w("(?:type 2 |type two )?diabetes|diabetic|sugars? (?:have been|are|is) (?:high|running high|up)|A1c|T2DM|DM2")],
     cdi: "Specify complications (neuropathy, CKD, retinopathy) and control status; E11.9 does not risk-adjust as specifically as E11.65/E11.22/E11.40.",
     plain: { en: "type 2 diabetes", es: "diabetes tipo 2" },
@@ -108,7 +107,7 @@ export const CONDITIONS: ConditionDef[] = [
   { key: "obesity", label: "Obesity", icd10: "E66.9", chronic: true, patterns: [w("obes(?:e|ity)|BMI (?:is |of )?(?:3\\d|4\\d)")], cdi: "Document BMI and class of obesity; BMI ≥40 (Z68.41) or ≥35 with comorbidity supports E66.01 (HCC).", plain: { en: "weight", es: "peso" } },
   { key: "gerd", label: "Gastro-esophageal reflux disease without esophagitis", icd10: "K21.9", chronic: true, patterns: [w("GERD|reflux disease|acid reflux|heartburn (?:is|has been) (?:bad|worse|every day)")], plain: { en: "acid reflux", es: "reflujo ácido" }, precautions: { en: ["Trouble swallowing, vomiting blood, or black stools"], es: ["Dificultad para tragar, vómito con sangre o heces negras"] } },
   { key: "asthma", label: "Asthma, unspecified", icd10: "J45.909", chronic: true, patterns: [w("asthma(?:tic)?")], plain: { en: "asthma", es: "asma" }, precautions: { en: ["Trouble breathing not relieved by your inhaler", "Lips or fingertips turning blue"], es: ["Dificultad para respirar que no mejora con el inhalador", "Labios o dedos azulados"] } },
-  { key: "copd", label: "Chronic obstructive pulmonary disease, unspecified", icd10: "J44.9", chronic: true, hcc: "HCC 280", patterns: [w("COPD|emphysema|chronic bronchitis")], plain: { en: "COPD", es: "EPOC" } },
+  { key: "copd", label: "Chronic obstructive pulmonary disease, unspecified", icd10: "J44.9", chronic: true, patterns: [w("COPD|emphysema|chronic bronchitis")], plain: { en: "COPD", es: "EPOC" } },
   { key: "uri", label: "Acute upper respiratory infection", icd10: "J06.9", chronic: false, patterns: [w("upper respiratory infection|URI|common cold|viral (?:infection|illness|syndrome)|a cold")], plain: { en: "a cold (viral infection)", es: "un resfriado (infección viral)" }, precautions: { en: ["Fever over 102°F for more than 3 days", "Trouble breathing or chest pain", "Symptoms lasting more than 10 days"], es: ["Fiebre mayor de 102°F por más de 3 días", "Dificultad para respirar o dolor de pecho", "Síntomas por más de 10 días"] } },
   { key: "bronchitis", label: "Acute bronchitis, unspecified", icd10: "J20.9", chronic: false, patterns: [w("bronchitis")], plain: { en: "a chest cold (bronchitis)", es: "bronquitis" }, precautions: { en: ["Trouble breathing or coughing up blood", "Fever that lasts more than 3 days"], es: ["Dificultad para respirar o tos con sangre", "Fiebre por más de 3 días"] } },
   { key: "pneumonia", label: "Pneumonia, unspecified organism", icd10: "J18.9", chronic: false, systemic: true, patterns: [w("pneumonia")], plain: { en: "pneumonia", es: "neumonía" } },
@@ -123,12 +122,12 @@ export const CONDITIONS: ConditionDef[] = [
   { key: "tth", label: "Tension-type headache, unspecified, not intractable", icd10: "G44.209", chronic: false, patterns: [w("tension(?:-type)? headaches?")], plain: { en: "tension headache", es: "dolor de cabeza por tensión" } },
   { key: "gad", label: "Generalized anxiety disorder", icd10: "F41.1", chronic: true, patterns: [w("generalized anxiety|GAD|anxiety disorder")], plain: { en: "anxiety", es: "ansiedad" }, precautions: { en: ["Thoughts of hurting yourself — call or text 988 anytime"], es: ["Pensamientos de hacerse daño — llame o envíe un mensaje al 988"] } },
   { key: "anxiety", label: "Anxiety disorder, unspecified", icd10: "F41.9", chronic: true, patterns: [w("anxiety")], plain: { en: "anxiety", es: "ansiedad" } },
-  { key: "mdd", label: "Major depressive disorder, single episode, unspecified", icd10: "F32.9", chronic: true, hcc: "HCC 155", patterns: [w("depression|major depressive|MDD|depressive disorder")], cdi: "Specify severity (mild/moderate/severe) and episode (single/recurrent); unspecified depression (F32.A) does not risk-adjust.", plain: { en: "depression", es: "depresión" }, precautions: { en: ["Thoughts of hurting yourself — call or text 988 anytime"], es: ["Pensamientos de hacerse daño — llame o envíe un mensaje al 988"] } },
+  { key: "mdd", label: "Major depressive disorder, single episode, unspecified", icd10: "F32.9", chronic: true, patterns: [w("depression|major depressive|MDD|depressive disorder")], cdi: "Specify severity (mild/moderate/severe) and episode (single/recurrent); unspecified depression (F32.A) does not risk-adjust.", plain: { en: "depression", es: "depresión" }, precautions: { en: ["Thoughts of hurting yourself — call or text 988 anytime"], es: ["Pensamientos de hacerse daño — llame o envíe un mensaje al 988"] } },
   { key: "insomnia", label: "Insomnia, unspecified", icd10: "G47.00", chronic: false, patterns: [w("insomnia")], plain: { en: "trouble sleeping", es: "insomnio" } },
   { key: "hypothyroid", label: "Hypothyroidism, unspecified", icd10: "E03.9", chronic: true, patterns: [w("hypothyroid(?:ism)?|underactive thyroid|low thyroid")], plain: { en: "underactive thyroid", es: "hipotiroidismo" } },
-  { key: "ckd", label: "Chronic kidney disease, unspecified", icd10: "N18.9", chronic: true, hcc: "HCC 329", patterns: [w("chronic kidney disease|CKD|kidney function (?:is |has been )?(?:low|down|reduced)")], cdi: "Document CKD stage (e.g., N18.31 stage 3a); stage drives risk adjustment and renal dosing.", plain: { en: "kidney disease", es: "enfermedad renal" }, specific: [{ when: w("stage 3a|3A"), icd10: "N18.31", label: "Chronic kidney disease, stage 3a" }, { when: w("stage 3b|3B"), icd10: "N18.32", label: "Chronic kidney disease, stage 3b" }, { when: w("stage 4"), icd10: "N18.4", label: "Chronic kidney disease, stage 4" }] },
-  { key: "afib", label: "Unspecified atrial fibrillation", icd10: "I48.91", chronic: true, hcc: "HCC 238", patterns: [w("a-?fib|atrial fibrillation")], plain: { en: "atrial fibrillation (irregular heartbeat)", es: "fibrilación auricular" } },
-  { key: "hf", label: "Heart failure, unspecified", icd10: "I50.9", chronic: true, hcc: "HCC 226", patterns: [w("heart failure|CHF|congestive")], cdi: "Specify type (HFrEF/HFpEF) and acuity; I50.9 lacks specificity.", plain: { en: "heart failure", es: "insuficiencia cardíaca" } },
+  { key: "ckd", label: "Chronic kidney disease, unspecified", icd10: "N18.9", chronic: true, patterns: [w("chronic kidney disease|CKD|kidney function (?:is |has been )?(?:low|down|reduced)")], cdi: "Document CKD stage (e.g., N18.31 stage 3a); stage drives risk adjustment and renal dosing.", plain: { en: "kidney disease", es: "enfermedad renal" }, specific: [{ when: w("stage 3a|3A"), icd10: "N18.31", label: "Chronic kidney disease, stage 3a" }, { when: w("stage 3b|3B"), icd10: "N18.32", label: "Chronic kidney disease, stage 3b" }, { when: w("stage 4"), icd10: "N18.4", label: "Chronic kidney disease, stage 4" }] },
+  { key: "afib", label: "Unspecified atrial fibrillation", icd10: "I48.91", chronic: true, patterns: [w("a-?fib|atrial fibrillation")], plain: { en: "atrial fibrillation (irregular heartbeat)", es: "fibrilación auricular" } },
+  { key: "hf", label: "Heart failure, unspecified", icd10: "I50.9", chronic: true, patterns: [w("heart failure|CHF|congestive")], cdi: "Specify type (HFrEF/HFpEF) and acuity; I50.9 lacks specificity.", plain: { en: "heart failure", es: "insuficiencia cardíaca" } },
   { key: "chest_pain_dx", label: "Chest pain, unspecified", icd10: "R07.9", chronic: false, patterns: [w("atypical chest pain|chest pain (?:is )?(?:likely|probably|most likely) (?:musculoskeletal|non-cardiac)")], plain: { en: "chest pain", es: "dolor de pecho" }, specific: [{ when: w("musculoskeletal|chest wall|costochondritis"), icd10: "R07.89", label: "Other chest pain" }] },
   { key: "allergic_rhinitis", label: "Allergic rhinitis, unspecified", icd10: "J30.9", chronic: true, patterns: [w("allergic rhinitis|seasonal allergies|hay fever|allergies (?:are|have been) (?:acting up|bad)")], plain: { en: "seasonal allergies", es: "alergias estacionales" } },
   { key: "eczema", label: "Atopic dermatitis, unspecified", icd10: "L20.9", chronic: true, patterns: [w("eczema|atopic dermatitis")], plain: { en: "eczema", es: "eczema" } },
@@ -266,7 +265,7 @@ export const ORDERABLES: OrderDef[] = [
   { kind: "procedure", name: "12-lead ECG", patterns: [w("EKG|ECG|electrocardiogram")], cpt: "93000" },
   { kind: "imaging", name: "Screening mammogram", patterns: [w("mammogram")], cpt: "77067" },
   { kind: "procedure", name: "Colonoscopy", patterns: [w("colonoscopy")], cpt: "45378" },
-  { kind: "vaccine", name: "Influenza vaccine", patterns: [w("flu (?:shot|vaccine)|influenza vaccine")], cpt: "90686" },
+  { kind: "vaccine", name: "Influenza vaccine, trivalent (IIV3), preservative-free", patterns: [w("flu (?:shot|vaccine)|influenza vaccine")], cpt: "90656" },
   { kind: "vaccine", name: "Tdap vaccine", patterns: [w("tdap|tetanus (?:shot|booster)")], cpt: "90715" },
   { kind: "vaccine", name: "Zoster recombinant vaccine", patterns: [w("shingles (?:shot|vaccine)|shingrix")], cpt: "90750" },
   { kind: "vaccine", name: "Pneumococcal vaccine", patterns: [w("pneumonia (?:shot|vaccine)|pneumococcal|prevnar")], cpt: "90677" },
