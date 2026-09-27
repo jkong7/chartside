@@ -18,7 +18,7 @@ export const PUT = authed<{ id: string }>(async (req, user, { id }) => {
   assertCan(user, "billing.review");
   const rec = await claims.get(enc.id);
   if (!rec) return fail("Claims are created when the note is signed", 409);
-  if (rec.status === "submitted") return fail("Submitted claims cannot be edited", 409);
+  if (!["draft", "needs_review", "ready", "approved", "on_hold", "rejected"].includes(rec.status)) return fail("Claims accepted by the payer cannot be edited; file a corrected claim", 409);
   const b = await body<{ lines?: Claim["lines"]; dx?: ClaimDx[] }>(req);
   const dx = (b.dx ?? rec.content.dx).slice(0, 12).map((d, i) => ({ pointer: "ABCDEFGHIJKL"[i], code: String(d.code).trim().toUpperCase().slice(0, 8), label: String(d.label ?? "").slice(0, 120) }));
   const claim = await revalidate(user, enc.id, { ...rec.content, dx, lines: sanitizeLines(b.lines ?? rec.content.lines) });

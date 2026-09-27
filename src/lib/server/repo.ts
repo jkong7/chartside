@@ -684,11 +684,27 @@ export const audioChunks = {
   expired: async (orgId: string, before: string) => (await all<{ encounter_id: string }>("SELECT DISTINCT a.encounter_id FROM audio_chunks a JOIN encounters e ON e.id = a.encounter_id WHERE e.org_id = ? AND e.signed_at IS NOT NULL AND e.signed_at <= ?", orgId, before)).map((r) => r.encounter_id),
 };
 
+export type ClaimStatus = "draft" | "needs_review" | "ready" | "approved" | "on_hold" | "submitted" | "rejected" | "accepted" | "paid" | "partial" | "denied" | "appealed" | "closed";
+
+export interface ClaimLifecycle {
+  clearinghouse?: string;
+  controlNumber?: string;
+  submittedAt?: string;
+  acceptedAt?: string;
+  rejections?: string[];
+  remits: import("../rcm/remit").Remit[];
+  appeal?: { at: string; by: string; letter: string; status: "sent" | "won" | "lost"; resolvedAt?: string };
+  frequency?: 1 | 7;
+  closedAt?: string;
+  writeOff?: number;
+}
+
 export interface ClaimRecord {
   encounterId: string;
-  status: "draft" | "needs_review" | "ready" | "approved" | "on_hold" | "submitted";
+  status: ClaimStatus;
   content: Claim;
   history: { at: string; action: string; note?: string; by?: string }[];
+  lifecycle: ClaimLifecycle;
   reviewerNote: string;
   updatedAt: string;
 }
@@ -697,13 +713,14 @@ export const claims = {
   get: async (encId: string): Promise<ClaimRecord | undefined> => {
     const r = await get<{ encounter_id: string; status: string; content: string; reviewer_note: string; updated_at: string }>("SELECT * FROM claims WHERE encounter_id = ?", encId);
     if (!r) return undefined;
-    const c = j<{ claim: Claim; history: ClaimRecord["history"] }>(r.content, { claim: null as never, history: [] });
-    return { encounterId: r.encounter_id, status: r.status as ClaimRecord["status"], content: c.claim, history: c.history ?? [], reviewerNote: r.reviewer_note, updatedAt: r.updated_at };
+    const c = j<{ claim: Claim; history: ClaimRecord["history"]; lifecycle?: ClaimLifecycle }>(r.content, { claim: null as never, history: [] });
+    return { encounterId: r.encounter_id, status: r.status as ClaimStatus, content: c.claim, history: c.history ?? [], lifecycle: c.lifecycle ?? { remits: [] }, reviewerNote: r.reviewer_note, updatedAt: r.updated_at };
   },
-  save: async (userId: string, encId: string, status: ClaimRecord["status"], claim: Claim, history: ClaimRecord["history"], note?: string) => {
+  save: async (userId: string, encId: string, status: ClaimStatus, claim: Claim, history: ClaimRecord["history"], note?: string, lifecycle?: ClaimLifecycle) => {
+    const keep = lifecycle ?? (await claims.get(encId))?.lifecycle ?? { remits: [] };
     await run(
       "INSERT INTO claims (encounter_id, user_id, status, content, reviewer_note, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(encounter_id) DO UPDATE SET status = excluded.status, content = excluded.content, reviewer_note = CASE WHEN excluded.reviewer_note <> '' THEN excluded.reviewer_note ELSE claims.reviewer_note END, updated_at = excluded.updated_at",
-      encId, userId, status, JSON.stringify({ claim, history }), note ?? "", now(),
+      encId, userId, status, JSON.stringify({ claim, history, lifecycle: keep }), note ?? "", now(),
     );
     return (await claims.get(encId))!;
   },

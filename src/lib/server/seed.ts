@@ -3,7 +3,7 @@ import type { Note } from "../types";
 import { encounters, notes, orders, patients, utterances, type User } from "./repo";
 import { processEncounter, recordConsent, saveNoteEdits, signEncounter } from "./pipeline";
 import { claimAction } from "./revenue";
-import { audit, claims } from "./repo";
+import { audit, claims, orgs } from "./repo";
 
 const ARCHIVE: { from: string; name: string; first: string; dob: string; mrn: string; daysAgo: number; time: string; edit: boolean; late?: boolean }[] = [
   { from: "gonzalez", name: "Linda Park", first: "Linda", dob: "1964-08-02", mrn: "099120", daysAgo: 13, time: "09:00", edit: true },
@@ -25,15 +25,22 @@ export function localDate(daysAgo: number, time: string) {
   return d;
 }
 
+function coverageFor(dob: string, mrn: string) {
+  const age = Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 86400000));
+  return age >= 65 ? { payer: "Medicare" as const, plan: "Medicare Part B", memberId: `1EG4TE5MK${mrn.slice(-2)}` } : { payer: "Commercial" as const, plan: "Blue Cross PPO", memberId: `XOF${mrn}01` };
+}
+
 function addPatient(user: User, p: DemoPatient, override?: { name: string; dob: string; mrn: string }) {
+  const dob = override?.dob ?? p.dob;
+  const mrn = override?.mrn ?? p.mrn;
   return patients.create(user, {
-    mrn: override?.mrn ?? p.mrn,
+    mrn,
     name: override?.name ?? p.name,
-    dob: override?.dob ?? p.dob,
+    dob,
     sex: p.sex,
     pronouns: p.pronouns,
     language: p.language,
-    chart: p.chart,
+    chart: { ...p.chart, coverage: p.chart.coverage ?? coverageFor(dob, mrn) },
   });
 }
 
@@ -108,6 +115,11 @@ export async function seedArchive(user: User) {
       if (a.daysAgo >= 7) {
         await claimAction(user, enc.id, "approve", {});
         await claimAction(user, enc.id, "submit", {});
+        if (a.daysAgo === 11) {
+          const sub = (await claims.get(enc.id))!;
+          const em = sub.content.lines.find((l) => l.source === "em");
+          if (em) await claimAction(user, enc.id, "remit", { remit: { payerClaimId: `PYR${a.mrn}`, lines: sub.content.lines.map((l) => (l.id === em.id ? { lineId: l.id, cpt: l.cpt, billed: l.charge, allowed: 0, paid: 0, patientResp: 0, adjustments: [{ group: "CO" as const, carc: "11", amount: l.charge }] } : { lineId: l.id, cpt: l.cpt, billed: l.charge, allowed: l.pricing?.allowed ?? 0, paid: Math.round((l.pricing?.allowed ?? 0) * 0.8 * 100) / 100, patientResp: Math.round((l.pricing?.allowed ?? 0) * 0.2 * 100) / 100, adjustments: [] })) } });
+        } else if (a.daysAgo >= 8) await claimAction(user, enc.id, "remit", {});
       } else if (a.daysAgo === 5) {
         await claimAction(user, enc.id, "hold", { note: "Verify secondary insurance before submitting" });
       }
@@ -116,6 +128,8 @@ export async function seedArchive(user: User) {
 }
 
 export async function seedDemo(user: User, opts: { archive?: boolean } = {}) {
+  const org = await orgs.get(user.orgId);
+  if (org && !org.settings.billing?.npi) await orgs.update(org.id, { settings: { ...org.settings, billing: { ...(org.settings.billing ?? {}), npi: "1234567893", tin: "12-3456789", demoIdentifiers: true } } });
   await seedSchedule(user);
   if (opts.archive !== false) await seedArchive(user);
 }
