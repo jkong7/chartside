@@ -300,6 +300,9 @@ const ACTION_LABEL: Record<string, string> = {
   "export.fhir": "FHIR bundle exported",
   "export.text": "Note copied for EHR",
   assist: "Assistant used",
+  "audio.purged": "Audio deleted per retention policy",
+  "transcript.final_pass": "Full recording re-transcribed with speaker separation",
+  "transcript.diarized": "Speakers separated from voice characteristics",
 };
 
 export function AuditPanel({ b }: { b: Bundle }) {

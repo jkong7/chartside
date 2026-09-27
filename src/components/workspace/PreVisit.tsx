@@ -83,7 +83,7 @@ export default function PreVisit({ b, onChange, onStart }: { b: Bundle; onChange
   }
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-6 px-8 py-6 lg:grid-cols-[1fr_380px]">
+    <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 md:px-8 lg:grid-cols-[1fr_380px]">
       <div className="space-y-6">
         <PatientBrief b={b} />
         <div className="card p-5">

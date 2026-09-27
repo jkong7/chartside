@@ -18,12 +18,15 @@ export interface Bundle {
     letters?: { specialty: string; text: string }[];
     facts?: { chiefComplaint: { label: string } | null; interpreter: boolean; languages: string[] };
     share?: { token: string };
+    interpreter?: import("@/lib/engine/interpreter").InterpreterCheck;
   };
   orders: StagedOrder[];
   audit: { id: string; action: string; detail: Record<string, unknown>; created_at: string }[];
   feedback: { section: string; rating: number }[];
   patientFlags: { id: string; item: string; comment: string; resolved: number; created_at: string }[];
   engine: { llm: boolean; model: string | null };
+  audio: { chunks: number; bytes: number; durationMs: number; retentionDays: number };
+  speech: { provider: "deepgram" | "browser"; live: boolean; finalPass: boolean; wsUrl: string | null };
 }
 
 export interface Highlight {

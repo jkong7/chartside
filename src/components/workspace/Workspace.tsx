@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { SegmentPlayer } from "@/lib/audio/player";
 import { age, api, copyText, fmtDate, fmtTime } from "@/lib/client";
 import type { Note, NoteSentence, OmissionFlag, Speaker, StagedOrder, Utterance } from "@/lib/types";
-import { Check, Copy, Download, Refresh, Shield } from "../icons";
+import { Alert, Check, Copy, Download, Play, Refresh, Shield } from "../icons";
 import { Modal, Spinner, StatusPill, Tabs, Toast } from "../ui";
 import Assistant from "./Assistant";
 import Capture from "./Capture";
@@ -43,6 +44,8 @@ export default function Workspace({ id }: { id: string }) {
   }, [load]);
 
   const cite = useCallback((ids: string[], source?: string) => setHl({ ids, source, nonce: Date.now() }), []);
+  const audioChunks = b?.audio.chunks ?? 0;
+  const player = useMemo(() => (audioChunks > 0 ? new SegmentPlayer(`/api/encounters/${id}/audio`) : null), [audioChunks, id]);
 
   if (err) return <div className="p-10 text-rec">{err}</div>;
   if (!b) return <div className="flex h-screen items-center justify-center text-brand"><Spinner /></div>;
@@ -89,18 +92,18 @@ export default function Workspace({ id }: { id: string }) {
   }
 
   const header = (
-    <header className="sticky top-0 z-20 flex h-[73px] items-center gap-4 border-b border-line bg-surface/95 px-6 backdrop-blur">
+    <header className="z-20 flex min-h-[73px] flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface/95 px-4 py-2 backdrop-blur md:sticky md:top-0 md:px-6">
       <Link href="/today" className="whitespace-nowrap text-sm text-ink-3 hover:text-ink">← Today</Link>
-      <div className="h-8 w-px bg-line" />
-      <div className="min-w-0">
+      <div className="hidden h-8 w-px bg-line sm:block" />
+      <div className="min-w-0 flex-1 md:flex-none">
         <div className="flex items-center gap-2">
           <h1 className="truncate font-serif text-xl" data-testid="patient-name">{p?.name ?? "Unassigned patient"}</h1>
-          {p && <span className="text-sm text-ink-3">{age(p.dob)}{p.sex} · MRN {p.mrn}</span>}
+          {p && <span className="whitespace-nowrap text-sm text-ink-3">{age(p.dob)}{p.sex} · MRN {p.mrn}</span>}
           {p?.chart.allergies.map((a) => <span key={a.substance} className="pill bg-rec-50 text-[10px] text-rec">{a.substance}</span>)}
         </div>
         <p className="truncate text-xs text-ink-3">{enc.reason || "No reason given"} · {fmtDate(enc.scheduledAt)} {fmtTime(enc.scheduledAt)}</p>
       </div>
-      <div className="ml-auto flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 md:ml-auto">
         <StatusPill status={enc.status} />
         {reviewable && (
           <>
@@ -145,13 +148,16 @@ export default function Workspace({ id }: { id: string }) {
 
   const note = b.note!.content;
   const omissions = b.artifacts.omissions ?? [];
+  const interp = b.artifacts.interpreter;
+  const flaggedLines = new Set((interp?.flags ?? []).flatMap((f) => [f.sourceId, f.renderedId]));
+  const hlUtts = hl?.ids.length ? b.utterances.filter((u) => hl.ids.includes(u.id)) : [];
   const staged = b.orders.filter((o) => o.status === "staged").length;
 
   return (
     <>
       {header}
-      <div className="grid h-[calc(100vh-73px)] grid-cols-[minmax(0,1fr)_400px]">
-        <main className="min-h-0 overflow-y-auto px-6 py-4">
+      <div className="grid grid-cols-1 lg:h-[calc(100vh-73px)] lg:grid-cols-[minmax(0,1fr)_400px]">
+        <main className="min-h-0 overflow-y-auto px-4 py-4 md:px-6">
           <Tabs<Tab>
             value={tab}
             onChange={setTab}
@@ -165,6 +171,21 @@ export default function Workspace({ id }: { id: string }) {
             ]}
           />
           <div className="py-5">
+            {tab === "note" && interp?.flags.length ? (
+              <div className="mb-4 rounded-xl border border-warn/30 bg-warn-50/60 p-3" data-testid="interpreter-flags">
+                <p className="flex items-center gap-1.5 px-1 text-sm font-semibold text-warn"><Alert size={15} /> Interpretation check: {interp.flags.length} possible discrepanc{interp.flags.length === 1 ? "y" : "ies"}</p>
+                <ul className="mt-2 space-y-1.5">
+                  {interp.flags.map((f) => (
+                    <li key={f.id} className="rounded-lg bg-surface px-3 py-2 text-sm">
+                      <p className="text-xs font-medium text-warn">{f.message}</p>
+                      <p className="mt-1"><span className="text-ink-3">Said:</span> {f.source}</p>
+                      <p><span className="text-ink-3">Interpreted:</span> {f.rendered}</p>
+                      <button className="mt-1 text-xs font-medium text-brand" onClick={() => cite([f.sourceId, f.renderedId])}>Show in transcript</button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {tab === "note" && (
               <NoteEditor
                 encounterId={id}
@@ -188,15 +209,24 @@ export default function Workspace({ id }: { id: string }) {
             {tab === "audit" && <AuditPanel b={b} />}
           </div>
         </main>
-        <aside className="flex min-h-0 flex-col border-l border-line bg-paper">
+        <aside className="flex h-[80vh] min-h-0 flex-col border-t border-line bg-paper lg:h-auto lg:border-l lg:border-t-0">
           <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
             <p className="text-xs font-semibold uppercase tracking-wide text-ink-3">Transcript · {b.utterances.length} lines</p>
-            {hl?.ids.length ? <button className="text-xs text-brand" onClick={() => { setHl(null); setActive(null); }}>Clear highlight</button> : <p className="text-[11px] text-ink-4">Click a sentence to see its source</p>}
+            {hl?.ids.length ? (
+              <div className="flex items-center gap-3">
+                {player && hlUtts.length > 0 && (
+                  <button className="flex items-center gap-1 text-xs font-medium text-brand" onClick={() => player.play(Math.min(...hlUtts.map((u) => u.tStart)), Math.max(...hlUtts.map((u) => u.tEnd)))} data-testid="play-evidence"><Play size={11} /> Play source</button>
+                )}
+                <button className="text-xs text-brand" onClick={() => { setHl(null); setActive(null); player?.stop(); }}>Clear highlight</button>
+              </div>
+            ) : <p className="text-[11px] text-ink-4">{player ? "Click a sentence to see and hear its source" : "Click a sentence to see its source"}</p>}
           </div>
           {hl && hl.ids.length === 0 && <p className="border-b border-line bg-sunken px-4 py-2 text-xs text-ink-3">This line comes from the chart or was written by you. It has no transcript source.</p>}
           <div className="min-h-0 flex-1">
             <Transcript
               utterances={b.utterances}
+              player={player}
+              flagged={flaggedLines}
               highlight={hl}
               editable={!locked}
               onSpeaker={async (uid: string, speaker: Speaker) => { const r = await api<{ utterance: Utterance }>(`/encounters/${id}/utterances/${uid}`, { method: "PATCH", body: { speaker } }); setB((x) => (x ? { ...x, utterances: x.utterances.map((u) => (u.id === uid ? r.utterance : u)) } : x)); setDirty(true); }}
