@@ -1,10 +1,12 @@
 import type { PaPacket } from "@/lib/engine/priorauth";
+import { can, Forbidden } from "@/lib/server/policy";
 import { authed, body, fail, json } from "@/lib/server/http";
 import { artifacts, audit, encounters } from "@/lib/server/repo";
 
 export const PATCH = authed<{ id: string }>(async (req, user, { id }) => {
   const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
+  if (!can(user, "clinical.edit") && !can(user, "billing.review")) throw new Forbidden("Your role can't update prior authorizations.");
   const b = await body<{ packetId?: string; submission?: PaPacket["submission"] }>(req);
   if (!b.packetId || !["draft", "submitted", "approved", "denied"].includes(b.submission ?? "")) return fail("packetId and a valid submission status are required");
   const packets = await artifacts.get<PaPacket[]>(enc.id, "priorAuth") ?? [];

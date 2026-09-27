@@ -79,6 +79,7 @@ export default function BillingPanel({
   draft,
   priorAuth: initialPa,
   signed,
+  canReview = true,
   onCite,
 }: {
   encounterId: string;
@@ -86,6 +87,7 @@ export default function BillingPanel({
   draft: Claim | undefined;
   priorAuth: PaPacket[];
   signed: boolean;
+  canReview?: boolean;
   onCite: (ids: string[]) => void;
 }) {
   const [record, setRecord] = useState(initial);
@@ -97,7 +99,7 @@ export default function BillingPanel({
   const [holdNote, setHoldNote] = useState("");
   const claim = record?.content ?? draft;
   if (!claim) return <Empty title="Billing appears after the note is drafted." />;
-  const locked = !record || record.status === "submitted";
+  const locked = !record || record.status === "submitted" || !canReview;
   const errors = claim.edits.filter((e) => e.severity === "error");
 
   async function act(action: string, extra: Record<string, string> = {}) {
@@ -139,16 +141,17 @@ export default function BillingPanel({
             <div className="mt-1"><ClaimStatus status={record?.status ?? "draft"} /></div>
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            {record && record.status !== "submitted" && record.status !== "approved" && (
+            {canReview && record && record.status !== "submitted" && record.status !== "approved" && (
               <button className="btn-primary" disabled={busy || errors.length > 0} onClick={() => act("approve")} data-testid="claim-approve" title={errors.length ? "Resolve errors first" : undefined}>{busy ? <Spinner /> : <Check />} Approve</button>
             )}
-            {record?.status === "approved" && <button className="btn-primary" disabled={busy} onClick={() => act("submit")} data-testid="claim-submit">Submit to clearinghouse</button>}
-            {record && (record.status === "approved" || record.status === "on_hold") && <button className="btn-outline" disabled={busy} onClick={() => act("reopen")}>Reopen</button>}
+            {canReview && record?.status === "approved" && <button className="btn-primary" disabled={busy} onClick={() => act("submit")} data-testid="claim-submit">Submit to clearinghouse</button>}
+            {canReview && record && (record.status === "approved" || record.status === "on_hold") && <button className="btn-outline" disabled={busy} onClick={() => act("reopen")}>Reopen</button>}
             {record && <a className="btn-outline" href={`/api/encounters/${encounterId}/claim/837`} data-testid="claim-837"><Download /> 837P</a>}
           </div>
         </div>
         {!record && <p className="mt-3 rounded-lg bg-sunken px-3 py-2 text-sm text-ink-2">{signed ? "No claim was created for this visit." : "This is a preview. The claim is finalized from accepted orders when you sign the note, then routed to billing review."}</p>}
-        {record && record.status !== "submitted" && record.status !== "approved" && (
+        {record && !canReview && <p className="mt-3 rounded-lg bg-sunken px-3 py-2 text-sm text-ink-2" data-testid="claim-readonly">Your billing team reviews and submits this claim.</p>}
+        {canReview && record && record.status !== "submitted" && record.status !== "approved" && (
           <div className="mt-3 flex gap-2">
             <input className="input" placeholder="Hold reason (e.g. awaiting ABN, verify insurance)" value={holdNote} onChange={(e) => setHoldNote(e.target.value)} aria-label="Hold reason" />
             <button className="btn-outline" disabled={busy || !holdNote.trim()} onClick={() => act("hold", { note: holdNote })}>Hold</button>

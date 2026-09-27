@@ -1,3 +1,4 @@
+import { assertCan } from "@/lib/server/policy";
 import { guessSpeaker } from "@/lib/engine/extract";
 import { detectLang } from "@/lib/engine/lang";
 import { authed, body, fail, json } from "@/lib/server/http";
@@ -23,6 +24,7 @@ function cleanVoice(v?: VoiceFeatures): VoiceFeatures | null {
 export const POST = authed<{ id: string }>(async (req, user, { id }) => {
   const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
+  assertCan(user, "clinical.capture");
   if (enc.status !== "recording" && enc.status !== "paused") return fail("Capture is not active for this visit", 409);
   const b = await body<{ utterances?: In[] }>(req);
   const items = (b.utterances ?? []).filter((u) => u.text?.trim());

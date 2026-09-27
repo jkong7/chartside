@@ -1,5 +1,8 @@
 import type { Encounter } from "../types";
+import { ROLE_INFO } from "../roles";
 import type { Role, User } from "./repo";
+
+export { ROLE_INFO };
 
 export type Permission =
   | "clinical.capture"
@@ -24,14 +27,6 @@ const MATRIX: Record<Permission, Role[]> = {
   "org.analytics": ["owner", "admin", "viewer"],
 };
 
-export const ROLE_INFO: Record<Role, { label: string; description: string }> = {
-  owner: { label: "Owner", description: "Full control, including billing, members, SSO, and ownership." },
-  admin: { label: "Admin", description: "Manages members, invites, SSO, shared templates, and org analytics. Can document their own visits." },
-  clinician: { label: "Clinician", description: "Records visits, edits and signs their own notes, and sees their own claims." },
-  scribe: { label: "Scribe", description: "Supports clinicians across the org: captures visits and edits drafts. Cannot sign." },
-  coder: { label: "Coder / biller", description: "Reviews, edits, approves, and submits claims for the whole org. Read-only on notes." },
-  viewer: { label: "Viewer", description: "Read-only access to visits, claims, and analytics (e.g. compliance, QA)." },
-};
 
 export function can(u: User, p: Permission) {
   return MATRIX[p].includes(u.role);
@@ -44,6 +39,14 @@ export function canSign(u: User, enc: Pick<Encounter, "userId">) {
 export class Forbidden extends Error {
   constructor(message = "You don't have permission to do that") {
     super(message);
+    this.name = "Forbidden";
+  }
+}
+
+export class Invalid extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "Invalid";
   }
 }
 

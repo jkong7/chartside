@@ -3,7 +3,9 @@ import type { Claim } from "../engine/billing";
 import { SYSTEM_TEMPLATES } from "../engine/templates";
 import type { Chart, ConsentRecord, Encounter, Note, Patient, StagedOrder, StyleRule, Template, Utterance } from "../types";
 
-export type Role = "owner" | "admin" | "clinician" | "scribe" | "coder" | "viewer";
+import type { Role } from "../roles";
+
+export type { Role };
 export const ROLES: Role[] = ["owner", "admin", "clinician", "scribe", "coder", "viewer"];
 
 export interface UserRow {

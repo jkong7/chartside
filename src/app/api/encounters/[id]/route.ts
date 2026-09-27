@@ -48,6 +48,7 @@ export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
     claim: claim ?? null,
     clinician: { id: enc.userId, name: clinician?.name ?? "Unknown" },
     access: {
+      userId: user.id,
       role: user.role,
       capture: can(user, "clinical.capture"),
       edit: can(user, "clinical.edit"),

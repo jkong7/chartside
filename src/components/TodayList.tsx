@@ -9,15 +9,28 @@ import { Mic, Plus, Refresh } from "./icons";
 import { Avatar, Modal, Spinner, StatusPill } from "./ui";
 
 export interface TodayRow extends Encounter {
+  clinicianName?: string;
   patient: { id: string; name: string; dob: string; sex: string; mrn: string; openLoops: string[] } | null;
 }
 
 const TYPE_LABEL: Record<string, string> = { new: "New patient", "follow-up": "Follow-up", acute: "Acute", annual: "Annual", telehealth: "Telehealth" };
 
-export default function TodayList({ rows, patients }: { rows: TodayRow[]; patients: { id: string; name: string }[] }) {
+interface Props {
+  rows: TodayRow[];
+  patients: { id: string; name: string }[];
+  me?: string;
+  orgWide?: boolean;
+  clinicians?: { id: string; name: string }[];
+  canCreate?: boolean;
+  canCapture?: boolean;
+}
+
+export default function TodayList({ rows: allRows, patients, me, orgWide = false, clinicians = [], canCreate = true, canCapture = true }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [who, setWho] = useState<string>(orgWide && canCreate && allRows.some((r) => r.userId === me) ? "me" : "all");
+  const rows = who === "all" ? allRows : allRows.filter((r) => r.userId === (who === "me" ? me : who));
   const counts = {
     total: rows.length,
     done: rows.filter((r) => r.status === "signed").length,
@@ -28,7 +41,7 @@ export default function TodayList({ rows, patients }: { rows: TodayRow[]; patien
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     setBusy(true);
-    const { encounter } = await api<{ encounter: Encounter }>("/encounters", { body: { patientId: f.get("patientId") || null, reason: f.get("reason"), visitType: f.get("visitType"), scheduledAt: new Date().toISOString() } });
+    const { encounter } = await api<{ encounter: Encounter }>("/encounters", { body: { patientId: f.get("patientId") || null, reason: f.get("reason"), visitType: f.get("visitType"), clinicianId: f.get("clinicianId") || undefined, scheduledAt: new Date().toISOString() } });
     router.push(`/encounters/${encounter.id}`);
   }
 
@@ -40,8 +53,15 @@ export default function TodayList({ rows, patients }: { rows: TodayRow[]; patien
           <h1 className="font-serif text-3xl">Today&apos;s visits</h1>
           <p className="mt-1 text-sm text-ink-2" data-testid="today-summary">{counts.total} scheduled · {counts.review} awaiting review · {counts.done} signed</p>
         </div>
-        <div className="flex gap-2">
-          <button
+        <div className="flex flex-wrap gap-2">
+          {orgWide && (
+            <select className="input w-auto py-1.5 text-sm" value={who} onChange={(e) => setWho(e.target.value)} aria-label="Clinician" data-testid="clinician-filter">
+              {canCreate && <option value="me">My visits</option>}
+              <option value="all">All clinicians</option>
+              {clinicians.filter((c) => c.id !== me).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
+          {canCreate && <button
             className="btn-outline"
             onClick={async () => {
               setBusy(true);
@@ -53,10 +73,10 @@ export default function TodayList({ rows, patients }: { rows: TodayRow[]; patien
             title="Recreate today's demo schedule"
           >
             <Refresh /> Reset demo day
-          </button>
-          <button className="btn-primary" onClick={() => setOpen(true)}>
+          </button>}
+          {canCapture && <button className="btn-primary" onClick={() => setOpen(true)}>
             <Plus /> Unscheduled visit
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -77,7 +97,7 @@ export default function TodayList({ rows, patients }: { rows: TodayRow[]; patien
                     {r.patient?.name ?? "Unassigned patient"}
                     {r.patient && <span className="ml-2 block text-sm font-normal text-ink-3 sm:inline">{age(r.patient.dob)}{r.patient.sex} · MRN {r.patient.mrn}</span>}
                   </p>
-                  <p className="truncate text-sm text-ink-2">{r.reason || "No reason given"}</p>
+                  <p className="truncate text-sm text-ink-2">{r.reason || "No reason given"}{orgWide && r.clinicianName && r.userId !== me ? <span className="text-ink-3" data-testid="row-clinician"> · {r.clinicianName}</span> : null}</p>
                   {r.patient?.openLoops?.length && !done ? (
                     <p className="mt-0.5 truncate text-xs text-warn">Last visit plan: {r.patient.openLoops.join(" · ")}</p>
                   ) : null}
@@ -102,6 +122,14 @@ export default function TodayList({ rows, patients }: { rows: TodayRow[]; patien
               {patients.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
+          {(orgWide || !canCreate) && clinicians.length > 0 && (
+            <div>
+              <label className="label" htmlFor="clinicianId">Clinician</label>
+              <select className="input" id="clinicianId" name="clinicianId" defaultValue={canCreate ? me : clinicians[0]?.id}>
+                {clinicians.map((c) => <option key={c.id} value={c.id}>{c.name}{c.id === me ? " (you)" : ""}</option>)}
+              </select>
+            </div>
+          )}
           <div>
             <label className="label" htmlFor="reason">Reason for visit</label>
             <input className="input" id="reason" name="reason" placeholder="e.g. Sore throat" />

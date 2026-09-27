@@ -1,3 +1,4 @@
+import { assertCan } from "@/lib/server/policy";
 import { buildPatientSummary } from "@/lib/engine/summary";
 import { llmEnabled, translateSummaryWithClaude } from "@/lib/llm";
 import { authed, body, fail, json } from "@/lib/server/http";
@@ -8,6 +9,7 @@ import type { PatientSummary } from "@/lib/types";
 export const POST = authed<{ id: string }>(async (req, user, { id }) => {
   const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
+  assertCan(user, "clinical.edit");
   const b = await body<{ lang?: string }>(req);
   const lang = (b.lang ?? "en").toLowerCase();
   const { facts, patient } = await factsFor(user, enc);

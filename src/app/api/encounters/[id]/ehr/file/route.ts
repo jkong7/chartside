@@ -1,3 +1,4 @@
+import { assertCan } from "@/lib/server/policy";
 import { fileNote } from "@/lib/server/ehr";
 import { authed, fail, json } from "@/lib/server/http";
 import { encounters } from "@/lib/server/repo";
@@ -5,6 +6,7 @@ import { encounters } from "@/lib/server/repo";
 export const POST = authed<{ id: string }>(async (_req, user, { id }) => {
   const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
+  assertCan(user, "clinical.edit");
   try {
     const filing = await fileNote(user, enc.id);
     return json({ filing }, filing.status === "filed" ? 200 : 502);

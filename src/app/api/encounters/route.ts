@@ -1,5 +1,6 @@
 import { authed, body, fail, json } from "@/lib/server/http";
-import { encounters, notes, patients } from "@/lib/server/repo";
+import { assertCan, can } from "@/lib/server/policy";
+import { encounters, notes, orgs, patients } from "@/lib/server/repo";
 import type { Encounter } from "@/lib/types";
 
 export const GET = authed(async (req, user) => {
@@ -14,9 +15,19 @@ export const GET = authed(async (req, user) => {
 });
 
 export const POST = authed(async (req, user) => {
-  const b = await body<Partial<Encounter>>(req);
-  if (b.patientId && !await patients.get(user, b.patientId)) return fail("Patient not found", 404);
+  assertCan(user, "clinical.capture");
+  const b = await body<Partial<Encounter> & { clinicianId?: string }>(req);
+  if (b.patientId && !(await patients.get(user, b.patientId))) return fail("Patient not found", 404);
+  let clinicianId = user.id;
+  if (b.clinicianId && b.clinicianId !== user.id) {
+    const m = await orgs.membership(user.orgId, b.clinicianId);
+    if (!m || m.status !== "active" || !["owner", "admin", "clinician"].includes(m.role)) return fail("Choose a clinician in your organization", 422);
+    clinicianId = b.clinicianId;
+  } else if (!can(user, "clinical.create")) {
+    return fail("Scribes schedule visits for a clinician. Choose the clinician.", 422);
+  }
   const e = await encounters.create(user, {
+    clinicianId,
     patientId: b.patientId ?? null,
     scheduledAt: b.scheduledAt ?? new Date().toISOString(),
     visitType: b.visitType ?? "follow-up",

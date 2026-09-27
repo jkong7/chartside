@@ -31,6 +31,8 @@ export interface Bundle {
   engine: { llm: boolean; model: string | null };
   audio: { chunks: number; bytes: number; durationMs: number; retentionDays: number };
   claim: import("@/lib/server/repo").ClaimRecord | null;
+  clinician: { id: string; name: string };
+  access: { userId: string; role: string; capture: boolean; edit: boolean; sign: boolean; billingReview: boolean };
   speech: { provider: "deepgram" | "browser"; live: boolean; finalPass: boolean; wsUrl: string | null };
 }
 

@@ -1,3 +1,4 @@
+import { assertCan } from "@/lib/server/policy";
 import { ALL_PARTY_STATES, STATE_NAMES } from "@/lib/engine/lexicon";
 import { authed, body, fail, json } from "@/lib/server/http";
 import { recordConsent } from "@/lib/server/pipeline";
@@ -7,6 +8,7 @@ import type { ConsentRecord } from "@/lib/types";
 export const POST = authed<{ id: string }>(async (req, user, { id }) => {
   const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
+  assertCan(user, "clinical.capture");
   const b = await body<{ decision?: ConsentRecord["decision"]; method?: ConsentRecord["method"]; state?: string; othersPresent?: boolean; allPartiesConfirmed?: boolean }>(req);
   const state = (b.state ?? user.prefs.state ?? "IL").toUpperCase();
   if (!STATE_NAMES[state]) return fail("Unknown state");

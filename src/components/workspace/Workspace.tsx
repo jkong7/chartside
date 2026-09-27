@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SegmentPlayer } from "@/lib/audio/player";
 import { age, api, copyText, fmtDate, fmtTime } from "@/lib/client";
+import { roleLabel } from "@/lib/roles";
 import type { Note, NoteSentence, OmissionFlag, Speaker, StagedOrder, Utterance } from "@/lib/types";
 import { Alert, Check, Copy, Download, Play, Refresh, Shield } from "../icons";
 import { Modal, Spinner, StatusPill, Tabs, Toast } from "../ui";
@@ -53,7 +54,8 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
 
   const enc = b.encounter;
   const p = b.patient;
-  const locked = enc.status === "signed";
+  const signed = enc.status === "signed";
+  const locked = signed || !b.access.edit;
   const capturing = enc.status === "recording" || enc.status === "paused" || !!mode;
   const reviewable = (enc.status === "review" || enc.status === "signed") && b.note;
 
@@ -103,7 +105,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
           {p && <span className="whitespace-nowrap text-sm text-ink-3">{age(p.dob)}{p.sex} · MRN {p.mrn}</span>}
           {p?.chart.allergies.map((a) => <span key={a.substance} className="pill bg-rec-50 text-[10px] text-rec">{a.substance}</span>)}
         </div>
-        <p className="truncate text-xs text-ink-3">{enc.reason || "No reason given"} · {fmtDate(enc.scheduledAt)} {fmtTime(enc.scheduledAt)}</p>
+        <p className="truncate text-xs text-ink-3">{enc.reason || "No reason given"} · {fmtDate(enc.scheduledAt)} {fmtTime(enc.scheduledAt)}{b.clinician.id !== b.access.userId ? <span data-testid="visit-clinician"> · {b.clinician.name}</span> : null}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2 md:ml-auto">
         {b.artifacts.ehr_link && (
@@ -136,7 +138,8 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
               <Copy /> Copy for EHR
             </button>
             <a className="btn-outline" href={`/api/encounters/${id}/export?format=fhir`} data-testid="fhir"><Download /> FHIR</a>
-            {!locked && <button className="btn-primary" disabled={signing} onClick={() => sign(false)} data-testid="sign">{signing ? <Spinner /> : <Shield />} Sign note</button>}
+            {!signed && b.access.sign && <button className="btn-primary" disabled={signing} onClick={() => sign(false)} data-testid="sign">{signing ? <Spinner /> : <Shield />} Sign note</button>}
+            {!signed && !b.access.sign && <span className="pill whitespace-nowrap bg-warn-50 text-warn" data-testid="awaiting-signature">Awaiting {b.clinician.name}&apos;s signature</span>}
           </>
         )}
       </div>
@@ -160,7 +163,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
     return (
       <>
         {header}
-        <PreVisit b={b} onChange={load} onStart={start} />
+        {b.access.capture ? <PreVisit b={b} onChange={load} onStart={start} /> : <p className="mx-auto mt-16 max-w-md text-center text-sm text-ink-3" data-testid="readonly-visit">No note has been drafted for this visit yet. Your role ({roleLabel(b.access.role)}) can view visits but not record them.</p>}
       </>
     );
   }
@@ -224,7 +227,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
             )}
             {tab === "codes" && <CodesPanel coding={b.artifacts.coding} onCite={(ids) => cite(ids)} />}
             {tab === "orders" && <OrdersPanel encounterId={id} orders={b.orders} locked={locked} onChange={(fn: (o: StagedOrder[]) => StagedOrder[]) => setB((x) => (x ? { ...x, orders: fn(x.orders) } : x))} onCite={(ids) => cite(ids)} />}
-            {tab === "billing" && <BillingPanel key={b.claim?.updatedAt ?? "draft"} encounterId={id} record={b.claim} draft={b.artifacts.claim} priorAuth={b.artifacts.priorAuth ?? []} signed={locked} onCite={(ids) => cite(ids)} />}
+            {tab === "billing" && <BillingPanel key={b.claim?.updatedAt ?? "draft"} encounterId={id} record={b.claim} draft={b.artifacts.claim} priorAuth={b.artifacts.priorAuth ?? []} signed={signed} canReview={b.access.billingReview} onCite={(ids) => cite(ids)} />}
             {tab === "summary" && <SummaryPanel b={b} onFlags={load} />}
             {tab === "letters" && <LettersPanel letters={b.artifacts.letters} />}
             {tab === "audit" && <AuditPanel b={b} />}

@@ -1,3 +1,4 @@
+import { assertCan } from "@/lib/server/policy";
 import type { Claim, ClaimDx } from "@/lib/engine/billing";
 import { claimStatus } from "@/lib/engine/billing";
 import type { PaPacket } from "@/lib/engine/priorauth";
@@ -14,6 +15,7 @@ export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
 export const PUT = authed<{ id: string }>(async (req, user, { id }) => {
   const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
+  assertCan(user, "billing.review");
   const rec = await claims.get(enc.id);
   if (!rec) return fail("Claims are created when the note is signed", 409);
   if (rec.status === "submitted") return fail("Submitted claims cannot be edited", 409);

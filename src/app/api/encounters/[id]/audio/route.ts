@@ -1,3 +1,4 @@
+import { assertCan } from "@/lib/server/policy";
 import { deleteAudio, recording, saveChunk } from "@/lib/server/audio";
 import { authed, fail, json } from "@/lib/server/http";
 import { audioChunks, encounters } from "@/lib/server/repo";
@@ -5,6 +6,7 @@ import { audioChunks, encounters } from "@/lib/server/repo";
 export const POST = authed<{ id: string }>(async (req, user, { id }) => {
   const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
+  assertCan(user, "clinical.capture");
   if (enc.status !== "recording" && enc.status !== "paused") return fail("Capture is not active for this visit", 409);
   const url = new URL(req.url);
   const seq = Number(url.searchParams.get("seq"));
@@ -43,6 +45,7 @@ export const GET = authed<{ id: string }>(async (req, user, { id }) => {
 export const DELETE = authed<{ id: string }>(async (_req, user, { id }) => {
   const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
+  assertCan(user, "clinical.capture");
   await deleteAudio(user, enc.id, "deleted by clinician");
   return json({ ok: true, chunks: (await audioChunks.list(enc.id)).length });
 });

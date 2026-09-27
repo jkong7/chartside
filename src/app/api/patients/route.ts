@@ -1,3 +1,4 @@
+import { assertCan } from "@/lib/server/policy";
 import { authed, body, fail, json } from "@/lib/server/http";
 import { patients } from "@/lib/server/repo";
 import type { Chart, Patient } from "@/lib/types";
@@ -5,6 +6,7 @@ import type { Chart, Patient } from "@/lib/types";
 export const GET = authed(async (_req, user) => json({ patients: await patients.list(user) }));
 
 export const POST = authed(async (req, user) => {
+  assertCan(user, "patients.write");
   const b = await body<Partial<Patient>>(req);
   if (!b.name?.trim()) return fail("Name is required");
   if (!b.dob || Number.isNaN(Date.parse(b.dob))) return fail("Date of birth is required");

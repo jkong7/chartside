@@ -1,6 +1,7 @@
 import TodayList, { type TodayRow } from "@/components/TodayList";
 import { requireUser } from "@/lib/server/auth";
-import { encounters, patients } from "@/lib/server/repo";
+import { can } from "@/lib/server/policy";
+import { encounters, orgs, patients, SEES_ORG } from "@/lib/server/repo";
 
 export const dynamic = "force-dynamic";
 
@@ -15,5 +16,17 @@ export default async function Today() {
     const p = e.patientId ? byId.get(e.patientId) : undefined;
     return { ...e, patient: p ? { id: p.id, name: p.name, dob: p.dob, sex: p.sex, mrn: p.mrn, openLoops: p.chart.priorVisits?.[0]?.plan ?? [] } : null };
   });
-  return <TodayList rows={rows} patients={pats.map((p) => ({ id: p.id, name: p.name }))} />;
+  const orgWide = SEES_ORG.has(user.role);
+  const clinicians = orgWide ? (await orgs.members(user.orgId)).filter((m) => m.status === "active" && ["owner", "admin", "clinician"].includes(m.role)).map((m) => ({ id: m.userId, name: m.name })) : [];
+  return (
+    <TodayList
+      rows={rows}
+      patients={pats.map((p) => ({ id: p.id, name: p.name }))}
+      me={user.id}
+      orgWide={orgWide}
+      clinicians={clinicians}
+      canCreate={can(user, "clinical.create")}
+      canCapture={can(user, "clinical.capture")}
+    />
+  );
 }

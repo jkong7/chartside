@@ -32,15 +32,17 @@ const KINDS: { id: SectionKind; label: string }[] = [
   { id: "custom", label: "Custom (Claude only)" },
 ];
 
-export default function TemplatesManager({ initial }: { initial: Template[] }) {
+type Tpl = Template & { shared?: boolean; ownedByMe?: boolean };
+
+export default function TemplatesManager({ initial, canShare = false }: { initial: Tpl[]; canShare?: boolean }) {
   const [list, setList] = useState(initial);
   const [sel, setSel] = useState<string>(initial[0]?.id ?? "soap");
-  const [draft, setDraft] = useState<Template | null>(null);
+  const [draft, setDraft] = useState<Tpl | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [demoKey, setDemoKey] = useState("gonzalez");
-  const current = draft ?? list.find((t) => t.id === sel)!;
-  const readOnly = !current.userId;
+  const current: Tpl = draft ?? list.find((t) => t.id === sel)!;
+  const readOnly = !current.userId || (!current.ownedByMe && !canShare);
 
   const preview = useMemo(() => {
     const d = DEMO_PATIENTS.find((x) => x.key === demoKey)!;
@@ -59,7 +61,7 @@ export default function TemplatesManager({ initial }: { initial: Template[] }) {
 
   async function duplicate() {
     setBusy(true);
-    const { template } = await api<{ template: Template }>("/templates", { body: { duplicateOf: current.id } });
+    const { template } = await api<{ template: Tpl }>("/templates", { body: { duplicateOf: current.id } });
     setList((l) => [...l, template]);
     setSel(template.id);
     setDraft(null);
@@ -71,7 +73,7 @@ export default function TemplatesManager({ initial }: { initial: Template[] }) {
     if (!draft) return;
     setBusy(true);
     try {
-      const { template } = await api<{ template: Template }>(`/templates/${draft.id}`, { method: "PUT", body: draft });
+      const { template } = await api<{ template: Tpl }>(`/templates/${draft.id}`, { method: "PUT", body: draft });
       setList((l) => l.map((t) => (t.id === template.id ? template : t)));
       setDraft(null);
       setMsg("Template saved.");
@@ -99,7 +101,7 @@ export default function TemplatesManager({ initial }: { initial: Template[] }) {
           {list.map((t) => (
             <button key={t.id} onClick={() => { setSel(t.id); setDraft(null); setMsg(null); }} className={`w-full rounded-lg px-3 py-2.5 text-left ${t.id === sel ? "bg-brand-50" : "hover:bg-sunken"}`}>
               <p className={`text-sm font-medium ${t.id === sel ? "text-brand" : ""}`}>{t.name}</p>
-              <p className="text-xs text-ink-3">{t.userId ? "Yours" : "System"} · {t.specialty}</p>
+              <p className="text-xs text-ink-3">{!t.userId ? "System" : t.shared ? (t.ownedByMe ? "Shared by you" : "Shared with org") : "Yours"} · {t.specialty}</p>
             </button>
           ))}
         </div>
@@ -112,6 +114,12 @@ export default function TemplatesManager({ initial }: { initial: Template[] }) {
             </div>
             {readOnly ? <button className="btn-outline" onClick={duplicate} disabled={busy} data-testid="duplicate"><Copy /> Duplicate</button> : <button className="btn-ghost text-rec" onClick={remove}>Delete</button>}
           </div>
+          {current.userId && canShare && (
+            <label className="mt-3 flex items-center gap-2 text-sm text-ink-2">
+              <input type="checkbox" checked={!!current.shared} onChange={(e) => edit({ shared: e.target.checked } as Partial<Tpl>)} data-testid="share-template" />
+              Share with everyone in the organization
+            </label>
+          )}
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div>
               <label className="label" htmlFor="verb">Verbosity</label>

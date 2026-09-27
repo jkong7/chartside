@@ -1,7 +1,8 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { sessions, users, type User } from "./repo";
+import { can, type Permission } from "./policy";
+import { sessions, users, type Role, type User } from "./repo";
 
 export const SESSION_COOKIE = "cs_session";
 
@@ -56,5 +57,17 @@ export { users };
 export async function requireUser(): Promise<User> {
   const u = await currentUser();
   if (!u) redirect("/login");
+  return u;
+}
+
+export async function requirePermission(p: Permission): Promise<User> {
+  const u = await requireUser();
+  if (!can(u, p)) redirect("/today");
+  return u;
+}
+
+export async function requireRoles(roles: Role[]): Promise<User> {
+  const u = await requireUser();
+  if (!roles.includes(u.role)) redirect("/today");
   return u;
 }

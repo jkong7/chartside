@@ -1,9 +1,11 @@
+import { assertCan } from "@/lib/server/policy";
 import { authed, body, fail, json } from "@/lib/server/http";
 import { audit, encounters, orders } from "@/lib/server/repo";
 
 export const PATCH = authed<{ id: string; oid: string }>(async (req, user, { id, oid }) => {
   const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
+  assertCan(user, "clinical.edit");
   if (enc.status === "signed") return fail("Signed visits are locked", 409);
   const b = await body<{ status?: "staged" | "accepted" | "rejected"; override?: boolean }>(req);
   if (!b.status || !["staged", "accepted", "rejected"].includes(b.status)) return fail("Invalid status");

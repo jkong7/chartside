@@ -1,3 +1,4 @@
+import { assertCan } from "@/lib/server/policy";
 import { authed, body, fail, json } from "@/lib/server/http";
 import { processEncounter } from "@/lib/server/pipeline";
 import { audioChunks, encounters, utterances } from "@/lib/server/repo";
@@ -5,6 +6,7 @@ import { audioChunks, encounters, utterances } from "@/lib/server/repo";
 export const POST = authed<{ id: string }>(async (req, user, { id }) => {
   const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
+  assertCan(user, "clinical.capture");
   if (enc.status === "signed") return fail("This visit is already signed", 409);
   if (!(await utterances.list(enc.id)).length && !(await audioChunks.list(enc.id)).length) return fail("Nothing was captured yet", 409);
   const b = await body<{ templateId?: string; durationS?: number }>(req);
