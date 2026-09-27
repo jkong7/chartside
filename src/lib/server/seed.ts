@@ -59,7 +59,7 @@ function editNote(note: Note): Note {
     sections: note.sections.map((s) => {
       if (!/assessment|ap|plan/i.test(s.key)) return s;
       const kept = s.sentences.filter((x) => !/^Patient questions addressed/.test(x.text));
-      return { ...s, sentences: [...kept, { id: `${s.key}_edit_rb`, text: "Medication risks, benefits, and alternatives reviewed.", evidence: [], kind: "clinician", support: "strong", edited: true }] };
+      return { ...s, sentences: [...kept, { id: `${s.key}_edit_rb`, text: "Patient verbalized understanding and agreement with the plan.", evidence: [], kind: "clinician", support: "strong", edited: true }] };
     }),
   };
 }

@@ -444,3 +444,10 @@ export const audit = {
   forEncounter: (encId: string) => all<{ id: string; action: string; detail: string; created_at: string }>("SELECT id, action, detail, created_at FROM audit WHERE encounter_id = ? ORDER BY created_at, rowid", encId).map((r) => ({ ...r, detail: j<Record<string, unknown>>(r.detail, {}) })),
   forUser: (userId: string, since: string) => all<{ encounter_id: string; action: string; detail: string; created_at: string }>("SELECT encounter_id, action, detail, created_at FROM audit WHERE user_id = ? AND created_at >= ? ORDER BY created_at", userId, since),
 };
+
+export function encounterByShareToken(token: string) {
+  const r = get<{ encounter_id: string }>("SELECT encounter_id FROM artifacts WHERE kind = 'share' AND json_extract(content, '$.token') = ?", token);
+  if (!r) return undefined;
+  const e = get<EncounterRow>("SELECT * FROM encounters WHERE id = ?", r.encounter_id);
+  return e ? toEncounter(e) : undefined;
+}
