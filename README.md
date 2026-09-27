@@ -31,7 +31,17 @@ Chartside is built on a study of the ten leading ambient scribes: Abridge, Micro
    - **Ask Chartside:** answers questions about the visit with transcript citations, or edits the note on request.
 6. **Sign.** Signing is blocked while orders are unreviewed or sentences are unsupported (you can override with an explicit confirmation). Accepted orders with blocking alerts can't be signed. At signing, Chartside learns style rules from your edits.
 7. **Export.** Copy for the EHR, or download a FHIR R4 document Bundle (Composition, DocumentReference, Condition, MedicationRequest, ServiceRequest).
-8. **Insights.** Median time to sign, unedited-sign rate, after-hours signing, evidence coverage, omissions caught, capture rate by visit type, coaching, and learned rules.
+8. **Billing.** Signing turns the note and accepted orders into a professional claim with E/M and modifier 25, G2211, point-of-care tests (QW), vaccine product and administration codes, diagnosis pointers, and place of service. Payer-style claim edits run on it. Missed revenue is listed with dollar values. Prior-authorization packets score payer criteria against transcript evidence and draft a medical-necessity letter. The **Revenue** page is a pre-bill review queue (approve, hold, submit, 837P export), a missed-revenue report, and a prior-auth worklist.
+9. **Insights.** Median time to sign, unedited-sign rate, after-hours signing, evidence coverage, omissions caught, capture rate by visit type, coaching, and learned rules.
+
+## Audio & speech
+
+- **Recording.** The browser records Opus audio in 4-second chunks. Chunks go into an IndexedDB-backed upload queue that survives network drops and page reloads, and retries with backoff. The server stores chunks per visit, serves the stitched recording with HTTP Range support, and deletes it per the retention policy (default: at signing).
+- **Live captions.** With `DEEPGRAM_API_KEY`, the server mints a 60-second Deepgram token. The browser streams to Nova-3 over `wss` with `["bearer", token]` subprotocols, so the key never reaches the browser, using `diarize=true` and `language=multi` for Spanish–English code-switching. Without a key, captions fall back to the browser's speech engine. Speakers are then separated on-device by clustering per-utterance pitch and spectral centroid, and mapped to clinician, patient or interpreter from what each voice says.
+- **Post-visit pass.** When the visit ends, the full recording is re-transcribed with diarization and utterance timestamps. It replaces the live transcript (kept in the audit artifacts) before the note is drafted.
+- **Interpreted visits.** Every line is language-tagged. Source/rendition pairs are checked for mismatched numbers, dropped negations, changed laterality, and medication names (for example "cada cuatro horas" rendered as "every six hours").
+- **Review.** Click any sentence, then **Play source** to hear the exact audio behind it.
+- **Resilience.** Microphone mute or ended events (phone calls, Bluetooth drops) show an interruption banner and resume automatically. A silent-mic alarm catches muted inputs. Media Session handlers give lock-screen pause and resume on phones.
 
 ## Architecture
 
@@ -50,7 +60,11 @@ src/
       orders.ts           Order staging + safety checks
       coverage.ts         Live HPI / red-flag / closing coverage
       summary.ts          Patient summary (EN/ES) with reading grade
+      billing.ts          Claim builder, payer-style edits, missed-revenue finder, 837P export
+      priorauth.ts        Prior-authorization criteria engine + medical-necessity letters
+      lang.ts, interpreter.ts, diarize.ts   Language tagging, interpretation checks, speaker roles and voice clustering
       letter.ts, style.ts, assist.ts
+    audio/                Browser recorder, offline upload queue, voice features, Deepgram live client, segment player
     llm.ts                Claude provider (structured outputs via @anthropic-ai/sdk)
     server/               SQLite repositories, auth, pipeline, seeding, insights
     db.ts                 node:sqlite schema (no native dependencies)
@@ -69,13 +83,13 @@ npm run dev            # http://localhost:3100
 
 Create an account. Each new account gets today's five-patient demo clinic plus two weeks of signed history. Open a visit, record consent, and choose **Play demo conversation** to watch a full visit, or **Start listening** in Chrome to use your microphone.
 
-Optional configuration is in `.env.example`: `ANTHROPIC_API_KEY`, `CHARTSIDE_MODEL`, `CHARTSIDE_ENGINE=local`, and `CHARTSIDE_DB`.
+Optional configuration is in `.env.example`: `ANTHROPIC_API_KEY`, `CHARTSIDE_MODEL`, `CHARTSIDE_ENGINE=local`, `DEEPGRAM_API_KEY`, and `CHARTSIDE_DB`.
 
 ## Tests
 
 ```bash
-npm test               # 33 unit tests: extraction, notes, verification, coding, orders, summaries, style, Claude provider (mock server)
-npm run test:e2e       # 13 Playwright end-to-end flows against a production build
+npm test               # 60 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, Claude + Deepgram (mock servers)
+npm run test:e2e       # 18 Playwright end-to-end flows against a production build, a mock Deepgram server, and a fake microphone
 npm run typecheck
 ```
 
@@ -88,6 +102,9 @@ The end-to-end suite covers:
 - a pasted-transcript strep visit
 - the assistant
 - templates, insights and settings, and patients
+- a microphone visit with a fake audio device: live diarized captions, chunk upload through an offline period, post-visit re-transcription, audio playback, and retention purge
+- an interpreted visit with a flagged dosing discrepancy
+- the revenue cycle: claim edits, approve, submit, 837P, prior auth, and the Revenue queue
 
 ## Notes
 
