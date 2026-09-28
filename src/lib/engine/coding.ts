@@ -98,6 +98,13 @@ function riskElement(facts: Facts): MdmElement {
     reasons.push(`Over-the-counter drug recommendations (${otc.map((m) => m.name).join(", ")})`);
     evidence.push(...otc.flatMap((m) => m.evidence));
   }
+  const sdoh = facts.problems.filter((p) => p.def?.sdoh);
+  const costPlan = facts.problems.flatMap((p) => p.plan).filter((x) => /\b(?:cheaper|generic|\$4|lower[- ]cost|afford\w*|coupon|patient assistance|samples?|GoodRx|social work\w*|food (?:bank|pantry)|community resources?|transportation (?:benefit|service)|ride service|mail[- ]order)\b/i.test(x.text));
+  if (sdoh.length && (costPlan.length || rxManaged.length)) {
+    if (rank("moderate") > rank(level)) level = "moderate";
+    reasons.push(`Diagnosis or treatment significantly limited by social determinants of health (${sdoh.map((p) => p.label.toLowerCase()).join(", ")})`);
+    evidence.push(...sdoh.flatMap((p) => p.evidence).slice(0, 2), ...costPlan.flatMap((x) => x.evidence ?? []).slice(0, 2));
+  }
   if (facts.symptoms.some((s) => s.key === "si" && !s.negated)) {
     level = "high";
     reasons.push("Decision regarding hospitalization or escalation of care");

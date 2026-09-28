@@ -58,6 +58,8 @@ export function detectTasks(facts: Facts, orders: StagedOrder[], utts: Utterance
   const add = (t: TaskDraft) => {
     if (!out.some((x) => x.key === t.key)) out.push(t);
   };
+  const needs = facts.problems.filter((p) => p.def?.sdoh);
+  if (needs.length) add({ key: "sdoh", kind: "referral", title: `Connect to community resources: ${needs.map((p) => p.def!.plain.en).join("; ")}`, detail: "Social needs came up during the visit. Refer to social work or a community resource line (211), and document the referral.", dueAt: addDays(ctx.at, 3), evidence: needs.flatMap((p) => p.evidence).slice(0, 3) });
   if (facts.followUp) {
     const days = intervalDays(facts.followUp.interval ?? facts.followUp.text);
     add({

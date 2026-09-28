@@ -80,6 +80,7 @@ export interface ConditionDef {
   plain: { en: string; es: string };
   precautions?: { en: string[]; es: string[] };
   specific?: { when: RegExp; icd10: string; label: string }[];
+  sdoh?: string;
 }
 
 export const CONDITIONS: ConditionDef[] = [
@@ -153,6 +154,15 @@ export const CONDITIONS: ConditionDef[] = [
   { key: "covid", label: "COVID-19", icd10: "U07.1", chronic: false, systemic: true, patterns: [w("covid(?:-19)? (?:is |was |test )?(?:positive)|positive (?:for )?covid|has covid")], plain: { en: "COVID-19", es: "COVID-19" } },
   { key: "flu", label: "Influenza due to unidentified influenza virus with other respiratory manifestations", icd10: "J11.1", chronic: false, systemic: true, patterns: [w("(?:the )?flu(?! shot| vaccine)|influenza(?! vaccine)")], plain: { en: "the flu", es: "influenza (gripe)" } },
   { key: "well", label: "Encounter for general adult medical examination without abnormal findings", icd10: "Z00.00", chronic: false, patterns: [w("annual (?:physical|exam|visit)|wellness (?:visit|exam)|routine physical|check-?up")], plain: { en: "yearly check-up", es: "chequeo anual" } },
+  { key: "sdoh_food", label: "Food insecurity", icd10: "Z59.41", chronic: false, sdoh: "food", patterns: [w("can't afford (?:food|groceries)|(?:skip|skipping|skipped) meals because|run(?:ning)? out of food|food (?:bank|pantry)|(?:not|don't have|do not have) enough (?:food|to eat)|food stamps (?:ran out|got cut)")], plain: { en: "not always having enough food", es: "no siempre tener suficiente comida" } },
+  { key: "sdoh_homeless", label: "Homelessness, unspecified", icd10: "Z59.00", chronic: false, sdoh: "housing", patterns: [w("homeless|(?:living|sleeping) in (?:my|the|our) car|staying (?:at|in) (?:a|the) shelter")], specific: [{ when: /\bshelter\b/i, icd10: "Z59.01", label: "Sheltered homelessness" }, { when: /\b(?:car|street|outside|tent)\b/i, icd10: "Z59.02", label: "Unsheltered homelessness" }], plain: { en: "not having a stable place to live", es: "no tener un lugar estable para vivir" } },
+  { key: "sdoh_housing", label: "Housing instability, housed, with risk of homelessness", icd10: "Z59.811", chronic: false, sdoh: "housing", patterns: [w("evict\\w*|behind on (?:my |the )?rent|couch surfing|might lose (?:my|our) (?:apartment|place|house)")], plain: { en: "risk of losing housing", es: "riesgo de perder su vivienda" } },
+  { key: "sdoh_transport", label: "Transportation insecurity", icd10: "Z59.82", chronic: false, sdoh: "transportation", patterns: [w("no (?:ride|car) to|(?:don't|do not) have a (?:ride|car)|(?:can't|couldn't|cannot) get (?:a ride|to (?:the )?(?:appointments?|pharmacy|clinic))|missed (?:my|the|our) (?:last |next )?appointments? because (?:of )?(?:the bus|no ride|(?:my|the) car)")], plain: { en: "trouble getting transportation", es: "dificultad con el transporte" } },
+  { key: "sdoh_utilities", label: "Inadequate housing utilities", icd10: "Z59.12", chronic: false, sdoh: "utilities", specific: [{ when: /\bcan't pay\b/i, icd10: "Z59.861", label: "Financial insecurity, difficulty paying for utilities" }], patterns: [w("(?:power|electricity|lights|heat|gas|water) (?:got |was |were )?(?:shut|turned|cut) off|can't pay (?:the|my) (?:electric|gas|utility|heating) bill")], plain: { en: "trouble paying for utilities", es: "dificultad para pagar los servicios" } },
+  { key: "sdoh_underdose", label: "Intentional underdosing of medication regimen due to financial hardship", icd10: "Z91.120", chronic: false, sdoh: "cost", patterns: [w("(?:ration|rationing|stretching) (?:my |the )?(?:insulin|pills|medications?|medicine)|skip(?:ping)? (?:doses|pills) to (?:save|make (?:it|them) last)|cut(?:ting)? (?:my )?pills in half to save")], plain: { en: "skipping medicine because of cost", es: "saltarse medicinas por el costo" } },
+  { key: "sdoh_financial", label: "Financial insecurity, unspecified", icd10: "Z59.869", chronic: false, sdoh: "cost", patterns: [w("can't afford (?:my |the |it|them|insulin|(?:the )?medications?|medicine|the copay)|(?:too|really|so) expensive|copay is (?:too|really) (?:high|much)")], plain: { en: "trouble affording care or medicine", es: "dificultad para pagar la atención o las medicinas" } },
+  { key: "sdoh_unemployment", label: "Unemployment, unspecified", icd10: "Z56.0", chronic: false, sdoh: "employment", patterns: [w("lost my job|(?:got |been )?laid off|(?:I'm |I am )?unemployed|out of work")], plain: { en: "losing a job", es: "perder el trabajo" } },
+  { key: "sdoh_isolation", label: "Problems related to living alone", icd10: "Z60.2", chronic: false, sdoh: "isolation", patterns: [w("(?:I )?live(?:s)? (?:all )?(?:by myself|alone) and (?:no one|nobody)|no one (?:to help|checks on me)|nobody (?:to help|checks on me)")], plain: { en: "living alone without help", es: "vivir solo sin ayuda" } },
 ];
 
 export interface MedDef {
@@ -179,6 +189,7 @@ export const MEDICATIONS: MedDef[] = [
   { name: "empagliflozin", patterns: [w("empagliflozin|jardiance")], cls: "SGLT2 inhibitor", rx: true, renalCaution: 20 },
   { name: "semaglutide", patterns: [w("semaglutide|ozempic|wegovy|rybelsus")], cls: "GLP-1 receptor agonist", rx: true },
   { name: "tirzepatide", patterns: [w("tirzepatide|mounjaro|zepbound")], cls: "GIP/GLP-1 receptor agonist", rx: true },
+  { name: "insulin NPH", patterns: [w("NPH|humulin N|novolin N|human insulin|relion (?:insulin|N)|70/30")], cls: "intermediate-acting insulin", rx: true },
   { name: "insulin glargine", patterns: [w("glargine|lantus|basaglar|long-acting insulin")], cls: "basal insulin", rx: true },
   { name: "potassium chloride", patterns: [w("potassium chloride|K-?Dur|Klor-?Con")], cls: "potassium supplement", rx: true },
   { name: "atorvastatin", patterns: [w("atorvastatin|lipitor")], cls: "statin", rx: true },
@@ -304,6 +315,7 @@ export const REFERRALS: { name: string; pattern: RegExp }[] = [
   { name: "Diabetes education", pattern: w("diabetes educat(?:or|ion)|diabetes self-management") },
   { name: "Nutrition", pattern: w("nutritionist|dietitian") },
   { name: "Sleep medicine", pattern: w("sleep (?:study|medicine|specialist)") },
+  { name: "Social work", pattern: w("social work(?:er)?|case manag(?:er|ement)|community health worker|211") },
 ];
 
 export const EXAM_SYSTEMS: { system: string; pattern: RegExp }[] = [

@@ -239,6 +239,7 @@ const MED_INDICATIONS: Record<string, string[]> = {
 
 const ORDER_INDICATIONS: Record<string, string[]> = {
   "Hemoglobin A1c": ["t2dm", "prediabetes"],
+  Social_work: ["sdoh_food", "sdoh_homeless", "sdoh_housing", "sdoh_transport", "sdoh_utilities", "sdoh_financial", "sdoh_underdose", "sdoh_unemployment", "sdoh_isolation"],
   "Lipid panel": ["hld", "t2dm", "htn"],
   "Comprehensive metabolic panel": ["htn", "t2dm", "ckd"],
   "Basic metabolic panel": ["htn", "ckd", "hf"],
@@ -1020,7 +1021,7 @@ export function extractFacts(utterances: Utterance[], chart?: Chart, who?: { pro
 
   const related = new Set(chiefComplaint ? CC_CONDITIONS[chiefComplaint.key] ?? [] : []);
   const problemList = Array.from(problems.values())
-    .filter((p) => p.assessed || p.plan.length > 0 || p.evidence.length > 1)
+    .filter((p) => p.assessed || p.plan.length > 0 || p.evidence.length > 1 || !!p.def?.sdoh)
     .sort((a, b) => {
       const w = (p: ProblemFact) => (related.has(p.key) || p.key === `sym_${chiefComplaint?.key}` ? 0 : 1) * 1000 + p.firstSeq;
       return w(a) - w(b);
