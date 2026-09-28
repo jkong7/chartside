@@ -108,7 +108,7 @@ export function Avatar({ name, size = 36 }: { name: string; size?: number }) {
   const initials = name.split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
   const hue = [...name].reduce((n, c) => n + c.charCodeAt(0), 0) % 360;
   return (
-    <span className="inline-flex shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white" style={{ width: size, height: size, background: `hsl(${hue} 38% 42%)` }} aria-hidden>
+    <span className="inline-flex shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white" style={{ width: size, height: size, background: `hsl(${hue} 38% 30%)` }} aria-hidden>
       {initials}
     </span>
   );

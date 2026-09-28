@@ -289,7 +289,7 @@ function MessageDetail({ id, me, onDone }: { id: string; me: { id: string; role:
               </div>
               <button className="btn-ghost px-2 text-xs" onClick={() => act("draft", { lang: m.draftMeta?.lang })} disabled={!!busy}><Refresh size={12} /> Redraft</button>
             </div>
-            <textarea className="input mt-2 min-h-[220px] font-[inherit] text-sm leading-relaxed" value={text} onChange={(e) => setText(e.target.value)} data-testid="reply-text" />
+            <textarea aria-label="Reply to patient" className="input mt-2 min-h-[220px] font-[inherit] text-sm leading-relaxed" value={text} onChange={(e) => setText(e.target.value)} data-testid="reply-text" />
             {placeholders > 0 && <p className="mt-1 text-xs text-warn" data-testid="placeholder-warning">Replace {placeholders} *** marker{placeholders > 1 ? "s" : ""} with your own words before sending.</p>}
             {(m.draftMeta?.actions.length ?? 0) > 0 && (
               <div className="mt-3 rounded-lg border border-line px-3 py-2">
@@ -368,7 +368,7 @@ function LogMessage({ open, onClose, onSaved }: { open: boolean; onClose: () => 
             <button key={v} className={`rounded-lg border px-3 py-1.5 text-sm ${channel === v ? "border-brand bg-brand-50 text-brand" : "border-line"}`} onClick={() => setChannel(v)}>{l}</button>
           ))}
         </div>
-        <textarea className="input min-h-[120px] text-sm" placeholder="What did the patient say?" value={body} onChange={(e) => setBody(e.target.value)} data-testid="log-body" />
+        <textarea aria-label="Message from the patient" className="input min-h-[120px] text-sm" placeholder="What did the patient say?" value={body} onChange={(e) => setBody(e.target.value)} data-testid="log-body" />
         {err && <p className="text-sm text-rec" role="alert">{err}</p>}
         <div className="flex justify-end gap-2">
           <button className="btn-ghost" onClick={onClose}>Cancel</button>
