@@ -362,7 +362,7 @@ export const encounters = {
     if (opts.clinicianId) { where.push("e.user_id = ?"); params.push(opts.clinicianId); }
     if (opts.statuses?.length) { where.push(`e.status IN (${opts.statuses.map(() => "?").join(", ")})`); params.push(...opts.statuses); }
     if (opts.admissionId) { where.push("e.admission_id = ?"); params.push(opts.admissionId); }
-    if (opts.outpatient) where.push("e.admission_id IS NULL");
+    if (opts.outpatient) where.push("e.admission_id IS NULL AND e.setting <> 'ed'");
     return (await all<EncounterRow>(`SELECT e.*, u.name AS clinician_name FROM encounters e JOIN users u ON u.id = e.user_id WHERE ${where.join(" AND ")} ORDER BY e.scheduled_at`, ...params)).map(toEncounter);
   },
   get: async (u: User, id: string) => {

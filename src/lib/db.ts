@@ -334,6 +334,25 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS ed_visits (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  patient_id TEXT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  encounter_id TEXT,
+  provider_id TEXT,
+  status TEXT NOT NULL DEFAULT 'waiting',
+  esi INTEGER NOT NULL DEFAULT 3,
+  complaint TEXT NOT NULL DEFAULT '',
+  bed TEXT NOT NULL DEFAULT '',
+  arrived_at TEXT NOT NULL,
+  roomed_at TEXT,
+  seen_at TEXT,
+  disposition TEXT,
+  dispo_at TEXT,
+  departed_at TEXT,
+  admission_id TEXT,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS admissions (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,
@@ -496,6 +515,7 @@ CREATE TABLE IF NOT EXISTS ehr_connections (
 `;
 
 const INDEXES = [
+  "CREATE INDEX IF NOT EXISTS ed_visits_org ON ed_visits(org_id, status, arrived_at)",
   "CREATE INDEX IF NOT EXISTS utterances_enc ON utterances(encounter_id, seq)",
   "CREATE INDEX IF NOT EXISTS notes_enc ON notes(encounter_id, version)",
   "CREATE INDEX IF NOT EXISTS audit_enc ON audit(encounter_id, ord)",
