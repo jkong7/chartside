@@ -14,6 +14,7 @@ export interface CodingContext {
   pediatric?: boolean;
   hccFor?: (icd10: string) => { hcc: string; label: string }[];
   encounterClass?: "office" | "initial_inpatient" | "subsequent_inpatient" | "discharge";
+  psychotherapy?: "standalone" | "intake";
 }
 
 function problemsElement(facts: Facts, ctx?: CodingContext): MdmElement {
@@ -142,9 +143,11 @@ export function computeCoding(facts: Facts, ctx: CodingContext): CodingResult {
   const levels = [problems.level, data.level, risk.level].sort((a, b) => rank(b) - rank(a));
   const level = levels[1];
   const cls = ctx.encounterClass ?? "office";
-  const code = cls === "discharge" ? (ctx.minutes > 30 ? "99239" : "99238") : cls === "office" ? EM[ctx.patientType][level] : EM[cls][level];
+  const psych = ctx.psychotherapy === "intake" ? "90791" : ctx.psychotherapy === "standalone" ? (ctx.minutes >= 53 ? "90837" : ctx.minutes >= 38 ? "90834" : ctx.minutes >= 16 ? "90832" : "90832") : null;
+  const code = psych ?? (cls === "discharge" ? (ctx.minutes > 30 ? "99239" : "99238") : cls === "office" ? EM[ctx.patientType][level] : EM[cls][level]);
   let tc: string | null = null;
-  if (cls === "office") tc = ctx.minutes > 0 ? timeCode(ctx.patientType, ctx.minutes) : null;
+  if (psych) tc = null;
+  else if (cls === "office") tc = ctx.minutes > 0 ? timeCode(ctx.patientType, ctx.minutes) : null;
   else if (cls !== "discharge") for (const [min, c] of INPATIENT_TIME[cls]) if (ctx.minutes >= min) tc = c;
 
   const notes: string[] = [];

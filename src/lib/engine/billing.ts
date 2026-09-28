@@ -97,6 +97,13 @@ export interface BillingContext {
 }
 
 export const SERVICE_SUMMARY: Record<string, string> = {
+  "90791": "Psychiatric diagnostic evaluation",
+  "90832": "Psychotherapy, 30 minutes (16 to 37)",
+  "90834": "Psychotherapy, 45 minutes (38 to 52)",
+  "90837": "Psychotherapy, 60 minutes (53 or more)",
+  "90833": "Psychotherapy add-on with E/M, 30 minutes",
+  "90836": "Psychotherapy add-on with E/M, 45 minutes",
+  "90838": "Psychotherapy add-on with E/M, 60 minutes",
   "99221": "Initial hospital inpatient or observation care, straightforward or low MDM",
   "99222": "Initial hospital inpatient or observation care, moderate MDM",
   "99223": "Initial hospital inpatient or observation care, high MDM",
@@ -137,6 +144,7 @@ export const SERVICE_SUMMARY: Record<string, string> = {
 };
 
 const FALLBACK_CHARGE: Record<string, number> = {
+  "90791": 180, "90832": 80, "90834": 110, "90837": 160, "90833": 75, "90836": 95, "90838": 130,
   "99221": 105, "99222": 155, "99223": 205, "99231": 60, "99232": 90, "99233": 130, "99238": 95, "99239": 135,
   "99202": 75, "99203": 115, "99204": 172, "99205": 227, "99212": 58, "99213": 93, "99214": 132, "99215": 186,
   G2211: 16, G2212: 31, "99417": 31, "99395": 118, "99396": 125, "99397": 135, G0438: 175, G0439: 130,
@@ -253,7 +261,7 @@ export function buildClaim(facts: Facts, coding: CodingResult, ctx: BillingConte
   const problemsAddressed = facts.problems.filter((p) => p.key !== "well" && (p.plan.length || p.assessed));
   let emLine: ClaimLine | null = null;
   if (!wellness || problemsAddressed.length) {
-    emLine = line(coding.em.code, "em", `${coding.em.level} MDM (${coding.em.patientType} patient)`, [...coding.em.problems.evidence, ...coding.em.risk.evidence].slice(0, 6), problemDx.length ? problemDx : ["A"], telehealth ? ["95"] : []);
+    emLine = line(coding.em.code, "em", /^908/.test(coding.em.code) ? `Psychotherapy by session time (${ctx.minutes} min)` : `${coding.em.level} MDM (${coding.em.patientType} patient)`, [...coding.em.problems.evidence, ...coding.em.risk.evidence].slice(0, 6), problemDx.length ? problemDx : ["A"], telehealth ? ["95"] : []);
     lines.push(emLine);
   }
 
@@ -314,7 +322,7 @@ export function buildClaim(facts: Facts, coding: CodingResult, ctx: BillingConte
   }
 
   const chronicLongitudinal = facts.problems.some((p) => p.chronic && !p.fromSymptom && (p.status === "not at goal" || p.plan.length > 0));
-  const g2211Eligible = emLine && !inpatient && ctx.patientType === "established" && chronicLongitudinal;
+  const g2211Eligible = emLine && !inpatient && !/^908/.test(emLine.cpt) && ctx.patientType === "established" && chronicLongitudinal;
   if (g2211Eligible) {
     const ev = facts.problems.filter((p) => p.chronic).flatMap((p) => p.evidence).slice(0, 3);
     const addOn = line("G2211", "addon", "Ongoing longitudinal care of a serious or complex chronic condition", ev, emLine!.pointers.slice(0, 1));

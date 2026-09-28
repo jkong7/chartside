@@ -53,6 +53,7 @@ export interface Note {
     generatedAt: string;
     warnings?: string[];
     detail?: "concise" | "standard" | "detailed";
+    sensitive?: boolean;
   };
 }
 
@@ -85,6 +86,10 @@ export type SectionKind =
   | "mental_status"
   | "patient_instructions"
   | "follow_up"
+  | "risk"
+  | "interventions"
+  | "response"
+  | "therapy_time"
   | "custom";
 
 export interface Template {

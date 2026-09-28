@@ -1,5 +1,6 @@
 import type { Encounter, Note, NoteSection, NoteSentence, Patient, SectionKind, Template, TemplateSection } from "../types";
 import type { Facts, MedFact, ProblemFact, SymptomFact } from "./extract";
+import { assessRisk, interventionSentences, psychotherapyCode, responseSentences, riskSentences } from "./behavioral";
 import { NORMAL_EXAM, type RosSystem } from "./lexicon";
 import { ageFrom, durationText, ensurePeriod, joinList, pronounsFor, sentenceCase, unique } from "./text";
 
@@ -7,6 +8,8 @@ export interface NoteContext {
   patient: Patient | null;
   encounter: Pick<Encounter, "reason" | "visitType" | "scheduledAt">;
   template: Template;
+  utterances?: import("../types").Utterance[];
+  minutes?: number;
 }
 
 const RESULT_PROBLEM: Record<string, string[]> = {
@@ -455,6 +458,21 @@ export function buildSection(ts: TemplateSection, facts: Facts, ctx: NoteContext
       if (facts.followUp) sentences.push(b.s(facts.followUp.text, facts.followUp.evidence));
       for (const r of facts.returnPrecautions) sentences.push(b.s(r.text, r.evidence));
       break;
+    case "risk":
+      sentences = riskSentences(assessRisk(ctx.utterances ?? []), ts.key);
+      break;
+    case "interventions":
+      sentences = interventionSentences(ctx.utterances ?? [], ts.key);
+      break;
+    case "response":
+      sentences = responseSentences(ctx.utterances ?? [], ts.key);
+      break;
+    case "therapy_time": {
+      const min = Math.round((ctx.minutes ?? 0));
+      const code = psychotherapyCode(min);
+      sentences = [b.s(min ? `Psychotherapy time: ${min} minutes face to face${code ? ` (supports ${code})` : " (under 16 minutes; not separately billable)"}.` : "Session time: *** minutes.", [], "system")];
+      break;
+    }
     case "custom":
       sentences = [];
       break;
@@ -465,7 +483,7 @@ export function buildSection(ts: TemplateSection, facts: Facts, ctx: NoteContext
 export function buildNote(facts: Facts, ctx: NoteContext): Note {
   return {
     sections: ctx.template.sections.map((ts) => buildSection(ts, facts, ctx)),
-    meta: { engine: "local", templateId: ctx.template.id, generatedAt: new Date().toISOString() },
+    meta: { engine: "local", templateId: ctx.template.id, generatedAt: new Date().toISOString(), sensitive: /^(?:bh_|behavioral)/.test(ctx.template.id) || undefined },
   };
 }
 
