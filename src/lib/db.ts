@@ -427,6 +427,29 @@ CREATE TABLE IF NOT EXISTS note_revisions (
   ord BIGINT NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS qa_reviews (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  encounter_id TEXT NOT NULL REFERENCES encounters(id) ON DELETE CASCADE,
+  clinician_id TEXT NOT NULL,
+  reviewer_id TEXT,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  scores TEXT,
+  comment TEXT,
+  created_at TEXT NOT NULL,
+  completed_at TEXT
+);
+CREATE TABLE IF NOT EXISTS golden_cases (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  transcript TEXT NOT NULL,
+  chart TEXT,
+  expected TEXT NOT NULL,
+  last_run TEXT,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ehr_connections (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

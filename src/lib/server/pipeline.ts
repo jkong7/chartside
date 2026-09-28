@@ -282,6 +282,8 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   const finText = JSON.stringify(final.sections.filter((s) => s.key !== "__consent").map((s) => s.sentences.map((x) => x.text)));
   const edited = genText !== finText;
   const editRatio = editDistanceRatio(genText, finText);
+  const { maybeSample } = await import("./qa");
+  await maybeSample(user.orgId, enc.id, enc.userId);
   const { emit } = await import("./platform");
   await emit(user.orgId, "note.signed", { encounterId: enc.id, patientId: enc.patientId, signedAt, cosignPending: !!cosign });
   await audit.log(user, enc.id, "note.signed", { edited, editRatio, learned: candidates.length, forced: !!opts.force, overrides: blockers });
