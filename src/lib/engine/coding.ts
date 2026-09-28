@@ -1,3 +1,4 @@
+import type { AwvResult } from "./awv";
 import { pediatricPreventive, type WellChildResult } from "./wellchild";
 import type { ProcedureFacts } from "./procedures";
 import { EVALS, type Discipline, type TherapyFacts } from "./therapy";
@@ -24,6 +25,7 @@ export interface CodingContext {
   procedures?: ProcedureFacts;
   prenatal?: { codes: { code: string; label: string }[]; globalPackage: boolean };
   wellChild?: WellChildResult;
+  awv?: AwvResult;
   oncology?: { cancer: { code: string; label: string; evidence: string[] } | null; monitoring: string[]; sideEffects: { label: string; code?: string; grade: number; evidence: string[] }[]; progression: string[] | null };
 }
 
@@ -192,9 +194,11 @@ export function computeCoding(facts: Facts, ctx: CodingContext): CodingResult {
     if (well) Object.assign(well, { code, label });
     else diagnoses.unshift({ code, system: "ICD-10-CM", label, rationale: "Well-child visit", evidence: [], confidence: 0.95, problem: "well" });
   }
-  const code = wellCode ?? prenatalCode ?? therapyCode ?? psych ?? (cls === "discharge" ? (ctx.minutes > 30 ? "99239" : "99238") : cls === "office" ? EM[ctx.patientType][level] : EM[cls][level]);
+  const awvCode = ctx.awv ? (ctx.awv.subsequent ? "G0439" : "G0438") : null;
+  if (ctx.awv && !diagnoses.some((d) => d.code.startsWith("Z00"))) diagnoses.unshift({ code: "Z00.00", system: "ICD-10-CM", label: "Encounter for general adult medical examination without abnormal findings", rationale: "Annual wellness visit", evidence: [], confidence: 0.95, problem: "well" });
+  const code = awvCode ?? wellCode ?? prenatalCode ?? therapyCode ?? psych ?? (cls === "discharge" ? (ctx.minutes > 30 ? "99239" : "99238") : cls === "office" ? EM[ctx.patientType][level] : EM[cls][level]);
   let tc: string | null = null;
-  if (psych || therapyCode || prenatalCode || wellCode || ctx.psychotherapy === "addon") tc = null;
+  if (psych || therapyCode || prenatalCode || wellCode || awvCode || ctx.psychotherapy === "addon") tc = null;
   else if (cls === "office") tc = ctx.minutes > 0 ? timeCode(ctx.patientType, ctx.minutes) : null;
   else if (cls === "initial_inpatient" || cls === "subsequent_inpatient") for (const [min, c] of INPATIENT_TIME[cls]) if (ctx.minutes >= min) tc = c;
 
@@ -243,6 +247,7 @@ export function computeCoding(facts: Facts, ctx: CodingContext): CodingResult {
     diagnoses,
     em: { code, level, patientType: ctx.patientType, problems, data, risk, timeBased: tc ? { minutes: ctx.minutes, code: tc } : undefined, auditRisk: { score: Math.max(0, score), direction, notes } },
     prenatal: ctx.prenatal,
+    awv: ctx.awv ? { subsequent: ctx.awv.subsequent, depressionScreened: ctx.awv.depressionScreened, acpMinutes: ctx.awv.acpMinutes, missing: ctx.awv.elements.filter((e) => e.required && !e.done).map((e) => e.label) } : undefined,
     wellChild: wc && wellCode ? { preventive: wellCode, screens: Object.values(wc.due.filter((d) => d.done).reduce<Record<string, { cpt: string; label: string; units: number }>>((acc, d) => { acc[d.cpt] = acc[d.cpt] ? { ...acc[d.cpt], units: acc[d.cpt].units + 1, label: `${acc[d.cpt].label}; ${d.label}` } : { cpt: d.cpt, label: d.label, units: 1 }; return acc; }, {})) } : undefined,
     procedures: ctx.procedures?.procedures.length || ctx.procedures?.drugs.length ? { procedures: ctx.procedures.procedures, drugs: ctx.procedures.drugs } : undefined,
     therapy: th ? { discipline: th.discipline, evalCode, services: th.facts.services } : undefined,

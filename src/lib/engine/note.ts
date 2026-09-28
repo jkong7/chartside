@@ -3,6 +3,7 @@ import type { Facts, MedFact, ProblemFact, SymptomFact } from "./extract";
 import { assessRisk, goalSentences, interventionSentences, psychotherapyCode, psychotherapyMinutes, responseSentences, riskSentences } from "./behavioral";
 import { edCourse, edDisposition } from "./ed";
 import { groupTopic } from "./group";
+import { acpSentences, awvReview, awvSentences, scheduleSentences, screeningSchedule } from "./awv";
 import { guidanceSentences, screenSentences, wellChild } from "./wellchild";
 import { ageInMonths, dueLabel, immunizationGaps } from "./immunizations";
 import { gdmtFor, gdmtSentences } from "./gdmt";
@@ -568,6 +569,15 @@ export function buildSection(ts: TemplateSection, facts: Facts, ctx: NoteContext
         const gaps = immunizationGaps(dob, ctx.patient?.chart.immunizations ?? [], at);
         sentences = gaps.length ? gaps.map((g) => b.s(`Due: ${dueLabel(g)}.`, [], "system")) : [b.s("Up to date for age.", [], "system")];
       }
+      break;
+    }
+    case "awv":
+    case "screening_schedule":
+    case "acp": {
+      const r = awvReview(ctx.utterances ?? [], ctx.patient?.chart, facts);
+      if (kind === "awv") sentences = awvSentences(r, ts.key);
+      else if (kind === "acp") sentences = acpSentences(r, ts.key);
+      else sentences = ctx.patient ? scheduleSentences(screeningSchedule(ageFrom(ctx.patient.dob, new Date(ctx.encounter.scheduledAt)), ctx.patient.sex, ctx.patient.chart, new Date(ctx.encounter.scheduledAt)), ts.key) : [];
       break;
     }
     case "procedure_note":

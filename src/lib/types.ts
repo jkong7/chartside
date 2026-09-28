@@ -107,6 +107,9 @@ export type SectionKind =
   | "well_screens"
   | "guidance"
   | "imm_due"
+  | "awv"
+  | "screening_schedule"
+  | "acp"
   | "onc_history"
   | "onc_treatment"
   | "toxicity"
@@ -305,6 +308,7 @@ export interface CodingResult {
   risk?: RiskSummary;
   reference?: { label: string; version: string }[];
   psychotherapyAddOn?: { code: string; minutes: number; evidence: string[] };
+  awv?: { subsequent: boolean; depressionScreened: boolean; acpMinutes: number | null; missing: string[] };
   wellChild?: { preventive: string; screens: { cpt: string; label: string; units: number }[] };
   prenatal?: { codes: { code: string; label: string }[]; globalPackage: boolean };
   procedures?: { procedures: import("./engine/procedures").ProcedureLine[]; drugs: import("./engine/procedures").DrugLine[] };

@@ -353,6 +353,22 @@ export const SYSTEM_TEMPLATES: Template[] = [
     ],
   },
   {
+    id: "awv",
+    userId: null,
+    name: "Medicare annual wellness visit",
+    specialty: "Primary Care",
+    description: "Required AWV elements with what is still missing, a personalized screening schedule, advance care planning time (99497-33), and G0438/G0439 with G0444 when allowed.",
+    style: { verbosity: "standard" },
+    sections: [
+      { key: "hpi", title: "Health Risk Assessment and Interval History", kind: "hpi", format: "paragraph" },
+      { key: "vitals", title: "Measurements", kind: "vitals", format: "paragraph" },
+      { key: "awv", title: "Annual Wellness Visit Elements", kind: "awv", format: "bullets" },
+      { key: "schedule", title: "Screening Schedule", kind: "screening_schedule", format: "bullets" },
+      { key: "acp", title: "Advance Care Planning", kind: "acp", format: "paragraph" },
+      { key: "ap", title: "Assessment & Plan", kind: "assessment_plan", format: "bullets" },
+    ],
+  },
+  {
     id: "peds_acute",
     userId: null,
     name: "Pediatric sick visit",
