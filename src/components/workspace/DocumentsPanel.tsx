@@ -1,5 +1,6 @@
 "use client";
 
+import FaxButton from "./FaxButton";
 import PdfForms from "./PdfForms";
 import { useCallback, useEffect, useState } from "react";
 import { api, copyText } from "@/lib/client";
@@ -85,6 +86,7 @@ export default function DocumentsPanel({ encounterId, canEdit, canSign, onCite }
             <p className="flex-1 text-[13px] font-semibold uppercase tracking-wide text-ink-2">{ref.title}</p>
             <button className="btn-ghost px-2 py-1 text-xs" onClick={async () => { await copyText(ref.body); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>{copied ? <Check size={14} className="text-ok" /> : <Copy size={14} />} Copy</button>
             <a className="btn-ghost px-2 py-1 text-xs" href={`/api/encounters/${encounterId}/documents/${ref.id}/pdf`}><Download size={14} /> PDF</a>
+            {canEdit && <FaxButton encounterId={encounterId} docId={ref.id} />}
           </div>
           <pre className="whitespace-pre-wrap px-5 py-4 font-serif text-[15px] leading-7" data-testid="letters-panel">{ref.body}</pre>
         </div>
@@ -127,6 +129,7 @@ export default function DocumentsPanel({ encounterId, canEdit, canSign, onCite }
               {!locked && !rawEdit && <button className="btn-ghost px-2 text-xs" onClick={() => { setBody(doc.body); setRawEdit(true); }} data-testid="document-edit-text">Edit text</button>}
               <button className="btn-ghost px-2 text-xs" onClick={async () => { await copyText(doc.body); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>{copied ? <Check size={13} className="text-ok" /> : <Copy size={13} />} Copy</button>
               <a className="btn-ghost px-2 text-xs" href={`/api/encounters/${encounterId}/documents/${doc.id}/pdf`} data-testid="document-pdf"><Download size={13} /> PDF</a>
+              {doc.status === "final" && canEdit && <FaxButton encounterId={encounterId} docId={doc.id} />}
               {doc.status === "final" && canEdit && (
                 <label className="flex items-center gap-1.5 text-xs text-ink-2"><input type="checkbox" checked={doc.shared} onChange={(e) => patch({ shared: e.target.checked })} data-testid="document-share" /> <Globe size={12} /> Share with patient</label>
               )}
