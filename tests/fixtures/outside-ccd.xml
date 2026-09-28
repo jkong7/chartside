@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ClinicalDocument xmlns="urn:hl7-org:v3">
+  <title>Continuity of Care Document: Lakeshore Cardiology</title>
+  <component><structuredBody>
+    <component><section>
+      <code code="11450-4" codeSystem="2.16.840.1.113883.6.1" displayName="Problem list"/>
+      <title>Problems</title>
+      <text><table><thead><tr><th>Problem</th><th>Code</th><th>Onset</th></tr></thead><tbody>
+        <tr><td>Paroxysmal atrial fibrillation</td><td>I48.0</td><td>2025-11-02</td></tr>
+        <tr><td>Essential hypertension</td><td>I10</td><td>2016-04-10</td></tr>
+      </tbody></table></text>
+    </section></component>
+    <component><section>
+      <code code="10160-0" codeSystem="2.16.840.1.113883.6.1" displayName="Medications"/>
+      <title>Medications</title>
+      <text><table><tbody>
+        <tr><td>Medication</td><td>Dose</td></tr>
+        <tr><td>apixaban 5 mg tablet</td><td>twice daily</td></tr>
+        <tr><td>metoprolol succinate 25 mg</td><td>daily</td></tr>
+      </tbody></table></text>
+    </section></component>
+    <component><section>
+      <code code="48765-2" codeSystem="2.16.840.1.113883.6.1"/>
+      <title>Allergies</title>
+      <text><list><item>Penicillin (hives)</item></list></text>
+    </section></component>
+    <component><section>
+      <code code="30954-2" codeSystem="2.16.840.1.113883.6.1"/>
+      <title>Results</title>
+      <text><table><tbody>
+        <tr><td>Test</td><td>Result</td><td>Date</td></tr>
+        <tr><td>Creatinine</td><td>1.1 mg/dL</td><td>2026-08-30</td></tr>
+        <tr><td>TSH</td><td>2.4 mIU/L</td><td>2026-08-30</td></tr>
+      </tbody></table></text>
+    </section></component>
+  </structuredBody></component>
+</ClinicalDocument>
