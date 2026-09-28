@@ -138,6 +138,9 @@ export interface Chart {
   priorVisits?: PriorVisit[];
   egfr?: number;
   coverage?: CoverageInfo;
+  screenings?: { name: string; date: string; result?: string }[];
+  immunizations?: { name: string; date: string }[];
+  smoking?: "never" | "former" | "current";
 }
 
 export interface CoverageInfo {

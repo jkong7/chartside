@@ -263,6 +263,7 @@ export const ORDERABLES: OrderDef[] = [
   { kind: "imaging", name: "Abdominal ultrasound", patterns: [w("(?:abdominal |belly )ultrasound|ultrasound of (?:your|the|her|his) (?:belly|abdomen|gallbladder)")], cpt: "76700" },
   { kind: "imaging", name: "Echocardiogram", patterns: [w("echo(?:cardiogram)?|ultrasound of (?:your|the|her|his) heart")], cpt: "93306" },
   { kind: "procedure", name: "12-lead ECG", patterns: [w("EKG|ECG|electrocardiogram")], cpt: "93000" },
+  { kind: "lab", name: "Fecal immunochemical test (FIT)", patterns: [w("FIT (?:kit|test)|fecal immunochemical|stool (?:test|card) for blood")], cpt: "82274" },
   { kind: "imaging", name: "Screening mammogram", patterns: [w("mammogram")], cpt: "77067" },
   { kind: "procedure", name: "Colonoscopy", patterns: [w("colonoscopy")], cpt: "45378" },
   { kind: "vaccine", name: "Influenza vaccine, trivalent (IIV3), preservative-free", patterns: [w("flu (?:shot|vaccine)|influenza vaccine")], cpt: "90656" },

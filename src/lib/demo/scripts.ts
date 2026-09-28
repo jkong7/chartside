@@ -48,6 +48,9 @@ export const DEMO_PATIENTS: DemoPatient[] = [
       ],
       egfr: 58,
       social: ["Never smoker", "Works as a school administrator"],
+      smoking: "never",
+      screenings: [{ name: "Screening mammogram", date: "2025-11-04", result: "BI-RADS 1" }, { name: "Colonoscopy", date: "2019-05-20", result: "Normal" }, { name: "PHQ-9", date: "2026-06-12", result: "3" }],
+      immunizations: [{ name: "Influenza vaccine", date: "2025-10-15" }],
       priorVisits: [
         { date: "2026-06-12", summary: "HTN and DM follow-up. BP 144/90. A1c 7.9.", plan: ["Recheck A1c in 3 months", "Home BP log", "Diabetic eye exam referral"] },
       ],
@@ -261,6 +264,8 @@ export const DEMO_PATIENTS: DemoPatient[] = [
       medications: [{ name: "albuterol", dose: "2 puffs", frequency: "every 4 hours as needed" }, { name: "budesonide-formoterol", dose: "2 puffs", frequency: "twice daily" }],
       allergies: [],
       social: ["Former smoker, 30 pack-years, quit 2015"],
+      smoking: "former",
+      screenings: [{ name: "FIT", date: "2026-02-10", result: "Negative" }],
       priorVisits: [{ date: "2026-07-02", summary: "COPD follow-up. Stable.", plan: ["Continue Symbicort", "Pneumonia vaccine due"] }],
     },
     visit: { time: "13:00", type: "follow-up", reason: "COPD follow-up (Spanish interpreter)", template: "soap", outputLang: "es" },
