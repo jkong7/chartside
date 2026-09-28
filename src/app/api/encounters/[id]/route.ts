@@ -1,7 +1,8 @@
 import { llmEnabled, llmModel } from "@/lib/llm";
 import { authed, body, fail, json } from "@/lib/server/http";
 import { speechConfig } from "@/lib/server/audio";
-import { consentScript } from "@/lib/server/pipeline";
+import { consentScript, processEncounter } from "@/lib/server/pipeline";
+import { isStuck, recordingMinutesFromEnv } from "@/lib/engine/limits";
 import { assertCan, can, canSign } from "@/lib/server/policy";
 import { addenda, artifacts, audioChunks, audit, claims, consents, encounters, feedback, notes, orders, orgs, patientFlags, patients, SEES_ORG, templates, users, utterances } from "@/lib/server/repo";
 import type { Encounter } from "@/lib/types";
@@ -13,8 +14,17 @@ import { qualityFor } from "@/lib/server/quality";
 import type { MeasureResult } from "@/lib/engine/quality";
 
 export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
-  const enc = await encounters.get(user, id);
+  let enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
+  if (isStuck(enc) && can(user, "clinical.capture")) {
+    await audit.log(user, enc.id, "note.recovered", { endedAt: enc.endedAt });
+    try {
+      await processEncounter(user, enc.id);
+    } catch {
+      await encounters.update(user, enc.id, { status: "paused" });
+    }
+    enc = (await encounters.get(user, id))!;
+  }
   const clinician = enc.userId === user.id ? user : await users.byId(enc.userId);
   const prefs = clinician?.prefs ?? user.prefs;
   const tplId = enc.templateId ?? prefs.defaultTemplate ?? "soap";
@@ -57,6 +67,7 @@ export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
     engine: { llm: llmEnabled(), model: llmEnabled() ? llmModel() : null },
     audio: { chunks: chunks.length, bytes: chunks.reduce((n, x) => n + x.bytes, 0), durationMs: chunks.at(-1)?.tMs ?? 0, retentionDays: prefs.audioRetentionDays ?? 0 },
     speech: speechConfig(),
+    limits: { recordingMinutes: recordingMinutesFromEnv() },
     claim: claim ?? null,
     addenda: adds,
     tasks: encTasks,

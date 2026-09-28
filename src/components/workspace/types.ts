@@ -45,6 +45,7 @@ export interface Bundle {
   clinician: { id: string; name: string };
   access: { userId: string; role: string; capture: boolean; edit: boolean; sign: boolean; billingReview: boolean; cosign: boolean; addendum: boolean; share: boolean };
   colleagues: { id: string; name: string; role: string }[];
+  limits: { recordingMinutes: number };
   speech: { provider: "deepgram" | "browser"; live: boolean; finalPass: boolean; wsUrl: string | null };
 }
 

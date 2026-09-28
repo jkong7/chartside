@@ -1,5 +1,6 @@
 "use client";
 
+import { recordingLimit } from "@/lib/engine/limits";
 import { useCallback, useMemo, useEffect, useRef, useState } from "react";
 import { AudioCapture, type CaptureStatus } from "@/lib/audio/capture";
 import type { QueueState } from "@/lib/audio/queue";
@@ -214,6 +215,11 @@ export default function Capture({ b, initialMode, onFinished }: { b: Bundle; ini
   const [dual, setDual] = useState(false);
   const setCaptureRef = useRef(setCapture);
   setCaptureRef.current = setCapture;
+  const limit = recordingLimit(elapsed, b.limits?.recordingMinutes);
+
+  useEffect(() => {
+    if (limit.state === "limit" && recording) setCaptureRef.current("pause");
+  }, [limit.state, recording]);
   const finishRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
@@ -408,7 +414,7 @@ export default function Capture({ b, initialMode, onFinished }: { b: Bundle; ini
             {recording ? (
               <button className="btn-outline" onClick={() => setCapture("pause")}><Pause /> Pause</button>
             ) : (
-              <button className="btn-outline" onClick={() => setCapture("resume")} data-testid="resume"><Play /> Resume</button>
+              <button className="btn-outline" onClick={() => setCapture("resume")} disabled={limit.state === "limit"} data-testid="resume"><Play /> Resume</button>
             )}
             <button className="btn-primary" onClick={finish} disabled={!canFinish} data-testid="finish">
               <Stop /> End visit &amp; draft note
@@ -439,6 +445,11 @@ export default function Capture({ b, initialMode, onFinished }: { b: Bundle; ini
           <p className="flex items-center gap-2 border-b border-warn/30 bg-warn-50 px-5 py-2 text-sm text-warn" role="alert"><Alert size={15} /> No audio for {silentFor}s. Check that your microphone isn&apos;t muted.</p>
         )}
         {error && <p className="border-b border-rec/30 bg-rec-50 px-5 py-2 text-sm text-rec" role="alert">{error}</p>}
+        {limit.state !== "ok" && (
+          <p className={`border-b px-5 py-2 text-sm ${limit.state === "limit" ? "border-rec/30 bg-rec-50 text-rec" : "border-warn/30 bg-warn-50 text-warn"}`} data-testid="recording-limit">
+            {limit.state === "limit" ? `Recording stopped at the ${b.limits.recordingMinutes}-minute limit. Everything so far is saved. Draft the note now, then start a new visit if the encounter continues.` : `${limit.remainingMinutes} minute${limit.remainingMinutes === 1 ? "" : "s"} left before this recording stops at ${b.limits.recordingMinutes} minutes.`}
+          </p>
+        )}
         <div className="min-h-0 flex-1">
           <Transcript utterances={utts} editable interim={interim} onSpeaker={changeSpeaker} onRedact={redact} follow />
         </div>
