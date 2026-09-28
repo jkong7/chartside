@@ -77,5 +77,7 @@ export function prebillReview(days: StayDay[]): { queries: CdiQuery[]; poa: PoaL
       seen.set(p.icd10, { code: p.icd10, label: p.label, poa: !first ? "U" : onAdmission ? "Y" : d.day <= 1 ? "Y" : "N", basis: !first ? "No admission H&P on file" : onAdmission ? "Documented in the admission H&P" : d.day <= 1 ? "Documented on the day of admission" : `First documented on hospital day ${d.day}` });
     }
   }
-  return { queries: q, poa: [...seen.values()] };
+  const all = [...seen.values()];
+  const poa = all.filter((p) => !(/\.9$|\.90$/.test(p.code) && all.some((o) => o !== p && o.code.slice(0, 3) === p.code.slice(0, 3))) && !(p.code.startsWith("R") && first?.problems.some((x) => x.icd10 === p.code) && first.problems.some((x) => !/^[RZ]/.test(x.icd10))));
+  return { queries: q, poa };
 }
