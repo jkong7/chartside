@@ -5,11 +5,12 @@ import { useState } from "react";
 import { api } from "@/lib/client";
 import type { StyleRule } from "@/lib/types";
 import { Plus, X } from "./icons";
+import SnippetsCard from "./SnippetsCard";
 import { Spinner } from "./ui";
 
 const STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 
-export default function SettingsView({ user, templates, rules: initialRules, engine, speech, ehr }: { ehr?: React.ReactNode; user: { name: string; email: string; specialty: string; prefs: { defaultTemplate?: string; state?: string; outputLang?: string; audioRetentionDays?: number; finalPass?: boolean } }; templates: { id: string; name: string }[]; rules: StyleRule[]; engine: { llm: boolean; model: string | null }; speech: { provider: string; live: boolean } }) {
+export default function SettingsView({ user, templates, rules: initialRules, engine, speech, ehr, isAdmin = false }: { isAdmin?: boolean; ehr?: React.ReactNode; user: { name: string; email: string; specialty: string; prefs: { defaultTemplate?: string; state?: string; outputLang?: string; audioRetentionDays?: number; finalPass?: boolean; noteDetail?: "concise" | "standard" | "detailed" } }; templates: { id: string; name: string }[]; rules: StyleRule[]; engine: { llm: boolean; model: string | null }; speech: { provider: string; live: boolean } }) {
   const router = useRouter();
   const [rules, setRules] = useState(initialRules);
   const [busy, setBusy] = useState(false);
@@ -20,7 +21,7 @@ export default function SettingsView({ user, templates, rules: initialRules, eng
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     setBusy(true);
-    await api("/auth/me", { method: "PATCH", body: { name: f.get("name"), specialty: f.get("specialty"), prefs: { defaultTemplate: f.get("defaultTemplate"), state: f.get("state"), outputLang: f.get("outputLang"), audioRetentionDays: Number(f.get("audioRetentionDays")), finalPass: f.get("finalPass") === "on" } } });
+    await api("/auth/me", { method: "PATCH", body: { name: f.get("name"), specialty: f.get("specialty"), prefs: { defaultTemplate: f.get("defaultTemplate"), state: f.get("state"), outputLang: f.get("outputLang"), audioRetentionDays: Number(f.get("audioRetentionDays")), finalPass: f.get("finalPass") === "on", noteDetail: f.get("noteDetail") } } });
     setBusy(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -46,6 +47,7 @@ export default function SettingsView({ user, templates, rules: initialRules, eng
         <div><label className="label" htmlFor="sstate">Practice state (for consent rules)</label><select id="sstate" name="state" className="input" defaultValue={user.prefs.state ?? "IL"}>{STATES.map((s) => <option key={s}>{s}</option>)}</select></div>
         <div><label className="label" htmlFor="slang">Default patient summary language</label><select id="slang" name="outputLang" className="input" defaultValue={user.prefs.outputLang ?? "en"}><option value="en">English</option><option value="es">Spanish</option></select></div>
         <div><label className="label" htmlFor="sret">Audio retention</label><select id="sret" name="audioRetentionDays" className="input" defaultValue={String(user.prefs.audioRetentionDays ?? 0)}><option value="0">Delete audio when the note is signed</option><option value="7">Keep 7 days after signing</option><option value="30">Keep 30 days after signing</option></select></div>
+        <div><label className="label" htmlFor="sdetail">Default note length</label><select id="sdetail" name="noteDetail" className="input" defaultValue={user.prefs.noteDetail ?? "standard"} data-testid="pref-detail"><option value="concise">Brief: key findings and actions only</option><option value="standard">Standard</option><option value="detailed">Detailed: full history and ROS</option></select></div>
         <label className="col-span-full flex items-center gap-2 text-sm text-ink-2"><input type="checkbox" name="finalPass" className="accent-brand" defaultChecked={user.prefs.finalPass !== false} /> Re-transcribe the full recording with speaker separation when a visit ends (uses the speech provider)</label>
         <div className="col-span-full flex items-center justify-end gap-3">{saved && <span className="text-sm text-ok" role="status">Saved</span>}<button className="btn-primary" disabled={busy}>{busy && <Spinner />} Save</button></div>
       </form>
@@ -60,6 +62,8 @@ export default function SettingsView({ user, templates, rules: initialRules, eng
           <p className="mt-1 text-sm text-ink-2">Audio is recorded in 4-second chunks, buffered on the device if the network drops, and stored for playback. Live captions use the browser&apos;s speech engine; speakers are separated on-device from voice pitch and timbre. Set <span className="kbd">DEEPGRAM_API_KEY</span> for server-grade transcription with diarization.</p>
         )}
       </div>
+
+      <SnippetsCard isAdmin={isAdmin} />
 
       <div className="card p-5" data-testid="engine-settings">
         <p className="text-sm font-semibold">Documentation engine</p>

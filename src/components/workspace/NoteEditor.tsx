@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Dictation, type DictationStatus } from "@/lib/audio/dictation";
 import { api, copyText } from "@/lib/client";
+import { expandSnippet, findSnippet, type Snippet, type SnippetContext } from "@/lib/engine/snippets";
+import { applyOps, parseUtterance, sectionTarget, VOICE_HELP, type VoiceOp } from "@/lib/engine/voice";
 import { overlap } from "@/lib/engine/text";
 import type { Note, NoteSection, NoteSentence, OmissionFlag } from "@/lib/types";
-import { Alert, Check, Copy, Pencil, Shield, ThumbDown, ThumbUp, X } from "../icons";
-import { Spinner } from "../ui";
+import { Alert, Check, Copy, Mic, Pencil, Shield, ThumbDown, ThumbUp, X } from "../icons";
+import { Modal, Spinner } from "../ui";
 
 function sentenceClass(s: NoteSentence, active: boolean) {
   const base = "cursor-pointer rounded-[3px] transition-colors decoration-2 underline-offset-4";
@@ -53,6 +56,8 @@ export default function NoteEditor({
   onSelect,
   onSaved,
   feedback,
+  snippetCtx,
+  templateKinds,
 }: {
   encounterId: string;
   note: Note;
@@ -62,9 +67,38 @@ export default function NoteEditor({
   onSelect: (s: NoteSentence | null) => void;
   onSaved: (n: Note, omissions?: OmissionFlag[]) => void;
   feedback: { section: string; rating: number }[];
+  snippetCtx?: SnippetContext;
+  templateKinds?: Record<string, string>;
 }) {
-  const [editing, setEditing] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
+  const [editing, setEditingState] = useState<string | null>(null);
+  const [draft, setDraftState] = useState("");
+  const editingRef = useRef<string | null>(null);
+  const draftRef = useRef("");
+  const historyRef = useRef<string[]>([]);
+  const areaRef = useRef<HTMLTextAreaElement | null>(null);
+  const cursorRef = useRef<number | null>(null);
+  const noteRef = useRef(note);
+  noteRef.current = note;
+  const [dictStatus, setDictStatus] = useState<DictationStatus>("idle");
+  const [dictError, setDictError] = useState<string | null>(null);
+  const [interim, setInterim] = useState("");
+  const [heard, setHeard] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [snips, setSnips] = useState<Snippet[]>([]);
+  const [reps, setReps] = useState<{ from: string; to: string }[]>([]);
+  const dictRef = useRef<Dictation | null>(null);
+  const snipsRef = useRef<Snippet[]>([]);
+  snipsRef.current = snips;
+  const repsRef = useRef(reps);
+  repsRef.current = reps;
+  const setEditing = (k: string | null) => {
+    editingRef.current = k;
+    setEditingState(k);
+  };
+  const setDraft = (v: string) => {
+    draftRef.current = v;
+    setDraftState(v);
+  };
   const [busy, setBusy] = useState(false);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [rated, setRated] = useState<Record<string, number>>(() => Object.fromEntries(feedback.map((f) => [f.section, f.rating])));
@@ -85,6 +119,161 @@ export default function NoteEditor({
   }
 
   const visible = note.sections.filter((s) => s.key !== "__consent");
+
+  const saveEditing = useCallback(async () => {
+    const key = editingRef.current;
+    if (!key) return;
+    const n = noteRef.current;
+    const sec = n.sections.find((x) => x.key === key);
+    if (!sec || sectionToText(sec) === draftRef.current) return;
+    const next = { ...n, sections: n.sections.map((x) => (x.key === key ? { ...x, sentences: [...textToSentences(draftRef.current, x.sentences.filter((y) => !y.pending), key), ...x.sentences.filter((y) => y.pending)] } : x)) };
+    const r = await api<{ note: Note; omissions: OmissionFlag[] }>(`/encounters/${encounterId}/note`, { method: "PUT", body: { note: next, reason: "section.dictated" } });
+    noteRef.current = r.note;
+    onSaved(r.note, r.omissions);
+  }, [encounterId, onSaved]);
+
+  const openSection = useCallback((key: string) => {
+    const sec = noteRef.current.sections.find((x) => x.key === key);
+    if (!sec) return;
+    setEditing(key);
+    setDraft(sectionToText(sec));
+    historyRef.current = [];
+    cursorRef.current = null;
+    setTimeout(() => {
+      const a = areaRef.current;
+      if (a) {
+        a.focus();
+        a.setSelectionRange(a.value.length, a.value.length);
+      }
+    }, 0);
+  }, []);
+
+  const insertAtCursor = useCallback((ops: VoiceOp[] | string) => {
+    const a = areaRef.current;
+    const v = draftRef.current;
+    const at = Math.min(v.length, cursorRef.current ?? (a && document.activeElement === a ? a.selectionStart : v.length));
+    const before = v.slice(0, at);
+    const after = v.slice(at);
+    const res = typeof ops === "string" ? { value: before + (before && !/\s$/.test(before) ? (ops.includes("\n") ? "\n" : " ") : "") + ops, history: [] } : applyOps({ value: before, history: [] }, ops, repsRef.current);
+    historyRef.current.push(v);
+    const next = res.value + (after && !/^\s/.test(after) ? " " : "") + after;
+    setDraft(next);
+    cursorRef.current = res.value.length;
+    setTimeout(() => {
+      const el = areaRef.current;
+      if (el && cursorRef.current !== null) el.setSelectionRange(cursorRef.current, cursorRef.current);
+      cursorRef.current = null;
+    }, 0);
+  }, []);
+
+  const handleVoice = useCallback(async (text: string) => {
+    setHeard(text);
+    const ops = parseUtterance(text);
+    const secs = noteRef.current.sections.filter((x) => x.key !== "__consent");
+    const textual = new Set(["text", "newline", "paragraph", "bullet"]);
+    const batched: (VoiceOp | VoiceOp[])[] = [];
+    for (const op of ops) {
+      const last = batched.at(-1);
+      if (textual.has(op.type) && Array.isArray(last)) last.push(op);
+      else batched.push(textual.has(op.type) ? [op] : op);
+    }
+    for (const op of batched) {
+      if (Array.isArray(op)) {
+        insertAtCursor(op);
+        continue;
+      }
+      if (op.type === "stop") {
+        dictRef.current?.stop();
+        dictRef.current = null;
+      } else if (op.type === "help") setHelpOpen(true);
+      else if (op.type === "save") await saveEditing();
+      else if (op.type === "delete_last") {
+        const prev = historyRef.current.pop();
+        if (prev !== undefined) setDraft(prev);
+      } else if (op.type === "clear_section") {
+        historyRef.current.push(draftRef.current);
+        setDraft("");
+      } else if (op.type === "goto" || op.type === "next_section" || op.type === "previous_section") {
+        const i = secs.findIndex((x) => x.key === editingRef.current);
+        const target = op.type === "goto" ? sectionTarget(op.target, secs.map((x) => ({ key: x.key, title: x.title, kind: templateKinds?.[x.key] }))) : secs[Math.max(0, Math.min(secs.length - 1, i + (op.type === "next_section" ? 1 : -1)))]?.key;
+        if (target && target !== editingRef.current) {
+          await saveEditing();
+          openSection(target);
+        }
+      } else if (op.type === "snippet") {
+        const sn = findSnippet(op.name, snipsRef.current);
+        if (sn) insertAtCursor(expandSnippet(sn.body, snippetCtx ?? {}));
+        else setDictError(`No snippet called "${op.name}". Say "what can I say" for help.`);
+      }
+    }
+  }, [insertAtCursor, openSection, saveEditing, snippetCtx, templateKinds]);
+
+  const handleVoiceRef = useRef(handleVoice);
+  handleVoiceRef.current = handleVoice;
+
+  useEffect(() => () => dictRef.current?.stop(), []);
+
+  async function loadSpeech() {
+    const cfg = await api<{ provider: "deepgram" | "browser"; url: string | null; snippets: Snippet[]; replacements: { from: string; to: string }[] }>("/speech/dictation");
+    setSnips(cfg.snippets);
+    setReps(cfg.replacements);
+    snipsRef.current = cfg.snippets;
+    repsRef.current = cfg.replacements;
+    return cfg;
+  }
+
+  useEffect(() => {
+    if (!locked && !snips.length) loadSpeech().catch(() => {});
+  }, [locked]);
+
+  async function toggleDictation() {
+    if (dictRef.current) {
+      dictRef.current.stop();
+      dictRef.current = null;
+      return;
+    }
+    setDictError(null);
+    if (!editingRef.current) openSection(visible.find((x) => /hpi|subjective/.test(x.key))?.key ?? visible[0].key);
+    const cfg = await loadSpeech();
+    const d = new Dictation({ provider: cfg.provider, url: cfg.url }, {
+      onFinal: (t) => handleVoiceRef.current(t),
+      onInterim: setInterim,
+      onStatus: (st, msg) => {
+        setDictStatus(st);
+        if (st === "error") {
+          setDictError(msg ?? "Dictation stopped");
+          dictRef.current = null;
+        }
+        if (st === "idle") dictRef.current = null;
+      },
+    });
+    dictRef.current = d;
+    await d.start();
+  }
+
+  function onAreaKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if ((e.ctrlKey || e.metaKey) && e.code === "Space") {
+      e.preventDefault();
+      toggleDictation();
+      return;
+    }
+    if (e.key !== " " && e.key !== "Tab" && e.key !== "Enter") return;
+    const a = e.currentTarget;
+    const before = a.value.slice(0, a.selectionStart);
+    const m = /(^|\s)\/([a-z0-9-]{2,24})$/i.exec(before);
+    if (!m) return;
+    const sn = snips.find((x) => x.trigger.toLowerCase() === m[2].toLowerCase());
+    if (!sn) return;
+    e.preventDefault();
+    const start = before.length - m[2].length - 1;
+    const body = expandSnippet(sn.body, snippetCtx ?? {});
+    const next = a.value.slice(0, start) + body + a.value.slice(a.selectionStart);
+    historyRef.current.push(a.value);
+    setDraft(next);
+    setTimeout(() => a.setSelectionRange(start + body.length, start + body.length), 0);
+  }
+
+  const listening = dictStatus === "listening" || dictStatus === "starting";
   const consent = note.sections.find((s) => s.key === "__consent");
   const all = visible.flatMap((s) => s.sentences.filter((x) => !x.pending && !x.heading));
   const strong = all.filter((s) => s.support === "strong").length;
@@ -104,7 +293,24 @@ export default function NoteEditor({
         <span className={openFlags.length ? "text-warn" : "text-ink-3"} data-testid="omission-count">{openFlags.length} possible omission{openFlags.length === 1 ? "" : "s"}</span>
         {pending.length > 0 && (<><span className="text-ink-4">·</span><span className="text-default-ins-line">{pending.length} suggested normal finding{pending.length === 1 ? "" : "s"}</span></>)}
         <span className="ml-auto text-xs text-ink-3">{note.meta.engine === "claude" ? `Drafted by ${note.meta.model}` : "Drafted by the on-device engine"}</span>
+        {!locked && (
+          <button className={`btn-outline px-2.5 py-1 text-xs ${listening ? "border-rec text-rec" : ""}`} onClick={toggleDictation} title="Dictate into the note (Ctrl+Space)" data-testid="dictate">
+            <Mic size={13} /> {listening ? "Stop dictating" : "Dictate"}
+          </button>
+        )}
       </div>
+      {!locked && (listening || dictError) && (
+        <div className={`flex flex-wrap items-center gap-2 rounded-xl border px-4 py-2 text-sm ${dictError ? "border-rec/30 bg-rec-50 text-rec" : "border-brand/30 bg-brand-50/60"}`} data-testid="dictation-bar" role="status">
+          {dictError ? <span>{dictError}</span> : (
+            <>
+              <span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rec opacity-60" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rec" /></span>
+              <span className="font-medium text-brand">Dictating into {visible.find((x) => x.key === editing)?.title ?? "the note"}</span>
+              <span className="min-w-0 flex-1 truncate text-ink-3" data-testid="dictation-interim">{interim || (heard ? `Heard: "${heard}"` : "Speak naturally. Say \"what can I say\" for commands.")}</span>
+            </>
+          )}
+          <button className="text-xs font-medium text-brand" onClick={() => setHelpOpen(true)}>Voice commands</button>
+        </div>
+      )}
 
       {note.meta.warnings?.map((w) => <p key={w} className="rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn">{w}</p>)}
 
@@ -166,11 +372,17 @@ export default function NoteEditor({
             <div className="px-4 py-3 text-[15px] leading-7">
               {isEditing ? (
                 <div className="space-y-2">
-                  <textarea className="input min-h-[180px] font-sans text-sm leading-6" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={`Edit ${sec.title}`} data-testid="section-textarea" />
-                  <p className="text-xs text-ink-3">One sentence per line. Start a line with &ldquo;- &rdquo; to indent it under a problem. Unchanged lines keep their evidence links.</p>
-                  <div className="flex justify-end gap-2">
-                    <button className="btn-ghost" onClick={() => setEditing(null)}>Cancel</button>
-                    <button className="btn-primary" disabled={busy} onClick={async () => { await save(patchSection(sec.key, (xs) => [...textToSentences(draft, xs.filter((x) => !x.pending), sec.key), ...xs.filter((x) => x.pending)]), "section.edited"); setEditing(null); }} data-testid="save-section">{busy && <Spinner />} Save</button>
+                  <textarea ref={areaRef} className="input min-h-[180px] font-sans text-sm leading-6" value={draft} onChange={(e) => { cursorRef.current = null; setDraft(e.target.value); }} onKeyDown={onAreaKey} onClick={() => { cursorRef.current = null; }} aria-label={`Edit ${sec.title}`} data-testid="section-textarea" />
+                  <p className="text-xs text-ink-3">One sentence per line. Start a line with &ldquo;- &rdquo; to indent it under a problem. Type /shortcut and a space to insert a snippet. Unchanged lines keep their evidence links.</p>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    {snips.length > 0 && (
+                      <select className="input mr-auto w-52 py-1.5 text-xs" value="" onChange={(e) => { const sn = snips.find((x) => x.id === e.target.value); if (sn) insertAtCursor(expandSnippet(sn.body, snippetCtx ?? {})); }} aria-label="Insert snippet" data-testid="snippet-picker">
+                        <option value="">Insert snippet…</option>
+                        {snips.map((x) => <option key={x.id} value={x.id}>/{x.trigger} · {x.name}</option>)}
+                      </select>
+                    )}
+                    <button className="btn-ghost" onClick={() => { dictRef.current?.stop(); setEditing(null); }}>Cancel</button>
+                    <button className="btn-primary" disabled={busy} onClick={async () => { dictRef.current?.stop(); await save(patchSection(sec.key, (xs) => [...textToSentences(draft, xs.filter((x) => !x.pending), sec.key), ...xs.filter((x) => x.pending)]), "section.edited"); setEditing(null); }} data-testid="save-section">{busy && <Spinner />} Save</button>
                   </div>
                 </div>
               ) : sec.sentences.length === 0 ? (
@@ -209,6 +421,16 @@ export default function NoteEditor({
           </section>
         );
       })}
+
+      <Modal open={helpOpen} onClose={() => setHelpOpen(false)} title="What you can say">
+        <table className="w-full text-sm" data-testid="voice-help">
+          <tbody>
+            {VOICE_HELP.map((h) => <tr key={h.say} className="border-t border-line first:border-0"><td className="py-1.5 pr-3 font-medium">&ldquo;{h.say}&rdquo;</td><td className="py-1.5 text-ink-3">{h.does}</td></tr>)}
+          </tbody>
+        </table>
+        {snips.length > 0 && <p className="mt-3 text-xs text-ink-3">Snippets you can insert by name: {snips.map((x) => x.name).join(", ")}.</p>}
+        <p className="mt-2 text-xs text-ink-3">Press Ctrl+Space in a section to start or stop dictating.</p>
+      </Modal>
 
       {consent && (
         <div className="rounded-xl border border-ok/30 bg-ok-50 px-4 py-3 text-sm text-ok" data-testid="consent-line">

@@ -21,6 +21,16 @@ const LIVE = [
   [1, 10.5, 12.6, "No, no fever."],
 ];
 
+const DICTATION = [
+  "Energy is much better since the last visit period",
+  "Mistake line here period",
+  "Scratch that.",
+  "Insert normal lungs.",
+  "Go to plan.",
+  "Bullet continue metformin 1000 milligrams twice daily period",
+  "Stop dictation.",
+];
+
 function words(spk, start, end, text) {
   const ws = text.split(/\s+/);
   const step = (end - start) / ws.length;
@@ -61,6 +71,12 @@ server.on("upgrade", (req, socket, head) => {
     socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
     return socket.destroy();
   }
+  const dictation = url.searchParams.get("tag") === "chartside-dictation";
+  if (dictation) {
+    stats.dictationConnections = (stats.dictationConnections ?? 0) + 1;
+    stats.lastKeyterms = url.searchParams.getAll("keyterm");
+  }
+  const script = dictation ? DICTATION.map((t, i) => [0, i * 2, i * 2 + 1.5, t]) : LIVE;
   wss.handleUpgrade(req, socket, head, (ws) => {
     stats.wsConnections++;
     let sent = 0;
@@ -74,8 +90,8 @@ server.on("upgrade", (req, socket, head) => {
       stats.wsAudioMessages++;
       if (timer) return;
       timer = setInterval(() => {
-        if (sent >= LIVE.length || ws.readyState !== 1) return clearInterval(timer);
-        const [spk, s, e, t] = LIVE[sent++];
+        if (sent >= script.length || ws.readyState !== 1) return clearInterval(timer);
+        const [spk, s, e, t] = script[sent++];
         ws.send(JSON.stringify({ type: "Results", channel_index: [0, 1], start: s, duration: e - s, is_final: false, speech_final: false, channel: { alternatives: [{ transcript: t.slice(0, 12), confidence: 0.8, words: [] }] } }));
         ws.send(JSON.stringify({ type: "Results", channel_index: [0, 1], start: s, duration: e - s, is_final: true, speech_final: true, channel: { alternatives: [{ transcript: t, confidence: 0.95, words: words(spk, s, e, t) }] } }));
       }, 700);

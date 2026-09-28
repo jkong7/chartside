@@ -86,12 +86,12 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
     }
   }
 
-  async function regenerate(templateId: string) {
+  async function regenerate(templateId: string, detail?: "concise" | "standard" | "detailed") {
     setRegen(true);
     try {
-      await api(`/encounters/${id}/finish`, { body: { templateId } });
+      await api(`/encounters/${id}/finish`, { body: { templateId, detail: detail ?? b?.note?.content.meta.detail } });
       await load();
-      setToast("Note redrafted with the new template.");
+      setToast(detail ? `Note redrafted at ${detail === "concise" ? "brief" : detail} detail.` : "Note redrafted with the new template.");
     } finally {
       setRegen(false);
     }
@@ -134,6 +134,13 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
               <select className="input w-44 py-1.5 text-sm" value={enc.templateId ?? b.template.id} onChange={(e) => regenerate(e.target.value)} disabled={regen} aria-label="Template">
                 {b.templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
+            )}
+            {!locked && (
+              <div className="flex overflow-hidden rounded-lg border border-line text-xs" role="radiogroup" aria-label="Note detail" data-testid="detail-level">
+                {([["concise", "Brief"], ["standard", "Standard"], ["detailed", "Detailed"]] as const).map(([v, l]) => (
+                  <button key={v} role="radio" aria-checked={(b.note?.content.meta.detail ?? "standard") === v} className={`px-2.5 py-1.5 ${(b.note?.content.meta.detail ?? "standard") === v ? "bg-brand text-white" : "hover:bg-sunken"}`} disabled={regen} onClick={() => regenerate(enc.templateId ?? b.template.id, v)} data-testid={`detail-${v}`}>{l}</button>
+                ))}
+              </div>
             )}
             {regen && <Spinner className="text-brand" />}
             <button className="btn-outline" onClick={async () => { const r = await api<{ text: string }>(`/encounters/${id}/export`); await copyText(r.text); setToast("Note copied. Paste it into your EHR."); }} data-testid="copy-note">
@@ -221,6 +228,8 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
                 locked={locked}
                 activeSentence={active}
                 feedback={b.feedback}
+                snippetCtx={{ patient: p ? { name: p.name, dob: p.dob, sex: p.sex } : null, chart: p?.chart ?? null, clinician: b.clinician.name }}
+                templateKinds={Object.fromEntries(b.template.sections.map((x) => [x.key, x.kind]))}
                 onSelect={(s: NoteSentence | null) => {
                   setActive(s?.id ?? null);
                   if (s) cite(s.evidence.filter((x) => x !== "chart"), s.id);

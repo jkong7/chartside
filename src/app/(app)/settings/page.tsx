@@ -27,6 +27,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
       rules={await styleRules.list(user.id)}
       engine={{ llm: llmEnabled(), model: llmEnabled() ? llmModel() : null }}
       speech={speechConfig()}
+      isAdmin={["owner", "admin"].includes(user.role)}
     />
   );
 }
