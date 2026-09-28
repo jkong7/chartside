@@ -175,6 +175,14 @@ export async function seedInpatient(user: User) {
   return admission;
 }
 
+export async function seedEd(user: User) {
+  const { ED_DEMO: d } = await import("../demo/scripts");
+  const { arrive } = await import("./ed");
+  const p = await patients.create(user, { mrn: d.mrn, name: d.name, dob: d.dob, sex: d.sex, pronouns: d.pronouns, language: "en", chart: d.chart });
+  await arrive(user, { patientId: p.id, complaint: d.complaint, esi: 2, bed: d.room, arrivedAt: new Date(Date.now() - 18 * 60000).toISOString() });
+  await arrive(user, { name: "Tyler Brooks", dob: "1999-06-02", sex: "M", complaint: "Laceration to left hand", esi: 4, arrivedAt: new Date(Date.now() - 42 * 60000).toISOString() });
+}
+
 export async function seedDemo(user: User, opts: { archive?: boolean } = {}) {
   const org = await orgs.get(user.orgId);
   if (org && !org.settings.billing?.npi) await orgs.update(org.id, { settings: { ...org.settings, billing: { ...(org.settings.billing ?? {}), npi: "1234567893", tin: "12-3456789", demoIdentifiers: true } } });
@@ -183,5 +191,6 @@ export async function seedDemo(user: User, opts: { archive?: boolean } = {}) {
     await seedArchive(user);
     await seedMessages(user);
     await seedInpatient(user);
+    await seedEd(user);
   }
 }
