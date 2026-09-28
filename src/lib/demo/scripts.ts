@@ -383,3 +383,8 @@ export const INPATIENT_DEMO: InpatientDemo = {
     ],
   },
 };
+
+export const NURSING_DEMO = [
+  "0800 assessment. Blood pressure 128 over 74, heart rate 72, resp rate 16, temp 98.2, sats 97 percent on room air. Weight 90 kg. Alert and oriented times four. Lungs clear. Trace edema at the ankles. Pain is 2 out of 10 in the lower back. Skin intact, Braden 19. 20 gauge IV in the left forearm, site clean dry and intact. Drank 480 mL, ate 75 percent of breakfast, voided 600 mL. Morse 35, bed alarm on. Ambulated 150 feet with standby assist. 2 gram sodium diet. Educated on daily weights and fluid restriction, and he verbalized understanding. Needs the IV removed before discharge. Recheck potassium at noon.",
+  "1200 update. Potassium drawn and sent. Blood pressure 124 over 70, heart rate 70. Ate 100 percent of lunch. Voided 400 mL. Wife at bedside, reviewed low salt food choices with her.",
+];

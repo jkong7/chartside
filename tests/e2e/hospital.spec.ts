@@ -72,3 +72,50 @@ test("admits a new patient from the census and starts the admission H&P", async 
   await expect(page.getByTestId("census-row")).toHaveCount(2);
   await expect(page.getByTestId("census-row").filter({ hasText: "Maria Gonzalez" }).getByTestId("today-note")).toContainText("H&P");
 });
+
+test("nurse documents an assessment by voice or text into the flowsheet and works the care list", async ({ page, browser }) => {
+  await register(page);
+  await page.goto("/admin");
+  const email = `nurse-${Date.now()}@chartside.test`;
+  await page.fill("#invite-email", email);
+  await page.selectOption("#invite-role", "nurse");
+  await page.getByRole("button", { name: "Create invitation" }).click();
+  const link = (await page.getByTestId("invite-link").textContent())!;
+
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const rn = await ctx.newPage();
+  await rn.goto(link);
+  await rn.fill("#name", "Nina Park, RN");
+  await rn.fill("#password", "correct-horse-9");
+  await rn.click("button[type=submit]");
+  await rn.waitForURL("**/today");
+  await rn.getByTestId("nav").getByRole("link", { name: "Hospital" }).click();
+  const row = rn.getByTestId("census-row").filter({ hasText: "Harold Jensen" });
+  await expect(row).toBeVisible();
+  await expect(row.getByTestId("start-progress")).toHaveCount(0);
+  await row.getByTestId("census-patient").click();
+  await expect(rn.getByTestId("nursing-panel")).toBeVisible();
+
+  await rn.getByTestId("nursing-demo").click();
+  await rn.getByTestId("nursing-extract").click();
+  const review = rn.getByTestId("nursing-review");
+  await expect(review).toContainText("Blood pressure");
+  await expect(review).toContainText("+ Add to care list: Needs the IV removed before discharge");
+  await rn.getByTestId("nursing-file").click();
+  await expect(rn.getByTestId("flowsheet")).toContainText("128/74 mmHg");
+  await expect(rn.getByTestId("flowsheet")).toContainText("A&O x4");
+  await expect(rn.getByTestId("care-list")).toContainText("Recheck potassium at noon");
+
+  await rn.getByTestId("nursing-demo").click();
+  await rn.getByTestId("nursing-extract").click();
+  await expect(rn.getByTestId("nursing-review")).toContainText("Done: Recheck potassium at noon");
+  await rn.getByTestId("nursing-file").click();
+  await expect(rn.getByTestId("care-list")).not.toContainText("Recheck potassium at noon");
+  await expect(rn.getByTestId("shift-summary")).toContainText("Latest vitals: BP 124/70 mmHg");
+
+  await rn.getByTestId("shift-question").fill("What has his blood pressure been?");
+  await rn.getByTestId("shift-question").press("Enter");
+  await expect(rn.getByTestId("shift-answer")).toContainText("128/74 mmHg");
+  await expect(rn.getByTestId("shift-answer")).toContainText("124/70 mmHg");
+  await ctx.close();
+});

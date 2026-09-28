@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 const SEV: Record<string, string> = { stable: "Stable", watcher: "Watcher", unstable: "Unstable" };
 
 export default async function HandoffPage() {
-  const user = await requireRoles(["owner", "admin", "clinician", "scribe", "viewer"]);
+  const user = await requireRoles(["owner", "admin", "clinician", "nurse", "scribe", "viewer"]);
   const list = await census(user);
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 md:px-8 print:max-w-none print:p-0">

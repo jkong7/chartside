@@ -10,7 +10,7 @@ import { Avatar } from "./ui";
 
 const NAV: { href: string; label: string; icon: typeof Calendar; roles?: Role[] }[] = [
   { href: "/today", label: "Today", icon: Calendar },
-  { href: "/hospital", label: "Hospital", icon: Bed, roles: ["owner", "admin", "clinician", "scribe", "viewer"] },
+  { href: "/hospital", label: "Hospital", icon: Bed, roles: ["owner", "admin", "clinician", "nurse", "scribe", "viewer"] },
   { href: "/inbox", label: "Inbox", icon: Inbox, roles: ["owner", "admin", "clinician", "scribe"] },
   { href: "/patients", label: "Patients", icon: Users },
   { href: "/templates", label: "Templates", icon: Layout, roles: ["owner", "admin", "clinician", "scribe"] },

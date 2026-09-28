@@ -6,6 +6,9 @@ import { useState } from "react";
 import { age, api } from "@/lib/client";
 import type { admissionDetail } from "@/lib/server/inpatient";
 import { HandoffEditor } from "./HospitalView";
+import NursingPanel from "./NursingPanel";
+import { NURSING_DEMO, INPATIENT_DEMO } from "@/lib/demo/scripts";
+import { Tabs } from "./ui";
 import { Spinner, StatusPill, Toast } from "./ui";
 
 type Data = NonNullable<Awaited<ReturnType<typeof admissionDetail>>>;
@@ -36,7 +39,8 @@ function WeightChart({ weights }: { weights: { day: number; weight: string | nul
   );
 }
 
-export default function AdmissionView({ initial, canDocument }: { initial: Data; canDocument: boolean }) {
+export default function AdmissionView({ initial, canDocument, canNurse }: { initial: Data; canDocument: boolean; canNurse: boolean }) {
+  const [view, setView] = useState<"physician" | "nursing">(canDocument ? "physician" : "nursing");
   const router = useRouter();
   const [d, setD] = useState(initial);
   const [busy, setBusy] = useState<string | null>(null);
@@ -75,6 +79,8 @@ export default function AdmissionView({ initial, canDocument }: { initial: Data;
         )}
       </div>
       {err && <p className="mt-3 rounded-lg bg-rec-50 px-3 py-2 text-sm text-rec" role="alert">{err}</p>}
+      <div className="mt-5"><Tabs<"physician" | "nursing"> value={view} onChange={setView} tabs={[{ id: "physician", label: "Physician" }, { id: "nursing", label: "Nursing" }]} /></div>
+      {view === "nursing" ? <div className="mt-5"><NursingPanel admissionId={a.id} canDocument={canNurse && active} demo={a.mrn === INPATIENT_DEMO.mrn ? NURSING_DEMO : undefined} /></div> : (
       <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-5">
           <section className="card">
@@ -107,6 +113,7 @@ export default function AdmissionView({ initial, canDocument }: { initial: Data;
           </section>
         </div>
       </div>
+      )}
       <Toast message={toast} onDone={() => setToast(null)} tone="ok" />
     </div>
   );
