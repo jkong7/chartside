@@ -202,6 +202,11 @@ export async function onInpatientSigned(u: User, enc: Encounter) {
   if (!enc.admissionId || enc.visitType !== "discharge") return;
   await run("UPDATE admissions SET status = 'discharged', discharge_at = ? WHERE id = ? AND org_id = ?", enc.signedAt ?? now(), enc.admissionId, u.orgId);
   await audit.log(u, enc.id, "admission.discharged", { admissionId: enc.admissionId });
+  const adm = await admissions.get(u, enc.admissionId);
+  if (adm) {
+    const { startTcm } = await import("./tcm");
+    await startTcm(u, { patientId: adm.patientId, admissionId: adm.id, clinicianId: adm.attendingId, dischargeAt: enc.signedAt ?? now() });
+  }
 }
 
 export async function draftHandoff(u: User, adm: Admission): Promise<Handoff> {

@@ -308,6 +308,7 @@ export interface CodingResult {
   risk?: RiskSummary;
   reference?: { label: string; version: string }[];
   psychotherapyAddOn?: { code: string; minutes: number; evidence: string[] };
+  tcm?: { code: "99495" | "99496" | null; daysAfterDischarge: number; met: string[]; unmet: string[]; episodeId: string };
   awv?: { subsequent: boolean; depressionScreened: boolean; acpMinutes: number | null; missing: string[] };
   wellChild?: { preventive: string; screens: { cpt: string; label: string; units: number }[] };
   prenatal?: { codes: { code: string; label: string }[]; globalPackage: boolean };

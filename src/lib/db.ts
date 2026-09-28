@@ -334,6 +334,21 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS tcm_episodes (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  patient_id TEXT NOT NULL,
+  admission_id TEXT,
+  clinician_id TEXT NOT NULL,
+  discharge_at TEXT NOT NULL,
+  contact_at TEXT,
+  first_attempt_at TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  visit_encounter_id TEXT,
+  code TEXT,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS order_sets (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,

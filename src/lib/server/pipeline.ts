@@ -158,7 +158,15 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   const pediatric = patient ? ageFrom(patient.dob) < 18 : false;
   const priorVisits = (await encounters.list(user, { patientId: enc.patientId ?? "__none__" })).filter((e) => e.id !== enc!.id && e.status === "signed").length;
   const patientType = enc.visitType === "new" || (!patient?.chart.priorVisits?.length && !priorVisits) ? "new" : "established";
-  const coding = await enrichCoding(user, enc, patient, computeCoding(facts, { awv: template.id === "awv" ? awvReview(utts, patient?.chart, facts) : undefined, wellChild: template.id === "peds_well" && patient ? wellChild(ageInMonths(patient.dob, new Date(enc.scheduledAt)), utts) : undefined, prenatal: template.id === "ob_prenatal" ? { codes: prenatalCodes(patient?.chart.pregnancy, extractPrenatal(utts, patient?.chart.pregnancy, new Date(enc.scheduledAt))), globalPackage: true } : undefined, procedures: extractProcedures(utts), therapy: therapyContext(template.id, utts, patient), oncology: oncologyContext(template.id, utts, patient), patientType, minutes, chart: patient?.chart, pediatric, hccFor: hccMapper(patient, enc.scheduledAt), psychotherapy: template.id === "bh_group" ? "group" : template.id === "psych_med_mgmt" ? "addon" : template.id.startsWith("bh_") ? "standalone" : template.id === "behavioral" ? "intake" : undefined, psychotherapyMinutes: template.id === "psych_med_mgmt" ? psychotherapyMinutes(utts) : undefined, encounterClass: enc.visitType === "ed" || enc.setting === "ed" ? "ed" : enc.visitType === "inpatient" ? "initial_inpatient" : enc.visitType === "progress" ? "subsequent_inpatient" : enc.visitType === "discharge" ? "discharge" : "office" }), facts);
+  const baseCoding = computeCoding(facts, { awv: template.id === "awv" ? awvReview(utts, patient?.chart, facts) : undefined, wellChild: template.id === "peds_well" && patient ? wellChild(ageInMonths(patient.dob, new Date(enc.scheduledAt)), utts) : undefined, prenatal: template.id === "ob_prenatal" ? { codes: prenatalCodes(patient?.chart.pregnancy, extractPrenatal(utts, patient?.chart.pregnancy, new Date(enc.scheduledAt))), globalPackage: true } : undefined, procedures: extractProcedures(utts), therapy: therapyContext(template.id, utts, patient), oncology: oncologyContext(template.id, utts, patient), patientType, minutes, chart: patient?.chart, pediatric, hccFor: hccMapper(patient, enc.scheduledAt), psychotherapy: template.id === "bh_group" ? "group" : template.id === "psych_med_mgmt" ? "addon" : template.id.startsWith("bh_") ? "standalone" : template.id === "behavioral" ? "intake" : undefined, psychotherapyMinutes: template.id === "psych_med_mgmt" ? psychotherapyMinutes(utts) : undefined, encounterClass: enc.visitType === "ed" || enc.setting === "ed" ? "ed" : enc.visitType === "inpatient" ? "initial_inpatient" : enc.visitType === "progress" ? "subsequent_inpatient" : enc.visitType === "discharge" ? "discharge" : "office" });
+  const { tcmForVisit } = await import("./tcm");
+  const tcm = await tcmForVisit(user, enc, utts, baseCoding.em.level);
+  if (tcm) {
+    baseCoding.tcm = tcm;
+    if (tcm.code) baseCoding.em = { ...baseCoding.em, code: tcm.code, timeBased: undefined };
+    else baseCoding.em.auditRisk.notes.push(`Transitional care management not billable yet: ${tcm.unmet.join("; ")}.`);
+  }
+  const coding = await enrichCoding(user, enc, patient, baseCoding, facts);
   const staged = stageOrders(facts, { chart: patient?.chart, ageYears: patient ? ageFrom(patient.dob) : undefined, now: new Date(enc.scheduledAt) });
   const coverage = computeCoverage(facts, { visitType: enc.visitType });
 
@@ -325,6 +333,8 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   await emit(user.orgId, "note.signed", { encounterId: enc.id, patientId: enc.patientId, signedAt, cosignPending: !!cosign });
   await audit.log(user, enc.id, "note.signed", { edited, editRatio, learned: candidates.length, forced: !!opts.force, overrides: blockers });
   await finalizeClaim(user, (await encounters.get(user, enc.id))!);
+  const { onTcmSigned } = await import("./tcm");
+  await onTcmSigned(user, enc.id, (await artifacts.get<CodingResult>(enc.id, "coding"))?.tcm);
   await holdClaimForCosign(user, enc.id, cosign);
   const given = orderList.filter((o) => o.kind === "vaccine" && o.status === "accepted");
   if (given.length && enc.patientId) {

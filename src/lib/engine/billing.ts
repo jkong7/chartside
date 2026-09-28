@@ -125,7 +125,7 @@ export const SERVICE_SUMMARY: Record<string, string> = {
   "97014": "Electrical stimulation, unattended",
   "97010": "Hot or cold packs (bundled)",
   "0502F": "Subsequent prenatal care visit (global OB package, tracking only)",
-  G0444: "Annual depression screening, 5 to 15 minutes", "99497": "Advance care planning, first 30 minutes",
+  G0444: "Annual depression screening, 5 to 15 minutes", "99495": "Transitional care management, moderate complexity, visit within 14 days", "99496": "Transitional care management, high complexity, visit within 7 days", "99497": "Advance care planning, first 30 minutes",
   "96110": "Developmental screening with standardized instrument", "96161": "Caregiver-focused health risk assessment", "99188": "Topical fluoride varnish", "99173": "Visual acuity screening", "92551": "Screening pure tone audiometry", "85018": "Hemoglobin", "83655": "Lead",
   "99381": "Preventive visit, new patient, under 1 year", "99382": "Preventive visit, new patient, 1 to 4 years", "99383": "Preventive visit, new patient, 5 to 11 years", "99384": "Preventive visit, new patient, 12 to 17 years",
   "99391": "Preventive visit, established patient, under 1 year", "99392": "Preventive visit, established patient, 1 to 4 years", "99393": "Preventive visit, established patient, 5 to 11 years", "99394": "Preventive visit, established patient, 12 to 17 years",
@@ -196,7 +196,7 @@ const FALLBACK_CHARGE: Record<string, number> = {
   G2211: 16, G2212: 31, "99417": 31, "99395": 118, "99396": 125, "99397": 135, G0438: 175, G0439: 130,
   "36415": 3, "87880": 16, "87804": 16, "87811": 41, "81003": 3, "83036": 13, "93000": 17,
   "90656": 24, "90715": 40, "90750": 196, "90677": 254, "91320": 128, "90471": 25, "90472": 13, "90480": 45, G0008: 34, G0009: 34, G0010: 34,
-  "96127": 5, "99406": 15, G0444: 18, "99497": 85, "96110": 10, "96161": 5, "99188": 20, "99173": 3, "92551": 12, "85018": 3, "83655": 12,
+  "96127": 5, "99406": 15, G0444: 18, "99497": 85, "99495": 200, "99496": 272, "96110": 10, "96161": 5, "99188": 20, "99173": 3, "92551": 12, "85018": 3, "83655": 12,
   "99381": 120, "99382": 125, "99383": 130, "99384": 140, "99391": 105, "99392": 115, "99393": 115, "99394": 125,
   "97161": 101, "97162": 101, "97163": 101, "97164": 70, "97165": 104, "97166": 104, "97167": 104, "97168": 71,
   "20600": 56, "20604": 75, "20605": 58, "20606": 80, "20610": 63, "20611": 92, "11102": 100, "11103": 55, "11104": 125, "11105": 65, "11106": 150, "11107": 75,
@@ -339,7 +339,7 @@ export function buildClaim(facts: Facts, coding: CodingResult, ctx: BillingConte
       if (n > 0) lines.push(line(s.cpt, "procedure", s.timed ? `${s.label}, ${s.minutes} min (${method === "cms" ? "CMS 8-minute rule across all timed services" : "8-minute rule per service"})` : `${s.label} (untimed)`, s.evidence, ptrs, [mod], n));
     }
   } else if (!wellness || problemsAddressed.length) {
-    emLine = line(coding.em.code, "em", coding.em.code === "90853" ? "Group psychotherapy" : /^908/.test(coding.em.code) ? `Psychotherapy by session time (${ctx.minutes} min)` : `${coding.em.level} MDM (${coding.em.patientType} patient)`, [...coding.em.problems.evidence, ...coding.em.risk.evidence].slice(0, 6), problemDx.length ? problemDx : ["A"], telehealth ? ["95"] : []);
+    emLine = line(coding.em.code, "em", coding.tcm?.code ? `Transitional care management, face-to-face visit on day ${coding.tcm.daysAfterDischarge} after discharge` : coding.em.code === "90853" ? "Group psychotherapy" : /^908/.test(coding.em.code) ? `Psychotherapy by session time (${ctx.minutes} min)` : `${coding.em.level} MDM (${coding.em.patientType} patient)`, [...coding.em.problems.evidence, ...coding.em.risk.evidence].slice(0, 6), problemDx.length ? problemDx : ["A"], telehealth ? ["95"] : []);
     lines.push(emLine);
   }
 
@@ -421,7 +421,7 @@ export function buildClaim(facts: Facts, coding: CodingResult, ctx: BillingConte
   }
 
   const chronicLongitudinal = facts.problems.some((p) => p.chronic && !p.fromSymptom && (p.status === "not at goal" || p.plan.length > 0));
-  const g2211Eligible = emLine && !inpatient && !/^908/.test(emLine.cpt) && ctx.patientType === "established" && chronicLongitudinal;
+  const g2211Eligible = emLine && !inpatient && /^992(?:0[2-5]|1[2-5])$/.test(emLine.cpt) && ctx.patientType === "established" && chronicLongitudinal;
   if (g2211Eligible) {
     const ev = facts.problems.filter((p) => p.chronic).flatMap((p) => p.evidence).slice(0, 3);
     const addOn = line("G2211", "addon", "Ongoing longitudinal care of a serious or complex chronic condition", ev, emLine!.pointers.slice(0, 1));
