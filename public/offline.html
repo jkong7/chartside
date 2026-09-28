@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#0f6b5c" />
+<title>Offline · Chartside</title>
+<style>
+body { margin: 0; min-height: 100vh; display: grid; place-items: center; font: 15px/1.5 system-ui, sans-serif; background: #faf8f3; color: #1d1b16; padding: 16px; }
+@media (prefers-color-scheme: dark) { body { background: #1a1916; color: #eeeae1; } }
+main { max-width: 380px; text-align: center; }
+img { width: 48px; height: 48px; }
+button { margin-top: 12px; font: inherit; background: #0f6b5c; color: #fff; border: 0; border-radius: 8px; padding: 8px 16px; }
+</style>
+</head>
+<body>
+<main>
+  <img src="/icon.svg" alt="" />
+  <h1>You're offline</h1>
+  <p>Chartside needs a connection to open this page. Recordings already in progress keep saving on this device and upload when you're back online.</p>
+  <button onclick="location.reload()">Try again</button>
+</main>
+</body>
+</html>
