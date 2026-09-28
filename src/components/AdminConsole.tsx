@@ -1,5 +1,6 @@
 "use client";
 
+import PlanPanel from "./PlanPanel";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, copyText } from "@/lib/client";
@@ -46,7 +47,7 @@ interface Data {
   audit: { id: string; action: string; detail: Record<string, unknown>; created_at: string; user_name: string | null; encounter_id: string | null }[];
 }
 
-type Tab = "members" | "sso" | "security" | "billing" | "developers" | "analytics" | "audit" | "org";
+type Tab = "members" | "plan" | "sso" | "security" | "billing" | "developers" | "analytics" | "audit" | "org";
 
 const ACTION_LABEL: Record<string, string> = {
   "user.login": "Signed in",
@@ -168,6 +169,7 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
           onChange={(t) => { setTab(t); setErr(null); }}
           tabs={[
             { id: "members", label: "Members" },
+            { id: "plan", label: "Plan & usage" },
             { id: "sso", label: "Single sign-on" },
             { id: "security", label: "Security" },
             { id: "billing", label: "Billing & code sets" },
@@ -180,6 +182,7 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
       </div>
       {err && <p className="mt-4 rounded-lg bg-rec-50 px-3 py-2 text-sm text-rec" role="alert">{err}</p>}
 
+      {tab === "plan" && <PlanPanel isOwner={me.role === "owner"} />}
       {tab === "members" && (
         <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="card divide-y divide-line" data-testid="members">

@@ -8,6 +8,7 @@ import { surveyDue } from "@/lib/server/survey";
 import SurveyPrompt from "@/components/SurveyPrompt";
 import Onboarding from "@/components/Onboarding";
 import { onboarding } from "@/lib/server/onboarding";
+import { planFor } from "@/lib/server/plan";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +28,12 @@ export default async function Today() {
   const shared = await sharedWithMe(user);
   const survey = await surveyDue(user);
   const steps = await onboarding(user);
+  const plan = ["owner", "admin"].includes(user.role) ? await planFor(user.orgId) : null;
   return (
     <>
+    {plan?.tier === "trial" && plan.daysLeft !== null && plan.daysLeft <= 3 && (
+      <div className="mx-auto max-w-5xl px-4 pt-6 md:px-8"><p className="rounded-lg bg-warn-50 px-4 py-2.5 text-sm text-warn" data-testid="trial-banner">Your free trial ends in {plan.daysLeft} day{plan.daysLeft === 1 ? "" : "s"}. <Link href="/admin" className="font-medium underline">Choose a plan</Link> to keep your notes flowing.</p></div>
+    )}
     {steps && <Onboarding items={steps} />}
     <TodayList
       rows={rows}
