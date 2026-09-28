@@ -1,5 +1,6 @@
 "use client";
 
+import PrebillPanel from "./PrebillPanel";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -39,8 +40,8 @@ function WeightChart({ weights }: { weights: { day: number; weight: string | nul
   );
 }
 
-export default function AdmissionView({ initial, canDocument, canNurse }: { initial: Data; canDocument: boolean; canNurse: boolean }) {
-  const [view, setView] = useState<"physician" | "nursing">(canDocument ? "physician" : "nursing");
+export default function AdmissionView({ initial, canDocument, canNurse, canReview, me }: { initial: Data; canDocument: boolean; canNurse: boolean; canReview: boolean; me: string }) {
+  const [view, setView] = useState<"physician" | "nursing" | "prebill">(canDocument ? "physician" : canReview && !canNurse ? "prebill" : "nursing");
   const router = useRouter();
   const [d, setD] = useState(initial);
   const [busy, setBusy] = useState<string | null>(null);
@@ -79,8 +80,8 @@ export default function AdmissionView({ initial, canDocument, canNurse }: { init
         )}
       </div>
       {err && <p className="mt-3 rounded-lg bg-rec-50 px-3 py-2 text-sm text-rec" role="alert">{err}</p>}
-      <div className="mt-5"><Tabs<"physician" | "nursing"> value={view} onChange={setView} tabs={[{ id: "physician", label: "Physician" }, { id: "nursing", label: "Nursing" }]} /></div>
-      {view === "nursing" ? <div className="mt-5"><NursingPanel admissionId={a.id} canDocument={canNurse && active} demo={a.mrn === INPATIENT_DEMO.mrn ? NURSING_DEMO : undefined} /></div> : (
+      <div className="mt-5"><Tabs<"physician" | "nursing" | "prebill"> value={view} onChange={setView} tabs={[{ id: "physician", label: "Physician" }, { id: "nursing", label: "Nursing" }, ...(canReview ? [{ id: "prebill" as const, label: "Pre-bill review" }] : [])]} /></div>
+      {view === "prebill" ? <PrebillPanel admissionId={a.id} canAnswer={me === a.attendingId} /> : view === "nursing" ? <div className="mt-5"><NursingPanel admissionId={a.id} canDocument={canNurse && active} demo={a.mrn === INPATIENT_DEMO.mrn ? NURSING_DEMO : undefined} /></div> : (
       <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-5">
           <section className="card">
