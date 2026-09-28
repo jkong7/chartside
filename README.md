@@ -60,6 +60,7 @@ Chartside covers the work around the note that enterprise scribes compete on. Th
 
 - **Public API** at `/api/v1` with an OpenAPI 3.1 spec at `/api/v1/openapi.json`: create patients and encounters, post a transcript (consent is recorded on first call), generate the note, and read JSON or FHIR. Organization API keys are hashed, scoped, and rate limited.
 - **Webhooks** for `note.generated`, `note.signed`, `claim.status_changed`, `task.created`, and `message.received`, signed with HMAC-SHA256 in `Chartside-Signature: t=…,v1=…`, retried with backoff, and logged in Admin → Developers.
+- **Patient delivery:** summary, intake, and reply-notification links go out by SMS (Twilio) or email (SendGrid) with no clinical content in the message; every attempt is logged in the patient's outbox. Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, `SENDGRID_API_KEY`, `CHARTSIDE_EMAIL_FROM`, and `CHARTSIDE_PUBLIC_URL`; without them Chartside logs the attempt and offers the link to copy.
 - **Security:** TOTP two-step verification with recovery codes, an organization-wide requirement, idle sign-out with a warning (15 minutes to 8 hours), active sessions with "sign out everywhere", and SCIM 2.0 user provisioning at `/scim/v2` for Okta and Entra ID.
 
 ## EHR integration (Epic / SMART on FHIR)

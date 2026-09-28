@@ -33,3 +33,20 @@ test("patient completes a pre-visit intake and the brief shows flags and screeni
   await expect(page.getByTestId("intake-flags")).toContainText("Social needs: food insecurity");
   await expect(page.getByTestId("intake-flags")).toContainText("Current tobacco use");
 });
+
+test("saves patient contact info and logs a send attempt when no provider is configured", async ({ page }) => {
+  await register(page);
+  const pats = (await (await page.request.get("/api/patients")).json()) as { patients: { id: string; name: string }[] };
+  const maria = pats.patients.find((p) => p.name === "Maria Gonzalez")!;
+  await page.goto(`/patients/${maria.id}`);
+  await page.getByTestId("contact-phone").fill("(312) 555-0142");
+  await page.getByTestId("contact-save").click();
+  await expect(page.getByTestId("contact-phone")).toHaveValue("+13125550142");
+  await page.goto("/today");
+  await page.getByTestId("visit-row").filter({ hasText: "Maria Gonzalez" }).click();
+  await page.getByTestId("intake-create").click();
+  await page.getByTestId("send-intake").click();
+  await expect(page.getByTestId("send-intake-status")).toContainText("No SMS provider is configured");
+  await page.goto(`/patients/${maria.id}`);
+  await expect(page.getByTestId("outbox")).toContainText("intake by sms to +13125550142 · unconfigured");
+});

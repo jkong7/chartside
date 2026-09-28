@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { api, copyText } from "@/lib/client";
+import SendToPatient from "../SendToPatient";
 import type { CodingResult, DxDetail, MdmElement, PatientSummary, StagedOrder } from "@/lib/types";
 import { Alert, Check, Copy, Globe, Info, Link as LinkIcon, X } from "../icons";
 import { Empty, Spinner } from "../ui";
@@ -332,6 +333,7 @@ export function SummaryPanel({ b, onFlags }: { b: Bundle; onFlags: () => void })
             <button className="btn-primary" onClick={async () => { const r = await api<{ url: string }>(`/encounters/${b.encounter.id}/share`, { method: "POST" }); setShare(r.url); }} data-testid="share">
               <Globe /> {share ? "Patient link ready" : "Create patient link"}
             </button>
+            {share && <SendToPatient encounterId={b.encounter.id} kind="summary" />}
             {share && (
               <a href={share} target="_blank" rel="noreferrer" className="break-all rounded-lg bg-sunken px-3 py-2 font-mono text-xs text-brand" data-testid="share-link">{typeof window !== "undefined" ? window.location.origin : ""}{share}</a>
             )}

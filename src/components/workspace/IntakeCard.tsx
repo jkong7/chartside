@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api, copyText } from "@/lib/client";
 import type { IntakeRecord } from "@/lib/server/intake";
 import { Alert, Copy } from "../icons";
+import SendToPatient from "../SendToPatient";
 
 const FREQ = ["not at all", "several days", "more than half the days", "nearly every day"];
 
@@ -24,7 +25,7 @@ export default function IntakeCard({ encounterId, intake, onChange }: { encounte
       <div className="card p-5" data-testid="intake-card">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-3">Patient intake · waiting for answers</h3>
         <p className="mt-2 break-all rounded-lg bg-sunken px-3 py-2 font-mono text-xs" data-testid="intake-link">{url}</p>
-        <button className="btn-ghost mt-2 px-2 text-xs" onClick={async () => { await copyText(url); setCopied(true); }}><Copy size={12} /> {copied ? "Copied" : "Copy link for text or portal message"}</button>
+        <div className="mt-2 flex flex-wrap items-center gap-2"><button className="btn-ghost px-2 text-xs" onClick={async () => { await copyText(url); setCopied(true); }}><Copy size={12} /> {copied ? "Copied" : "Copy link"}</button><SendToPatient encounterId={encounterId} kind="intake" /></div>
       </div>
     );
   }
