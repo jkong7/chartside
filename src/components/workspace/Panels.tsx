@@ -1,5 +1,6 @@
 "use client";
 
+import OrderSets from "./OrderSets";
 import { useState } from "react";
 import { api, copyText } from "@/lib/client";
 import SendToPatient from "../SendToPatient";
@@ -215,6 +216,7 @@ const KIND_LABEL: Record<StagedOrder["kind"], string> = { lab: "Lab", imaging: "
 
 export function OrdersPanel({ encounterId, orders, locked, onChange, onCite }: { encounterId: string; orders: StagedOrder[]; locked: boolean; onChange: (fn: (o: StagedOrder[]) => StagedOrder[]) => void; onCite: (ids: string[]) => void }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   async function set(o: StagedOrder, status: StagedOrder["status"], override = false) {
@@ -231,9 +233,12 @@ export function OrdersPanel({ encounterId, orders, locked, onChange, onCite }: {
   }
 
   const safe = orders.filter((o) => o.status === "staged" && !o.alerts.some((a) => a.level !== "info"));
-  if (!orders.length) return <Empty title="No orders were discussed in this visit." />;
+  const sets = <OrderSets encounterId={encounterId} orders={orders} locked={locked} onApplied={(next, note) => { onChange(() => next); setErr(null); setNote(note); }} />;
+  if (!orders.length) return <div className="space-y-3">{sets}<Empty title="No orders were discussed in this visit." /></div>;
   return (
     <div className="space-y-3" data-testid="orders-panel">
+      {sets}
+      {note && <p className="text-xs text-ok" data-testid="order-set-applied">{note}</p>}
       <div className="flex items-center justify-between">
         <p className="text-sm text-ink-2">Orders heard during the visit are staged here. Nothing is sent until you accept it.</p>
         {!locked && safe.length > 1 && (
