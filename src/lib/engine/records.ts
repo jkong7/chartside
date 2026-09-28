@@ -1,3 +1,4 @@
+import { REFERRALS } from "./lexicon";
 import { inflateSync } from "node:zlib";
 import { CONDITIONS, MEDICATIONS } from "./lexicon";
 
@@ -187,4 +188,12 @@ export function recordsText(name: string, mime: string, buf: Buffer) {
   const t = buf.toString("utf8");
   if (/<ClinicalDocument\b/.test(t)) return { format: "ccda" as const, text: ccdaToText(t) };
   return { format: "text" as const, text: t };
+}
+
+const CONSULT = /\b(?:consult(?:ation)?(?: note| report)?|thank you for (?:the|this|your) (?:kind )?referral|referred by|reason for referral|new patient consult|specialist evaluation)\b/i;
+
+export function consultSpecialties(text: string): string[] {
+  const head = text.slice(0, 2500);
+  if (!CONSULT.test(head)) return [];
+  return REFERRALS.filter((r) => r.pattern.test(head)).map((r) => r.name);
 }

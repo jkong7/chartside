@@ -1,5 +1,6 @@
+import { tasks } from "./inbox";
 import { all, get, now, run, uid } from "../db";
-import { extractRecords, recordsText, type RecordFinding } from "../engine/records";
+import { consultSpecialties, extractRecords, recordsText, type RecordFinding } from "../engine/records";
 import type { Chart } from "../types";
 import { assertCan, Invalid } from "./policy";
 import { audit, j, patients, type User } from "./repo";
@@ -55,7 +56,17 @@ export async function importRecord(u: User, patientId: string, input: { name: st
   const id = uid("rec_");
   await run("INSERT INTO outside_records (id, org_id, patient_id, name, format, text, findings, uploaded_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", id, u.orgId, patientId, input.name.slice(0, 120), format, text.slice(0, 200000), JSON.stringify(findings), u.id, now());
   await audit.log(u, null, "records.imported", { patientId, id, format, findings: findings.length });
-  return (await recordsFor(u, patientId)).find((r) => r.id === id)!;
+  const closedReferrals: string[] = [];
+  const specialties = consultSpecialties(text);
+  if (specialties.length) {
+    for (const t of await tasks.forPatient(u, patientId)) {
+      if (t.kind !== "referral" || !specialties.some((s) => t.title.toLowerCase().includes(s.toLowerCase()))) continue;
+      await run("UPDATE tasks SET status = 'done', completed_by = ?, completed_at = ?, detail = ? WHERE id = ?", u.id, now(), `${t.detail ? `${t.detail} ` : ""}Closed: consult note received (${input.name.slice(0, 80)}).`, t.id);
+      await audit.log(u, t.encounterId, "referral.closed", { taskId: t.id, recordId: id, specialty: specialties.find((s) => t.title.toLowerCase().includes(s.toLowerCase())) });
+      closedReferrals.push(t.title);
+    }
+  }
+  return { ...(await recordsFor(u, patientId)).find((r) => r.id === id)!, closedReferrals };
 }
 
 export async function recordsFor(u: User, patientId: string): Promise<OutsideRecord[]> {

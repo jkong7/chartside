@@ -85,3 +85,23 @@ describe("outside record reconciliation", () => {
     await expect(rec.importRecord(u, p.id, { name: "blank.txt", mime: "text/plain", data: Buffer.from("   ") })).rejects.toThrow("empty");
   });
 });
+
+describe("referral loop closure", () => {
+  it("closes an open referral task when the specialist's consult note is imported", async () => {
+    const { consultSpecialties } = await import("@/lib/engine/records");
+    expect(consultSpecialties("CARDIOLOGY CONSULTATION\nThank you for the referral of this pleasant 58-year-old...")).toEqual(["Cardiology"]);
+    expect(consultSpecialties("Discharge summary. Seen by cardiology during the stay.")).toEqual([]);
+    const repo = await import("@/lib/server/repo");
+    const { tasks } = await import("@/lib/server/inbox");
+    const rec = await import("@/lib/server/records");
+    const { newMember } = await import("./org-helpers");
+    const doc = await newMember("Dr. Loop Closer");
+    const p = await repo.patients.create(doc, { mrn: "77001", name: "Loop Patient", dob: "1960-01-01", sex: "F", pronouns: "", language: "en", chart: { problems: [], medications: [], allergies: [] } });
+    await tasks.create({ orgId: doc.orgId, patientId: p.id, assigneeId: doc.id, kind: "referral", key: "referral:referral to cardiology", title: "Confirm Referral to Cardiology appointment was scheduled", source: "auto" });
+    await tasks.create({ orgId: doc.orgId, patientId: p.id, assigneeId: doc.id, kind: "referral", key: "referral:referral to podiatry", title: "Confirm Referral to Podiatry appointment was scheduled", source: "auto" });
+    const out = await rec.importRecord(doc, p.id, { name: "cards-consult.txt", mime: "text/plain", data: Buffer.from("Cardiology Consultation\nReason for referral: exertional chest pressure.\nAssessment: stable angina. Plan: stress echocardiogram, start metoprolol 25 mg daily.") });
+    expect(out.closedReferrals).toEqual(["Confirm Referral to Cardiology appointment was scheduled"]);
+    const open = await tasks.forPatient(doc, p.id);
+    expect(open.map((t) => t.title)).toEqual(["Confirm Referral to Podiatry appointment was scheduled"]);
+  });
+});

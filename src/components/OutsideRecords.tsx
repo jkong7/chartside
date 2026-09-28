@@ -17,7 +17,9 @@ export default function OutsideRecords({ patientId, initial, canEdit }: { patien
   const [err, setErr] = useState<string | null>(null);
   const [picked, setPicked] = useState<Record<string, Set<number>>>(() => Object.fromEntries(initial.map((r) => [r.id, new Set(r.findings.map((f, i) => (f.status === "pending" ? i : -1)).filter((i) => i >= 0))])));
 
-  function adopt(r: OutsideRecord) {
+  const [closed, setClosed] = useState<string[]>([]);
+  function adopt(r: OutsideRecord & { closedReferrals?: string[] }) {
+    setClosed(r.closedReferrals ?? []);
     setRecords((x) => [r, ...x.filter((y) => y.id !== r.id)]);
     setPicked((p) => ({ ...p, [r.id]: new Set(r.findings.map((f, i) => (f.status === "pending" ? i : -1)).filter((i) => i >= 0)) }));
   }
@@ -54,7 +56,8 @@ export default function OutsideRecords({ patientId, initial, canEdit }: { patien
       {err && <p className="mt-2 text-sm text-rec" role="alert">{err}</p>}
       {busy && paste === null && <p className="mt-2 flex items-center gap-2 text-sm text-ink-3"><Spinner /> Reading…</p>}
       <div className="mt-2 space-y-3">
-        {records.map((r) => {
+        {closed.length > 0 && <p className="rounded-lg bg-ok-50 px-3 py-2 text-sm text-ok" data-testid="referral-closed">Referral loop closed: {closed.join("; ")}</p>}
+          {records.map((r) => {
           const sel = picked[r.id] ?? new Set<number>();
           const pending = r.findings.some((f) => f.status === "pending");
           const groups = [...new Set(r.findings.map((f) => f.kind))];
