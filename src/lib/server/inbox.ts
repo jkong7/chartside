@@ -229,6 +229,14 @@ export async function sendReply(u: User, id: string, input: { text?: string; act
     await tasks.create({ orgId: u.orgId, patientId: m.patientId, messageId: id, assigneeId: m.assigneeId, kind: (kind === "appointment" ? "follow_up" : kind === "billing" ? "other" : kind) as TaskKind, key: `msg:${id}:${title}`, title, detail: `From ${m.patientName}'s message: "${m.subject}"`, dueAt: new Date(Date.now() + 86400000).toISOString(), source: "message", createdBy: u.id });
   }
   await audit.log(u, m.encounterId, "message.replied", { id, draftUsed, editRatio: edit, chars: text.length });
+  if (m.channel === "visit_link" && m.encounterId) {
+    const share = await artifacts.get<{ token: string }>(m.encounterId, "share");
+    const base = process.env.CHARTSIDE_PUBLIC_URL?.replace(/\/$/, "");
+    if (share && base) {
+      const { notifyPatient } = await import("./notify");
+      await notifyPatient(u, { orgId: u.orgId, patientId: m.patientId, encounterId: m.encounterId, kind: "reply", url: `${base}/s/${share.token}` }).catch(() => undefined);
+    }
+  }
   return (await messages.get(u, id))!;
 }
 

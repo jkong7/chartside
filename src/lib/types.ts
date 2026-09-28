@@ -169,6 +169,9 @@ export interface Patient {
   chart: Chart;
   externalSystem?: string | null;
   externalId?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  contactPref?: "sms" | "email" | "none" | null;
 }
 
 export type EncounterStatus = "scheduled" | "recording" | "paused" | "processing" | "review" | "signed";

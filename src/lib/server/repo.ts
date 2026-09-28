@@ -247,6 +247,9 @@ interface PatientRow {
   created_at: string;
   external_system: string | null;
   external_id: string | null;
+  phone?: string | null;
+  email?: string | null;
+  contact_pref?: string | null;
 }
 
 const toPatient = (r: PatientRow): Patient => ({
@@ -260,6 +263,9 @@ const toPatient = (r: PatientRow): Patient => ({
   chart: { problems: [], medications: [], allergies: [], ...j<Partial<Chart>>(r.chart, {}) } as Chart,
   externalSystem: r.external_system,
   externalId: r.external_id,
+  phone: r.phone ?? null,
+  email: r.email ?? null,
+  contactPref: (r.contact_pref ?? null) as Patient["contactPref"],
 });
 
 export const patients = {
@@ -277,6 +283,7 @@ export const patients = {
     await run("INSERT INTO patients (id, user_id, org_id, mrn, name, dob, sex, pronouns, language, chart, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", id, u.id, u.orgId, p.mrn, p.name, p.dob, p.sex, p.pronouns, p.language, JSON.stringify(p.chart), now());
     return (await patients.get(u, id))!;
   },
+  setContact: (u: User, id: string, c: { phone: string | null; email: string | null; pref: string | null }) => run("UPDATE patients SET phone = ?, email = ?, contact_pref = ? WHERE org_id = ? AND id = ?", c.phone, c.email, c.pref, u.orgId, id),
   updateChart: (u: User, id: string, chart: Chart) => run("UPDATE patients SET chart = ? WHERE org_id = ? AND id = ?", JSON.stringify(chart), u.orgId, id),
   byExternal: async (u: User, system: string, externalId: string) => {
     const r = await get<PatientRow>("SELECT * FROM patients WHERE org_id = ? AND external_system = ? AND external_id = ?", u.orgId, system, externalId);

@@ -461,6 +461,23 @@ CREATE TABLE IF NOT EXISTS outside_records (
   uploaded_by TEXT,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS outbox (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  patient_id TEXT,
+  encounter_id TEXT,
+  kind TEXT NOT NULL,
+  channel TEXT NOT NULL,
+  recipient TEXT NOT NULL,
+  subject TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL,
+  status TEXT NOT NULL,
+  provider TEXT,
+  provider_id TEXT,
+  error TEXT,
+  created_by TEXT,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ehr_connections (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -519,6 +536,9 @@ const LEGACY_COLUMNS: [string, string, string][] = [
   ["memberships", "credential", "TEXT NOT NULL DEFAULT ''"],
   ["encounters", "admission_id", "TEXT"],
   ["admissions", "care", "TEXT NOT NULL DEFAULT '[]'"],
+  ["patients", "phone", "TEXT"],
+  ["patients", "email", "TEXT"],
+  ["patients", "contact_pref", "TEXT"],
   ["users", "mfa_secret", "TEXT"],
   ["users", "mfa_enabled_at", "TEXT"],
   ["users", "mfa_recovery", "TEXT"],
