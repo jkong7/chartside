@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import CoverageCard from "@/components/CoverageCard";
 import ContactCard from "@/components/ContactCard";
 import OncologyCard from "@/components/OncologyCard";
+import TcmCard from "@/components/TcmCard";
+import { tcmForPatient } from "@/lib/server/tcm";
 import PregnancyCard from "@/components/PregnancyCard";
 import OutsideRecords from "@/components/OutsideRecords";
 import { recordsFor } from "@/lib/server/records";
@@ -43,6 +45,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
         <div className="card p-4"><p className="label">Medications</p>{p.chart.medications.length ? p.chart.medications.map((m) => <p key={m.name} className="text-sm">{m.name} <span className="text-ink-3">{[m.dose, m.frequency].filter(Boolean).join(" ")}</span>{m.source?.startsWith("outside") && <span className="pill ml-1 bg-info-50 text-[10px] text-info">outside</span>}</p>) : <p className="text-sm text-ink-3">None</p>}</div>
         <div className="card p-4"><p className="label">Allergies</p>{p.chart.allergies.length ? p.chart.allergies.map((a) => <p key={a.substance} className="text-sm text-rec">{a.substance}{a.reaction ? ` (${a.reaction})` : ""}</p>) : <p className="text-sm text-ink-3">NKDA</p>}</div>
       </div>
+      <TcmCard initial={await tcmForPatient(user, p.id)} canEdit={can(user, "clinical.edit")} />
       {p.chart.oncology && <OncologyCard profile={p.chart.oncology} />}
       {(p.sex === "F" || p.chart.pregnancy) && ageFrom(p.dob) >= 10 && ageFrom(p.dob) <= 60 && <PregnancyCard patientId={p.id} initial={p.chart.pregnancy ?? null} canEdit={can(user, "patients.write")} />}
       <div className="mt-4"><ContactCard patientId={p.id} initial={{ phone: p.phone ?? null, email: p.email ?? null, pref: p.contactPref ?? null }} canEdit={can(user, "patients.write")} /></div>

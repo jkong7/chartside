@@ -55,6 +55,15 @@ test("hospitalist rounds: census, progress note with changes and carry-forward, 
   await expect(page.getByTestId("census-row").filter({ hasText: "Harold Jensen" })).toHaveCount(0);
   await page.goto("/hospital/handoff");
   await expect(page.getByTestId("handoff-table")).toBeVisible();
+
+  await page.goto("/patients");
+  await page.getByRole("link", { name: /Harold Jensen/ }).first().click();
+  const tcm = page.getByTestId("tcm-card");
+  await expect(tcm.getByTestId("tcm-contact")).toContainText("Contact due by");
+  await tcm.getByTestId("tcm-reached").click();
+  await expect(tcm.getByTestId("tcm-contact")).toContainText("Contact made");
+  await page.goto("/scheduling");
+  await expect(page.getByText(/TCM: post-discharge visit for Harold Jensen/).first()).toBeVisible();
 });
 
 test("admits a new patient from the census and starts the admission H&P", async ({ page }) => {
