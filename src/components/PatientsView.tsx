@@ -2,19 +2,39 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { age, api } from "@/lib/client";
 import type { Patient } from "@/lib/types";
 import { Plus, Search } from "./icons";
 import { Avatar, Modal, Spinner } from "./ui";
 
-export default function PatientsView({ patients }: { patients: (Patient & { visits: number; lastVisit: string | null })[] }) {
+type Row = Patient & { visits: number; lastVisit: string | null };
+
+export default function PatientsView({ initial, total: initialTotal }: { initial: Row[]; total: number }) {
   const router = useRouter();
   const [q, setQ] = useState("");
+  const [patients, setPatients] = useState(initial);
+  const [total, setTotal] = useState(initialTotal);
+  const [loading, setLoading] = useState(false);
+  const seq = useRef(0);
+  useEffect(() => {
+    const n = ++seq.current;
+    const t = setTimeout(async () => {
+      if (!q && patients === initial) return;
+      setLoading(true);
+      const r = await api<{ patients: Row[]; total: number }>(`/patients?q=${encodeURIComponent(q)}&offset=0`);
+      if (n === seq.current) {
+        setPatients(r.patients);
+        setTotal(r.total);
+        setLoading(false);
+      }
+    }, 200);
+    return () => clearTimeout(t);
+  }, [q]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const shown = useMemo(() => patients.filter((p) => `${p.name} ${p.mrn}`.toLowerCase().includes(q.toLowerCase())), [patients, q]);
+  const shown = patients;
 
   async function create(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -38,7 +58,7 @@ export default function PatientsView({ patients }: { patients: (Patient & { visi
       <div className="flex items-end justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl">Patients</h1>
-          <p className="mt-1 text-sm text-ink-2">{patients.length} patients on your panel</p>
+          <p className="mt-1 text-sm text-ink-2" data-testid="patient-total">{q ? `${total} match${total === 1 ? "" : "es"}` : `${total} patients`}</p>
         </div>
         <button className="btn-primary" onClick={() => setOpen(true)}><Plus /> Add patient</button>
       </div>
@@ -63,6 +83,9 @@ export default function PatientsView({ patients }: { patients: (Patient & { visi
         ))}
         {!shown.length && <p className="px-4 py-8 text-center text-sm text-ink-3">No patients match &ldquo;{q}&rdquo;.</p>}
       </div>
+      {patients.length < total && (
+        <div className="mt-3 flex justify-center"><button className="btn-outline" disabled={loading} onClick={async () => { setLoading(true); const r = await api<{ patients: Row[]; total: number }>(`/patients?q=${encodeURIComponent(q)}&offset=${patients.length}`); setPatients([...patients, ...r.patients]); setTotal(r.total); setLoading(false); }} data-testid="patient-more">{loading ? <Spinner /> : null} Show more ({total - patients.length})</button></div>
+      )}
 
       <Modal open={open} onClose={() => setOpen(false)} title="Add a patient">
         <form onSubmit={create} className="grid grid-cols-2 gap-4">

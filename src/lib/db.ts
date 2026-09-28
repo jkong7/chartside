@@ -662,6 +662,7 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS audit_org ON audit(org_id, created_at)",
   "CREATE INDEX IF NOT EXISTS encounters_org ON encounters(org_id, scheduled_at)",
   "CREATE INDEX IF NOT EXISTS patients_org ON patients(org_id)",
+  "CREATE INDEX IF NOT EXISTS encounters_patient ON encounters(patient_id, scheduled_at)",
   "CREATE INDEX IF NOT EXISTS memberships_user ON memberships(user_id)",
   "CREATE INDEX IF NOT EXISTS addenda_enc ON addenda(encounter_id, ord)",
   "CREATE INDEX IF NOT EXISTS tasks_assignee ON tasks(org_id, assignee_id, status)",

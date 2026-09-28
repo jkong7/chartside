@@ -274,6 +274,16 @@ const toPatient = (r: PatientRow): Patient => ({
 
 export const patients = {
   list: async (u: User) => (await all<PatientRow>("SELECT * FROM patients WHERE org_id = ? ORDER BY name", u.orgId)).map(toPatient),
+  page: async (u: User, opts: { q?: string; limit?: number; offset?: number } = {}) => {
+    const limit = Math.min(200, Math.max(1, opts.limit ?? 50));
+    const offset = Math.max(0, opts.offset ?? 0);
+    const q = (opts.q ?? "").trim().toLowerCase();
+    const where = q ? "AND (LOWER(p.name) LIKE ? OR LOWER(p.mrn) LIKE ?)" : "";
+    const params = q ? [u.orgId, `%${q}%`, `%${q}%`] : [u.orgId];
+    const total = Number((await get<{ n: number }>(`SELECT COUNT(*) AS n FROM patients p WHERE p.org_id = ? ${where}`, ...params))?.n ?? 0);
+    const rows = await all<PatientRow & { visits: number; last_visit: string | null }>(`SELECT p.*, (SELECT COUNT(*) FROM encounters e WHERE e.patient_id = p.id) AS visits, (SELECT MAX(e.scheduled_at) FROM encounters e WHERE e.patient_id = p.id) AS last_visit FROM patients p WHERE p.org_id = ? ${where} ORDER BY p.name LIMIT ${limit} OFFSET ${offset}`, ...params);
+    return { total, rows: rows.map((r) => ({ ...toPatient(r), visits: Number(r.visits), lastVisit: r.last_visit })) };
+  },
   get: async (u: User, id: string) => {
     const r = await get<PatientRow>("SELECT * FROM patients WHERE org_id = ? AND id = ?", u.orgId, id);
     return r ? toPatient(r) : undefined;
