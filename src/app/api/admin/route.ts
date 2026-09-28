@@ -12,7 +12,13 @@ export const GET = authed(async (_req, user) => {
 
 export const PATCH = authed(async (req, user) => {
   assertCan(user, "org.manage");
-  const b = await body<{ name?: string; appsRequireCosign?: boolean; aiDisclosure?: boolean }>(req);
+  const b = await body<{ name?: string; appsRequireCosign?: boolean; aiDisclosure?: boolean; externalSharing?: boolean }>(req);
+  if (b.externalSharing !== undefined) {
+    const cur = (await orgs.get(user.orgId))!;
+    const org = await orgs.update(user.orgId, { settings: { ...cur.settings, sharing: { external: !!b.externalSharing } } });
+    await audit.log(user, null, "org.sharing_policy", { external: !!b.externalSharing });
+    return json({ org });
+  }
   if (b.aiDisclosure !== undefined) {
     const cur = (await orgs.get(user.orgId))!;
     const org = await orgs.update(user.orgId, { settings: { ...cur.settings, aiDisclosure: !!b.aiDisclosure } });

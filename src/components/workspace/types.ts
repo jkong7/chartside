@@ -43,7 +43,8 @@ export interface Bundle {
   chain: { intact: boolean | null; checked: number; brokenAt: string | null };
   attestations: { key: string; label: string; modifier: string | null; source: string; preview: string }[];
   clinician: { id: string; name: string };
-  access: { userId: string; role: string; capture: boolean; edit: boolean; sign: boolean; billingReview: boolean; cosign: boolean; addendum: boolean };
+  access: { userId: string; role: string; capture: boolean; edit: boolean; sign: boolean; billingReview: boolean; cosign: boolean; addendum: boolean; share: boolean };
+  colleagues: { id: string; name: string; role: string }[];
   speech: { provider: "deepgram" | "browser"; live: boolean; finalPass: boolean; wsUrl: string | null };
 }
 

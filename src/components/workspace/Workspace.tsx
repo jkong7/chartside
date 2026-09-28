@@ -1,5 +1,6 @@
 "use client";
 
+import ShareVisit from "./ShareVisit";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SegmentPlayer } from "@/lib/audio/player";
@@ -157,6 +158,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
               <Copy /> Copy for EHR
             </button>
             <a className="btn-outline" href={`/api/encounters/${id}/export?format=fhir`} data-testid="fhir"><Download /> FHIR</a>
+            {b.access.share && b.encounter.patientId && <ShareVisit encId={id} colleagues={b.colleagues} sensitive={!!b.note?.content.meta.sensitive} />}
             {!signed && b.access.sign && <button className="btn-primary" disabled={signing} onClick={() => sign(false)} data-testid="sign">{signing ? <Spinner /> : <Shield />} Sign note</button>}
             {!signed && !b.access.sign && <span className="pill whitespace-nowrap bg-warn-50 text-warn" data-testid="awaiting-signature">Awaiting {b.clinician.name}&apos;s signature</span>}
           </>

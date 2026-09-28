@@ -34,6 +34,12 @@ export default defineConfig({
       env: { MOCK_DG_PORT: "3299" },
     },
     {
+      command: "node tests/e2e/mock-mail.mjs",
+      url: "http://localhost:3295/stats",
+      reuseExistingServer: false,
+      env: { MOCK_MAIL_PORT: "3295" },
+    },
+    {
       command: "node tests/e2e/mock-oidc.mjs",
       url: "http://localhost:3296/.well-known/openid-configuration",
       reuseExistingServer: false,
@@ -54,6 +60,9 @@ export default defineConfig({
         SMART_CLIENT_ID: "chartside-test",
         SMART_ISS: "http://localhost:3297/fhir",
         SMART_LABEL: "Epic",
+        SENDGRID_API_KEY: "test-sendgrid",
+        SENDGRID_BASE_URL: "http://localhost:3295",
+        CHARTSIDE_EMAIL_FROM: "notes@chartside.test",
         ...(process.env.DATABASE_URL ? { DATABASE_URL: process.env.DATABASE_URL } : {}),
       },
     },

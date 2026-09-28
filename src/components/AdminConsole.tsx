@@ -38,7 +38,7 @@ interface Sso {
 }
 
 interface Data {
-  org: { id: string; name: string; slug: string; createdAt: string; appsRequireCosign: boolean; aiDisclosure: boolean };
+  org: { id: string; name: string; slug: string; createdAt: string; appsRequireCosign: boolean; aiDisclosure: boolean; externalSharing: boolean };
   members: Member[];
   invites: { token: string; email: string; role: Role; expiresAt: string; createdAt: string }[];
   sso: Sso | null;
@@ -299,6 +299,10 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
               <label className="mt-3 flex items-center gap-2 border-t border-line pt-3 text-sm">
                 <input type="checkbox" checked={d.org.aiDisclosure} disabled={busy} onChange={(e) => run(() => api("/admin", { method: "PATCH", body: { aiDisclosure: e.target.checked } }), e.target.checked ? "Signed notes now include an AI disclosure line." : "AI disclosure line turned off.")} data-testid="ai-disclosure" />
                 Add an AI-assistance disclosure to signed notes
+              </label>
+              <label className="mt-3 flex items-center gap-2 border-t border-line pt-3 text-sm">
+                <input type="checkbox" checked={d.org.externalSharing} disabled={busy} onChange={(e) => run(() => api("/admin", { method: "PATCH", body: { externalSharing: e.target.checked } }), e.target.checked ? "Clinicians can share notes outside the organization with a verified link." : "External sharing turned off.")} data-testid="external-sharing" />
+                Allow sharing notes outside the organization (email link with one-time code)
               </label>
             </div>
             <div className="card p-4">

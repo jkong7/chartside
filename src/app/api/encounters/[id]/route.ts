@@ -3,7 +3,7 @@ import { authed, body, fail, json } from "@/lib/server/http";
 import { speechConfig } from "@/lib/server/audio";
 import { consentScript } from "@/lib/server/pipeline";
 import { assertCan, can, canSign } from "@/lib/server/policy";
-import { addenda, artifacts, audioChunks, audit, claims, consents, encounters, feedback, notes, orders, orgs, patientFlags, patients, templates, users, utterances } from "@/lib/server/repo";
+import { addenda, artifacts, audioChunks, audit, claims, consents, encounters, feedback, notes, orders, orgs, patientFlags, patients, SEES_ORG, templates, users, utterances } from "@/lib/server/repo";
 import type { Encounter } from "@/lib/types";
 import { attestationsFor } from "@/lib/engine/attest";
 import { verifyChain, type Cosign } from "@/lib/server/signoff";
@@ -67,7 +67,9 @@ export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
     chain,
     attestations: cosign ? attestationsFor(cosign.authorCredential).map((a) => ({ key: a.key, label: a.label, modifier: a.modifier, source: a.source, preview: a.text({ supervisor: user.name, author: cosign.authorName }) })) : [],
     clinician: { id: enc.userId, name: clinician?.name ?? "Unknown" },
+    colleagues: enc.userId === user.id || SEES_ORG.has(user.role) ? (await orgs.members(user.orgId)).filter((m) => m.status === "active" && m.userId !== enc.userId).map((m) => ({ id: m.userId, name: m.name, role: m.role })) : [],
     access: {
+      share: enc.userId === user.id || SEES_ORG.has(user.role),
       userId: user.id,
       role: user.role,
       capture: can(user, "clinical.capture"),
