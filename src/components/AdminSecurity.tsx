@@ -35,6 +35,7 @@ export default function AdminSecurity() {
             {[15, 30, 60, 120, 480].map((m) => <option key={m} value={m}>{m < 60 ? `${m} minutes` : `${m / 60} hour${m > 60 ? "s" : ""}`}</option>)}
           </select>
         </label>
+        <RetentionSelect onSaved={(m) => setSaved(m)} />
         {err && <p className="text-sm text-rec" role="alert">{err}</p>}
         {saved && <p className="text-sm text-ok" role="status">{saved}</p>}
       </div>
@@ -49,5 +50,23 @@ export default function AdminSecurity() {
         <button className="btn-outline" onClick={async () => { setToken((await api<{ token: string }>("/admin/security", { method: "PATCH", body: { rotateScim: true } })).token); setS((x) => (x ? { ...x, scim: { createdAt: new Date().toISOString(), defaultRole: "clinician" } } : x)); }} data-testid="rotate-scim">{s.scim ? "Rotate token" : "Generate token"}</button>
       </div>
     </div>
+  );
+}
+
+function RetentionSelect({ onSaved }: { onSaved: (m: string) => void }) {
+  const [days, setDays] = useState<number | null | undefined>(undefined);
+  useEffect(() => {
+    api<{ transcriptDays: number | null }>("/admin/retention").then((r) => setDays(r.transcriptDays)).catch(() => undefined);
+  }, []);
+  if (days === undefined) return null;
+  return (
+    <label className="block text-sm"><span className="label">Delete transcripts after signing</span>
+      <select className="input w-64" value={days === null ? "keep" : String(days)} onChange={async (e) => { const v = e.target.value === "keep" ? null : Number(e.target.value); const r = await api<{ transcriptDays: number | null; purged: number }>("/admin/retention", { method: "PUT", body: { transcriptDays: v } }); setDays(r.transcriptDays); onSaved(v === null ? "Transcripts are kept." : `Transcript retention updated${r.purged ? `; ${r.purged} older transcript${r.purged === 1 ? "" : "s"} removed` : ""}.`); }} data-testid="transcript-retention">
+        <option value="keep">Keep transcripts</option>
+        <option value="0">At signing</option>
+        {[7, 30, 90, 365].map((d) => <option key={d} value={d}>{d} days after signing</option>)}
+      </select>
+      <span className="mt-1 block text-xs text-ink-3">Signed notes are always kept. Evidence links show that the source was removed.</span>
+    </label>
   );
 }
