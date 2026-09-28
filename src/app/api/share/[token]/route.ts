@@ -1,5 +1,5 @@
 import { fail, json } from "@/lib/server/http";
-import { artifacts, encounterByShareToken, patientFlags, patients, users, utterances } from "@/lib/server/repo";
+import { artifacts, encounterByShareToken, notes, patientFlags, patients, users, utterances } from "@/lib/server/repo";
 import type { PatientSummary } from "@/lib/types";
 import { documents } from "@/lib/server/documents";
 
@@ -17,7 +17,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
     date: enc.scheduledAt,
     lang,
     summaries,
-    transcript: (await utterances.list(enc.id)).filter((u) => !u.redacted).map((u) => ({ id: u.id, speaker: u.speaker, text: u.text })),
+    transcript: (await notes.latest(enc.id))?.content.meta.sensitive ? [] : (await utterances.list(enc.id)).filter((u) => !u.redacted).map((u) => ({ id: u.id, speaker: u.speaker, text: u.text })),
     documents: (await documents.shared(enc.id)).map((d) => ({ id: d.id, title: d.title, label: d.label })),
     flags: (await patientFlags.list(enc.id)).map((f) => ({ item: f.item, comment: f.comment, resolved: !!f.resolved })),
   });

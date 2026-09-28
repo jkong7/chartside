@@ -17,8 +17,8 @@ test("protected pages redirect to sign in and the API rejects anonymous calls", 
 
 test("register seeds a clinic day, then sign out and back in", async ({ page }) => {
   const email = await register(page);
-  await expect(page.getByTestId("visit-row")).toHaveCount(6);
-  await expect(page.getByTestId("today-summary")).toHaveText("6 scheduled · 0 awaiting review · 0 signed");
+  await expect(page.getByTestId("visit-row")).toHaveCount(7);
+  await expect(page.getByTestId("today-summary")).toHaveText("7 scheduled · 0 awaiting review · 0 signed");
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login$/);
   await page.fill("#email", email);

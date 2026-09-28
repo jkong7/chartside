@@ -24,7 +24,7 @@ import { canSign, Forbidden } from "./policy";
 import { syncTasks } from "./inbox";
 import { applyReplacements, vocabulary } from "./snippets";
 import { cosignPlan, documentText, holdClaimForCosign, recordSignature } from "./signoff";
-import { addenda, artifacts, audit, claims, consents, encounters, notes, orders, patients, styleRules, templates, utterances, users, type User } from "./repo";
+import { addenda, artifacts, audioChunks, audit, claims, consents, encounters, notes, orders, patients, styleRules, templates, utterances, users, type User } from "./repo";
 
 export const CONSENT_SCRIPT_VERSION = "2026.09-a";
 
@@ -118,7 +118,16 @@ export async function processEncounter(user: User, encId: string, opts: { templa
       warnings.push(`Claude (${llmModel()}) was unavailable (${err instanceof Error ? err.message : "error"}); used the on-device engine instead.`);
     }
   }
-  if (!note) note = buildNote(facts, { patient, encounter: enc, template });
+  const sessionMinutes = Math.round((enc.durationS || (utts.at(-1)?.tEnd ?? 0)) / 60);
+  if (!note) note = buildNote(facts, { patient, encounter: enc, template, utterances: utts, minutes: sessionMinutes });
+  else {
+    const special = template.sections.filter((ts) => ["risk", "interventions", "response", "therapy_time"].includes(ts.kind));
+    if (special.length) {
+      const { buildSection } = await import("../engine/note");
+      const ctx = { patient, encounter: enc, template, utterances: utts, minutes: sessionMinutes };
+      note = { ...note, sections: template.sections.map((ts) => (special.includes(ts) ? buildSection(ts, facts, ctx) : note!.sections.find((x) => x.key === ts.key) ?? buildSection(ts, facts, ctx))), meta: { ...note.meta, sensitive: /^(?:bh_|behavioral)/.test(template.id) || undefined } };
+    }
+  }
   if (enc.admissionId) {
     const { inpatientNote } = await import("./inpatient");
     note = await inpatientNote(user, enc, facts, patient, note);
@@ -134,7 +143,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   const pediatric = patient ? ageFrom(patient.dob) < 18 : false;
   const priorVisits = (await encounters.list(user, { patientId: enc.patientId ?? "__none__" })).filter((e) => e.id !== enc!.id && e.status === "signed").length;
   const patientType = enc.visitType === "new" || (!patient?.chart.priorVisits?.length && !priorVisits) ? "new" : "established";
-  const coding = await enrichCoding(user, enc, patient, computeCoding(facts, { patientType, minutes, chart: patient?.chart, pediatric, hccFor: hccMapper(patient, enc.scheduledAt), encounterClass: enc.visitType === "inpatient" ? "initial_inpatient" : enc.visitType === "progress" ? "subsequent_inpatient" : enc.visitType === "discharge" ? "discharge" : "office" }), facts);
+  const coding = await enrichCoding(user, enc, patient, computeCoding(facts, { patientType, minutes, chart: patient?.chart, pediatric, hccFor: hccMapper(patient, enc.scheduledAt), psychotherapy: template.id.startsWith("bh_") ? "standalone" : template.id === "behavioral" ? "intake" : undefined, encounterClass: enc.visitType === "inpatient" ? "initial_inpatient" : enc.visitType === "progress" ? "subsequent_inpatient" : enc.visitType === "discharge" ? "discharge" : "office" }), facts);
   const staged = stageOrders(facts, { chart: patient?.chart, ageYears: patient ? ageFrom(patient.dob) : undefined, now: new Date(enc.scheduledAt) });
   const coverage = computeCoverage(facts, { visitType: enc.visitType });
 
@@ -177,6 +186,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   await autoDocuments(user, enc);
   const { qualityFor } = await import("./quality");
   await qualityFor(user, enc);
+  if (note.meta.sensitive && (await audioChunks.list(enc.id)).length) await deleteAudio(user, enc.id, "behavioral health privacy: audio is not retained after transcription");
   const stats = supportStats(note);
   const { emit } = await import("./platform");
   await emit(enc.orgId, "note.generated", { encounterId: enc.id, patientId: enc.patientId, engine: note.meta.engine, template: template.id });
@@ -232,6 +242,13 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   const staged = orderList.filter((o) => o.status === "staged");
   const blocked = orderList.filter((o) => o.status === "accepted" && o.alerts.some((a) => a.level === "block"));
   const unsupported = rec.content.sections.flatMap((s) => s.sentences).filter((s) => !s.pending && s.support === "none" && s.kind !== "default");
+  if (rec.content.sections.some((s) => /risk/i.test(s.key))) {
+    const { assessRisk } = await import("../engine/behavioral");
+    const risk = assessRisk(await utterances.list(enc.id));
+    const riskText = rec.content.sections.filter((s) => /risk/i.test(s.key)).flatMap((s) => s.sentences.map((x) => x.text)).join(" ");
+    const missing = risk.missing.filter((m) => !new RegExp(m.split(" ")[0], "i").test(riskText.replace(/Suicidal ideation/i, "")));
+    if (risk.ideation && risk.ideation !== "none" && missing.length) return { signed: false, blockers: [`Suicide risk assessment is incomplete. Suicidal ideation was disclosed, but the note does not document: ${missing.join(", ")}.`] };
+  }
   const blanks = rec.content.sections.flatMap((s) => s.sentences).filter((s) => !s.pending && s.text.includes("***"));
   if (blanks.length) return { signed: false, blockers: [`${blanks.length} line${blanks.length > 1 ? "s" : ""} still ${blanks.length > 1 ? "have" : "has"} *** blanks to fill in: ${blanks.map((b) => `"${b.text.slice(0, 60)}"`).join(", ")}.`] };
   const blockers: string[] = [];
@@ -355,6 +372,7 @@ export async function exportFhir(user: User, encId: string) {
     id: `comp-${enc.id}`,
     status: enc.status === "signed" ? "final" : "preliminary",
     type: { coding: [{ system: "http://loinc.org", code: "11506-3", display: "Progress note" }] },
+    meta: rec?.content.meta.sensitive ? { security: [{ system: "http://terminology.hl7.org/CodeSystem/v3-Confidentiality", code: "R", display: "restricted" }, { system: "http://terminology.hl7.org/CodeSystem/v3-ActCode", code: "PSY", display: "psychiatry disorder information sensitivity" }] } : undefined,
     subject: patientRef,
     encounter: { reference: `Encounter/${enc.id}` },
     date: enc.signedAt ?? new Date().toISOString(),
