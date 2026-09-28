@@ -167,3 +167,16 @@ export async function polishReplyWithClaude(input: { message: string; draft: str
   if (!text || response.stop_reason === "refusal") throw new Error("Draft unavailable");
   return text;
 }
+
+export async function answerFromEvidenceWithClaude(question: string, passages: { title: string; org: string; year: number; text: string }[], chart?: Chart | null) {
+  const response = await anthropic().messages.create({
+    model: llmModel(),
+    max_tokens: 1200,
+    system: "Answer a clinician's question using only the numbered guideline passages provided. Cite every claim with [n] matching a passage number. If the passages don't answer the question, say so. You may relate the guidance to the patient's chart, but never invent recommendations, doses, or grades. Keep it under 120 words.",
+    messages: [{ role: "user", content: `Question: ${question}\n\nPatient chart: ${JSON.stringify({ problems: chart?.problems ?? [], medications: chart?.medications ?? [] })}\n\n${passages.map((p, i) => `[${i + 1}] ${p.org} ${p.year}, ${p.title}: ${p.text}`).join("\n\n")}` }],
+  });
+  const text = response.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("").trim();
+  const cited = [...text.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1]));
+  if (!text || !cited.length || cited.some((n) => n < 1 || n > passages.length)) throw new Error("Unverified citations");
+  return text;
+}

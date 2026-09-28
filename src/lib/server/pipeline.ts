@@ -302,7 +302,19 @@ export async function assist(user: User, encId: string, message: string) {
       result = { ...result, reply: `${result.reply}\n\nClaude was unavailable, so this answer comes from the on-device engine.` };
     }
   }
-  if (result.note && enc.status !== "signed") {
+  if (result.sources?.length && llmEnabled()) {
+    try {
+      const { answerFromEvidenceWithClaude } = await import("../llm");
+      const { searchEvidence } = await import("../engine/evidence");
+      const passages = searchEvidence(message).map((h) => h.entry);
+      result = { ...result, reply: await answerFromEvidenceWithClaude(message, passages, patient?.chart) };
+    } catch {
+      result = { ...result };
+    }
+  }
+  if (result.note && enc.status === "signed") {
+    result = { ...result, note: undefined, rule: undefined, action: "none", reply: "This note is signed, so I didn't change it. Add an addendum instead." };
+  } else if (result.note) {
     const saved = await saveNoteEdits(user, enc.id, result.note);
     result = { ...result, note: saved.note };
   }

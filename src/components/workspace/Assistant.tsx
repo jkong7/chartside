@@ -10,9 +10,10 @@ interface Msg {
   role: "user" | "assistant";
   text: string;
   citations?: string[];
+  sources?: { title: string; org: string; year: number; url: string }[];
 }
 
-const SUGGESTIONS = ["Make the HPI shorter", "What did the patient say about side effects?", "Add patient declined flu vaccine to plan", "Insert normal exam"];
+const SUGGESTIONS = ["Make the HPI shorter", "What did the patient say about side effects?", "Add patient declined flu vaccine to plan", "Colorectal cancer screening guideline"];
 
 export default function Assistant({ encounterId, disabled, onNote, onCite }: { encounterId: string; disabled?: boolean; onNote: (n: Note) => void; onCite: (ids: string[]) => void }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -25,8 +26,8 @@ export default function Assistant({ encounterId, disabled, onNote, onCite }: { e
     setText("");
     setBusy(true);
     try {
-      const r = await api<{ reply: string; citations: string[]; note?: Note; action: string }>(`/encounters/${encounterId}/assist`, { body: { message } });
-      setMsgs((m) => [...m, { role: "assistant", text: r.reply, citations: r.citations }]);
+      const r = await api<{ reply: string; citations: string[]; note?: Note; action: string; sources?: Msg["sources"] }>(`/encounters/${encounterId}/assist`, { body: { message } });
+      setMsgs((m) => [...m, { role: "assistant", text: r.reply, citations: r.citations, sources: r.sources }]);
       if (r.note) onNote(r.note);
       if (r.citations.length) onCite(r.citations);
     } catch (err) {
@@ -45,7 +46,7 @@ export default function Assistant({ encounterId, disabled, onNote, onCite }: { e
         {!msgs.length && (
           <div className="flex flex-wrap gap-1.5">
             {SUGGESTIONS.map((s) => (
-              <button key={s} disabled={disabled || busy} onClick={() => send(s)} className="rounded-full border border-line-strong px-2.5 py-1 text-xs text-ink-2 hover:bg-sunken disabled:opacity-50">{s}</button>
+              <button key={s} disabled={busy || (disabled && !/guideline/i.test(s))} onClick={() => send(s)} className="rounded-full border border-line-strong px-2.5 py-1 text-xs text-ink-2 hover:bg-sunken disabled:opacity-50">{s}</button>
             ))}
           </div>
         )}
@@ -55,13 +56,18 @@ export default function Assistant({ encounterId, disabled, onNote, onCite }: { e
             {m.citations?.length ? (
               <button className="mt-1 block text-xs font-medium text-brand" onClick={() => onCite(m.citations!)}>Show {m.citations.length} source{m.citations.length > 1 ? "s" : ""} in transcript</button>
             ) : null}
+            {m.sources?.length ? (
+              <ol className="mt-2 space-y-0.5 border-t border-line pt-1.5 text-[11px]" data-testid="evidence-sources">
+                {m.sources.map((x, j) => <li key={x.url + j}>[{j + 1}] <a className="text-brand underline" href={x.url} target="_blank" rel="noreferrer">{x.org} {x.year}: {x.title}</a></li>)}
+              </ol>
+            ) : null}
           </div>
         ))}
         {busy && <Spinner className="text-brand" />}
       </div>
       <form className="flex gap-2 p-3 pt-1" onSubmit={(e) => { e.preventDefault(); send(text); }}>
-        <input className="input" placeholder={disabled ? "Note is signed" : "Ask about the visit or edit the note…"} value={text} onChange={(e) => setText(e.target.value)} disabled={disabled || busy} aria-label="Message Chartside" />
-        <button className="btn-primary px-3" disabled={disabled || busy || !text.trim()} aria-label="Send"><Send /></button>
+        <input className="input" placeholder={disabled ? "Ask about the visit or a guideline" : "Ask about the visit or a guideline, or edit the note…"} value={text} onChange={(e) => setText(e.target.value)} disabled={busy} aria-label="Message Chartside" />
+        <button className="btn-primary px-3" disabled={busy || !text.trim()} aria-label="Send"><Send /></button>
       </form>
     </div>
   );

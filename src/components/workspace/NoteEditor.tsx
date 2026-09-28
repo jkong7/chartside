@@ -58,6 +58,7 @@ export default function NoteEditor({
   feedback,
   snippetCtx,
   templateKinds,
+  onCalculators,
 }: {
   encounterId: string;
   note: Note;
@@ -69,6 +70,7 @@ export default function NoteEditor({
   feedback: { section: string; rating: number }[];
   snippetCtx?: SnippetContext;
   templateKinds?: Record<string, string>;
+  onCalculators?: () => void;
 }) {
   const [editing, setEditingState] = useState<string | null>(null);
   const [draft, setDraftState] = useState("");
@@ -293,6 +295,7 @@ export default function NoteEditor({
         <span className={openFlags.length ? "text-warn" : "text-ink-3"} data-testid="omission-count">{openFlags.length} possible omission{openFlags.length === 1 ? "" : "s"}</span>
         {pending.length > 0 && (<><span className="text-ink-4">·</span><span className="text-default-ins-line">{pending.length} suggested normal finding{pending.length === 1 ? "" : "s"}</span></>)}
         <span className="ml-auto text-xs text-ink-3">{note.meta.engine === "claude" ? `Drafted by ${note.meta.model}` : "Drafted by the on-device engine"}</span>
+        {onCalculators && <button className="btn-outline px-2.5 py-1 text-xs" onClick={onCalculators} data-testid="open-calculators">Calculators</button>}
         {!locked && (
           <button className={`btn-outline px-2.5 py-1 text-xs ${listening ? "border-rec text-rec" : ""}`} onClick={toggleDictation} title="Dictate into the note (Ctrl+Space)" data-testid="dictate">
             <Mic size={13} /> {listening ? "Stop dictating" : "Dictate"}

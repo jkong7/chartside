@@ -1,4 +1,5 @@
 import type { Chart, Note, NoteSentence, Utterance } from "../types";
+import { GUIDELINE_QUESTION, searchEvidence } from "./evidence";
 import { MEDICATIONS } from "./lexicon";
 import { ensurePeriod, overlap, sentenceCase, tokens, wordCount } from "./text";
 
@@ -8,6 +9,7 @@ export interface AssistResult {
   citations: string[];
   action: "answer" | "edit" | "none";
   rule?: { kind: "format" | "abbreviate" | "max_words"; section: string; value: string; label: string };
+  sources?: { title: string; org: string; year: number; url: string }[];
 }
 
 const EXPAND: [RegExp, string][] = [
@@ -173,6 +175,18 @@ export function localAssist(message: string, note: Note | null, utterances: Utte
       let n = 0;
       const sections = note.sections.map((s) => ({ ...s, sentences: s.sentences.map((x) => (x.pending ? (n++, { ...x, pending: false, kind: "clinician" as const, support: "strong" as const }) : x)) }));
       return { reply: n ? `Accepted ${n} templated normal exam finding${n > 1 ? "s" : ""}. They're marked as clinician-attested.` : "There are no pending normal findings.", note: { ...note, sections }, citations: [], action: n ? "edit" : "none" };
+    }
+  }
+
+  if (GUIDELINE_QUESTION.test(msg) && !/\b(?:say|said|tell|told|mention(?:ed)?|ask(?:ed)?)\b/i.test(msg)) {
+    const hits = searchEvidence(msg);
+    if (hits.length) {
+      return {
+        reply: hits.map((h, i) => `[${i + 1}] ${h.entry.title}: ${h.entry.text}`).join("\n\n"),
+        citations: [],
+        sources: hits.map((h) => ({ title: h.entry.title, org: h.entry.org, year: h.entry.year, url: h.entry.url })),
+        action: "answer",
+      };
     }
   }
 

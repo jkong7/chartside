@@ -17,6 +17,7 @@ import DocumentsPanel from "./DocumentsPanel";
 import PreVisit from "./PreVisit";
 import TasksPanel from "./TasksPanel";
 import QualityPanel from "./QualityPanel";
+import Calculators from "./Calculators";
 import { Addenda, CosignBanner } from "./Signoff";
 import Transcript from "./Transcript";
 import type { Bundle, Highlight } from "./types";
@@ -36,6 +37,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
   const [toast, setToast] = useState<string | null>(null);
   const [regen, setRegen] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [calcOpen, setCalcOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -180,6 +182,15 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
   }
 
   const note = b.note!.content;
+
+  async function insertIntoPlan(text: string, reason: string) {
+    const cur = (await api<Bundle>(`/encounters/${id}`)).note!.content;
+    const ap = cur.sections.find((s) => /assessment|plan|ap/.test(s.key)) ?? cur.sections.filter((s) => s.key !== "__consent").at(-1)!;
+    const next = { ...cur, sections: cur.sections.map((s) => (s.key === ap.key ? { ...s, sentences: [...s.sentences, { id: `${s.key}_i${Date.now()}`, text, evidence: [], kind: "clinician" as const, support: "strong" as const, edited: true }] } : s)) };
+    await api(`/encounters/${id}/note`, { method: "PUT", body: { note: next, reason } });
+    await load();
+  }
+
   const omissions = b.artifacts.omissions ?? [];
   const interp = b.artifacts.interpreter;
   const flaggedLines = new Set((interp?.flags ?? []).flatMap((f) => [f.sourceId, f.renderedId]));
@@ -233,6 +244,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
                 feedback={b.feedback}
                 snippetCtx={{ patient: p ? { name: p.name, dob: p.dob, sex: p.sex } : null, chart: p?.chart ?? null, clinician: b.clinician.name }}
                 templateKinds={Object.fromEntries(b.template.sections.map((x) => [x.key, x.kind]))}
+                onCalculators={() => setCalcOpen(true)}
                 onSelect={(s: NoteSentence | null) => {
                   setActive(s?.id ?? null);
                   if (s) cite(s.evidence.filter((x) => x !== "chart"), s.id);
@@ -242,6 +254,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
               />
             )}
             {tab === "note" && <Addenda b={b} onChange={load} onToast={setToast} />}
+            <Calculators encounterId={id} open={calcOpen} onClose={() => setCalcOpen(false)} canInsert={!locked} onInsert={(text) => insertIntoPlan(text, "calculator.inserted")} />
             {tab === "codes" && <CodesPanel coding={b.artifacts.coding} encounterId={id} locked={locked} onUpdate={() => load()} onCite={(ids) => cite(ids)} />}
             {tab === "orders" && <OrdersPanel encounterId={id} orders={b.orders} locked={locked} onChange={(fn: (o: StagedOrder[]) => StagedOrder[]) => setB((x) => (x ? { ...x, orders: fn(x.orders) } : x))} onCite={(ids) => cite(ids)} />}
             {tab === "tasks" && <TasksPanel encounterId={id} tasks={b.tasks} editable={b.access.edit || b.access.sign} onChange={load} onCite={(ids) => cite(ids)} />}
@@ -252,13 +265,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
                 locked={locked}
                 onChanged={load}
                 onCite={(ids) => cite(ids)}
-                onInsert={async (text) => {
-                  const cur = b.note!.content;
-                  const ap = cur.sections.find((s) => /assessment|plan|ap/.test(s.key)) ?? cur.sections.filter((s) => s.key !== "__consent").at(-1)!;
-                  const next = { ...cur, sections: cur.sections.map((s) => (s.key === ap.key ? { ...s, sentences: [...s.sentences, { id: `${s.key}_q${Date.now()}`, text, evidence: [], kind: "clinician" as const, support: "strong" as const, edited: true }] } : s)) };
-                  await api(`/encounters/${id}/note`, { method: "PUT", body: { note: next, reason: "quality.inserted" } });
-                  await api(`/encounters/${id}/quality`);
-                }}
+                onInsert={(text) => insertIntoPlan(text, "quality.inserted")}
               />
             )}
             {tab === "billing" && <BillingPanel key={b.claim?.updatedAt ?? "draft"} encounterId={id} record={b.claim} draft={b.artifacts.claim} priorAuth={b.artifacts.priorAuth ?? []} signed={signed} canReview={b.access.billingReview} onCite={(ids) => cite(ids)} />}
