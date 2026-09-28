@@ -27,6 +27,7 @@ export default function AuthForm({ mode, next, invite, error: initialError }: { 
   const [sso, setSso] = useState<SsoInfo | null>(null);
   const [ssoMode, setSsoMode] = useState(false);
   const [email, setEmail] = useState(invite?.email ?? "");
+  const [challenge, setChallenge] = useState<string | null>(null);
   const passwordless = mode === "login" && (ssoMode || !!sso?.required);
 
   async function lookup(value: string) {
@@ -57,11 +58,20 @@ export default function AuthForm({ mode, next, invite, error: initialError }: { 
     setBusy(true);
     setError(null);
     try {
-      await api(`/auth/${mode}`, {
-        body: mode === "login"
-          ? { email, password: f.get("password") }
-          : { email, password: f.get("password"), name: f.get("name"), specialty: f.get("specialty"), orgName: f.get("orgName") || undefined, demo: f.get("demo") === "on", invite: invite?.token },
-      });
+      if (challenge) {
+        await api("/auth/mfa", { body: { challenge, code: f.get("code") } });
+      } else {
+        const r = await api<{ mfa?: boolean; challenge?: string }>(`/auth/${mode}`, {
+          body: mode === "login"
+            ? { email, password: f.get("password") }
+            : { email, password: f.get("password"), name: f.get("name"), specialty: f.get("specialty"), orgName: f.get("orgName") || undefined, demo: f.get("demo") === "on", invite: invite?.token },
+        });
+        if (r.mfa && r.challenge) {
+          setChallenge(r.challenge);
+          setBusy(false);
+          return;
+        }
+      }
       if (next) window.location.assign(next);
       else {
         router.push("/today");
@@ -70,7 +80,8 @@ export default function AuthForm({ mode, next, invite, error: initialError }: { 
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setBusy(false);
-      if (mode === "login") lookup(email);
+      if (challenge && err instanceof Error && /expired/i.test(err.message)) setChallenge(null);
+      if (mode === "login" && !challenge) lookup(email);
     }
   }
 
@@ -81,6 +92,18 @@ export default function AuthForm({ mode, next, invite, error: initialError }: { 
           <Logo />
           <span className="font-serif text-2xl">Chartside</span>
         </Link>
+        {challenge ? (
+          <form onSubmit={submit} className="card space-y-4 p-6 shadow-sm" data-testid="mfa-form">
+            <div>
+              <h1 className="text-lg font-semibold">Two-step verification</h1>
+              <p className="mt-1 text-sm text-ink-3">Enter the 6-digit code from your authenticator app, or one of your recovery codes.</p>
+            </div>
+            <input className="input text-center font-mono text-lg tracking-widest" name="code" inputMode="numeric" autoComplete="one-time-code" autoFocus required aria-label="Verification code" data-testid="mfa-code" />
+            {error && <p className="rounded-lg bg-rec-50 px-3 py-2 text-sm text-rec" role="alert">{error}</p>}
+            <button className="btn-primary w-full" disabled={busy} type="submit" data-testid="mfa-submit">{busy && <Spinner />} Verify</button>
+            <button type="button" className="w-full text-center text-sm text-brand" onClick={() => { setChallenge(null); setError(null); }}>Back</button>
+          </form>
+        ) : (
         <form onSubmit={submit} className="card space-y-4 p-6 shadow-sm">
           {next?.startsWith("/smart/") && <p className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand">Sign in to continue launching Chartside from your EHR.</p>}
           {invite && <p className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand" data-testid="invite-banner">You&apos;ve been invited to join <b>{invite.orgName}</b> as {invite.role}.</p>}
@@ -138,6 +161,7 @@ export default function AuthForm({ mode, next, invite, error: initialError }: { 
             {mode === "login" ? (<>New to Chartside? <Link className="font-medium text-brand" href={next ? `/register?next=${encodeURIComponent(next)}` : "/register"}>Create an account</Link></>) : (<>Already have an account? <Link className="font-medium text-brand" href={invite ? `/login?next=${encodeURIComponent(`/invite/${invite.token}`)}` : "/login"}>Sign in</Link></>)}
           </p>
         </form>
+        )}
       </div>
     </main>
   );

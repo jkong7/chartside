@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { api, copyText } from "@/lib/client";
 import { CREDENTIALS } from "@/lib/engine/attest";
 import DevelopersPanel from "./DevelopersPanel";
+import AdminSecurity from "./AdminSecurity";
 import { ROLE_INFO, roleLabel, type Role } from "@/lib/roles";
 import { Check, Copy, Plus, Shield, X } from "./icons";
 import { Avatar, Kpi, Spinner, Tabs, Toast } from "./ui";
@@ -45,7 +46,7 @@ interface Data {
   audit: { id: string; action: string; detail: Record<string, unknown>; created_at: string; user_name: string | null; encounter_id: string | null }[];
 }
 
-type Tab = "members" | "sso" | "billing" | "developers" | "analytics" | "audit" | "org";
+type Tab = "members" | "sso" | "security" | "billing" | "developers" | "analytics" | "audit" | "org";
 
 const ACTION_LABEL: Record<string, string> = {
   "user.login": "Signed in",
@@ -74,6 +75,16 @@ const ACTION_LABEL: Record<string, string> = {
   "webhook.created": "Added a webhook",
   "webhook.deleted": "Deleted a webhook",
   "api.call": "API request",
+  "security.updated": "Changed security settings",
+  "mfa.enabled": "Turned on two-step verification",
+  "mfa.disabled": "Turned off two-step verification",
+  "user.mfa_challenged": "Asked for a verification code",
+  "session.revoked": "Signed out a session",
+  "session.signed_out_everywhere": "Signed out everywhere",
+  "scim.token_rotated": "Rotated the SCIM token",
+  "scim.user_created": "Provisioned a member via SCIM",
+  "scim.user_updated": "Updated a member via SCIM",
+  "scim.user_deleted": "Removed a member via SCIM",
   "note.edited": "Edited a note",
   "note.generated": "Drafted a note",
   "consent.granted": "Recorded consent",
@@ -104,7 +115,7 @@ function describe(a: Data["audit"][number], members: Member[]) {
 export default function AdminConsole({ initial, me, tab: initialTab, redirectOrigin }: { initial: Data; me: { id: string; role: Role }; tab?: string; redirectOrigin: string | null }) {
   const router = useRouter();
   const [d, setD] = useState(initial);
-  const [tab, setTab] = useState<Tab>((["members", "sso", "billing", "developers", "analytics", "audit", "org"].includes(initialTab ?? "") ? initialTab : "members") as Tab);
+  const [tab, setTab] = useState<Tab>((["members", "sso", "security", "billing", "developers", "analytics", "audit", "org"].includes(initialTab ?? "") ? initialTab : "members") as Tab);
   const [toast, setToast] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -158,6 +169,7 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
           tabs={[
             { id: "members", label: "Members" },
             { id: "sso", label: "Single sign-on" },
+            { id: "security", label: "Security" },
             { id: "billing", label: "Billing & code sets" },
             { id: "developers", label: "Developers" },
             { id: "analytics", label: "Clinician analytics" },
@@ -366,6 +378,7 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
       {tab === "billing" && <BillingAdmin onSaved={(m) => setToast(m)} />}
 
       {tab === "developers" && <DevelopersPanel />}
+      {tab === "security" && <AdminSecurity />}
       {tab === "analytics" && (
         <div className="card mt-5 overflow-x-auto" data-testid="org-analytics">
           <table className="w-full min-w-[640px] text-sm">

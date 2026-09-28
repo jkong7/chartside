@@ -3,10 +3,14 @@ import Sidebar, { MobileNav } from "@/components/Sidebar";
 import { llmEnabled, llmModel } from "@/lib/llm";
 import { currentUser } from "@/lib/server/auth";
 import { orgs } from "@/lib/server/repo";
+import { mfaStatus, orgSecurity } from "@/lib/server/security";
+import IdleWarning from "@/components/IdleWarning";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await currentUser();
   if (!user) redirect("/login");
+  const sec = await orgSecurity(user.orgId);
+  if (sec.requireMfa && user.hasPassword && !(await mfaStatus(user.id)).enabled) redirect("/mfa-setup");
   const memberships = (await orgs.memberships(user.id)).filter((m) => m.status === "active").map((m) => ({ id: m.org_id, name: m.name, role: m.role }));
   return (
     <div className="flex min-h-screen">
@@ -15,6 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <MobileNav role={user.role} />
         {children}
       </div>
+      <IdleWarning minutes={sec.idleMinutes ?? 30} />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { api } from "@/lib/client";
 import type { StyleRule } from "@/lib/types";
 import { Plus, X } from "./icons";
+import SecurityCard from "./SecurityCard";
 import SnippetsCard from "./SnippetsCard";
 import { Spinner } from "./ui";
 
@@ -63,6 +64,8 @@ export default function SettingsView({ user, templates, rules: initialRules, eng
           <p className="mt-1 text-sm text-ink-2">Audio is recorded in 4-second chunks, buffered on the device if the network drops, and stored for playback. Live captions use the browser&apos;s speech engine; speakers are separated on-device from voice pitch and timbre. Set <span className="kbd">DEEPGRAM_API_KEY</span> for server-grade transcription with diarization.</p>
         )}
       </div>
+
+      <SecurityCard />
 
       <SnippetsCard isAdmin={isAdmin} />
 
