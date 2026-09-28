@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import CoverageCard from "@/components/CoverageCard";
 import ContactCard from "@/components/ContactCard";
+import OncologyCard from "@/components/OncologyCard";
 import OutsideRecords from "@/components/OutsideRecords";
 import { recordsFor } from "@/lib/server/records";
 import ResyncButton from "@/components/ResyncButton";
@@ -40,6 +41,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
         <div className="card p-4"><p className="label">Medications</p>{p.chart.medications.length ? p.chart.medications.map((m) => <p key={m.name} className="text-sm">{m.name} <span className="text-ink-3">{[m.dose, m.frequency].filter(Boolean).join(" ")}</span>{m.source?.startsWith("outside") && <span className="pill ml-1 bg-info-50 text-[10px] text-info">outside</span>}</p>) : <p className="text-sm text-ink-3">None</p>}</div>
         <div className="card p-4"><p className="label">Allergies</p>{p.chart.allergies.length ? p.chart.allergies.map((a) => <p key={a.substance} className="text-sm text-rec">{a.substance}{a.reaction ? ` (${a.reaction})` : ""}</p>) : <p className="text-sm text-ink-3">NKDA</p>}</div>
       </div>
+      {p.chart.oncology && <OncologyCard profile={p.chart.oncology} />}
       <div className="mt-4"><ContactCard patientId={p.id} initial={{ phone: p.phone ?? null, email: p.email ?? null, pref: p.contactPref ?? null }} canEdit={can(user, "patients.write")} /></div>
       <div className="mt-4 max-w-xl"><CoverageCard patientId={p.id} initial={p.chart.coverage} canEdit={can(user, "patients.write") || can(user, "billing.review")} /></div>
       <OutsideRecords patientId={p.id} initial={await recordsFor(user, p.id)} canEdit={can(user, "patients.write")} />

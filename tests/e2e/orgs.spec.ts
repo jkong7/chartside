@@ -112,7 +112,7 @@ test("an existing user accepts an invitation and switches between organizations"
   await expect(sw.locator("option:checked")).toContainText("Dr. Grace Hall's clinic · Clinician");
   await expect(other.page.getByTestId("visit-row")).toHaveCount(0);
   await sw.selectOption({ label: "Dr. Ken Ito's clinic · Owner" });
-  await expect(other.page.getByTestId("visit-row")).toHaveCount(7);
+  await expect(other.page.getByTestId("visit-row")).toHaveCount(8);
   await expect(other.page.getByTestId("nav").getByRole("link", { name: "Admin" })).toBeVisible();
   await other.page.goto(link);
   await expect(other.page.getByTestId("invite-invalid")).toBeVisible();
