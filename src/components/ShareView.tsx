@@ -79,7 +79,7 @@ export default function ShareView({ token }: { token: string }) {
                     <div className="flex items-start gap-2">
                       <span className="mt-3 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
                       <span className="flex-1">{i}</span>
-                      {sent.has(i) ? <Check className="mt-2 text-ok" /> : <button className="mt-1 shrink-0 text-xs text-ink-3 underline opacity-70 hover:opacity-100" onClick={() => { setOpen(open === i ? null : i); setComment(""); }} data-testid="flag-item">{t.wrong}</button>}
+                      {sent.has(i) ? <Check className="mt-2 text-ok" /> : <button className="mt-1 shrink-0 text-xs text-ink-3 underline hover:text-ink" onClick={() => { setOpen(open === i ? null : i); setComment(""); }} data-testid="flag-item">{t.wrong}</button>}
                     </div>
                     {open === i && (
                       <div className="ml-4 mt-2 space-y-2 rounded-lg bg-sunken p-3">

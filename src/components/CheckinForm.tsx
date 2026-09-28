@@ -28,7 +28,7 @@ export default function CheckinForm({ token, data }: { token: string; data: { fi
       {data.questions.map((q) => (
         <fieldset key={q.key} data-testid="checkin-q">
           <legend className="text-sm font-medium">{es ? q.text.es : q.text.en}</legend>
-          {q.free ? <textarea className="input mt-2 text-sm" rows={3} value={answers[q.key] ?? ""} onChange={(e) => setAnswers({ ...answers, [q.key]: e.target.value })} data-testid={`checkin-${q.key}`} /> : (
+          {q.free ? <textarea aria-label={es ? q.text.es : q.text.en} className="input mt-2 text-sm" rows={3} value={answers[q.key] ?? ""} onChange={(e) => setAnswers({ ...answers, [q.key]: e.target.value })} data-testid={`checkin-${q.key}`} /> : (
             <div className="mt-2 flex flex-wrap gap-2">
               {q.options!.map((o) => (
                 <label key={o.value} className={`cursor-pointer rounded-full border px-3 py-1.5 text-sm ${answers[q.key] === o.value ? "border-brand bg-brand text-white" : "border-line"}`}>
