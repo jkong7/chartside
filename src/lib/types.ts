@@ -103,6 +103,7 @@ export type SectionKind =
   | "ob_warning"
   | "ob_exam"
   | "ob_due"
+  | "gdmt"
   | "onc_history"
   | "onc_treatment"
   | "toxicity"

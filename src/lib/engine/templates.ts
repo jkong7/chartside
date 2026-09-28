@@ -319,6 +319,23 @@ export const SYSTEM_TEMPLATES: Template[] = [
     ],
   },
   {
+    id: "cardiology_hf",
+    userId: null,
+    name: "Heart failure follow-up",
+    specialty: "Cardiology",
+    description: "Interval history, volume status, labs, and a four-pillar GDMT check (ARNI/ACEi/ARB, beta blocker, MRA, SGLT2i) against target doses and safety limits.",
+    style: { verbosity: "standard" },
+    sections: [
+      { key: "hpi", title: "Interval History", kind: "hpi", format: "paragraph" },
+      { key: "meds", title: "Medications", kind: "medications", format: "bullets" },
+      { key: "vitals", title: "Vitals", kind: "vitals", format: "paragraph" },
+      { key: "exam", title: "Physical Exam", kind: "exam", format: "bullets" },
+      { key: "results", title: "Labs and Imaging", kind: "results", format: "bullets" },
+      { key: "gdmt", title: "Guideline-Directed Medical Therapy", kind: "gdmt", format: "bullets" },
+      { key: "ap", title: "Assessment & Plan", kind: "assessment_plan", format: "bullets" },
+    ],
+  },
+  {
     id: "peds_acute",
     userId: null,
     name: "Pediatric sick visit",

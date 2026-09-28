@@ -3,6 +3,7 @@ import type { Facts, MedFact, ProblemFact, SymptomFact } from "./extract";
 import { assessRisk, goalSentences, interventionSentences, psychotherapyCode, psychotherapyMinutes, responseSentences, riskSentences } from "./behavioral";
 import { edCourse, edDisposition } from "./ed";
 import { groupTopic } from "./group";
+import { gdmtFor, gdmtSentences } from "./gdmt";
 import { dueSentences, extractPrenatal, obExamSentences, prenatalDue, pregnancySentences, warningSentences } from "./prenatal";
 import { extractProcedures, procedureSentences } from "./procedures";
 import { EVALS, extractTherapy, measureSentences, serviceSentences } from "./therapy";
@@ -542,6 +543,11 @@ export function buildSection(ts: TemplateSection, facts: Facts, ctx: NoteContext
       const preg = ctx.patient?.chart.pregnancy;
       const f = extractPrenatal(ctx.utterances ?? [], preg, new Date(ctx.encounter.scheduledAt));
       sentences = kind === "ob_summary" ? pregnancySentences(preg, f, ts.key) : kind === "ob_warning" ? warningSentences(f, ts.key) : kind === "ob_exam" ? obExamSentences(f, ts.key) : dueSentences(prenatalDue(preg, f), ts.key);
+      break;
+    }
+    case "gdmt": {
+      const g = gdmtFor(ctx.utterances ?? [], facts, ctx.patient?.chart);
+      sentences = gdmtSentences(g.ef, g.pillars, ts.key);
       break;
     }
     case "procedure_note":

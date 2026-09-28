@@ -58,6 +58,7 @@ export default function QualityPanel({ encounterId, quality, locked, onChanged, 
           </li>
         ))}
       </ul>
+      <Gdmt encounterId={encounterId} />
       <TrialMatches encounterId={encounterId} canRefer={!locked} />
     </div>
   );
@@ -112,5 +113,30 @@ export function CareGaps({ quality }: { quality: MeasureResult[] }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+type Pillar = { key: string; label: string; status: "at_target" | "below_target" | "missing" | "held" | "not_evidence_based"; current: string | null; target: string; note: string };
+const PILLAR_TONE: Record<Pillar["status"], string> = { at_target: "bg-ok-50 text-ok", below_target: "bg-warn-50 text-warn", missing: "bg-rec-50 text-rec", held: "bg-sunken text-ink-3", not_evidence_based: "bg-rec-50 text-rec" };
+const PILLAR_LABEL: Record<Pillar["status"], string> = { at_target: "At target", below_target: "Below target", missing: "Not started", held: "Held", not_evidence_based: "Not evidence-based" };
+
+function Gdmt({ encounterId }: { encounterId: string }) {
+  const [g, setG] = useState<{ ef: number | null; pillars: Pillar[] | null } | null>(null);
+  useEffect(() => {
+    api<{ ef: number | null; pillars: Pillar[] | null }>(`/encounters/${encounterId}/gdmt`).then(setG).catch(() => setG(null));
+  }, [encounterId]);
+  if (!g?.pillars) return null;
+  return (
+    <section className="mt-5 border-t border-line pt-4" data-testid="gdmt">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-3">HFrEF therapy, LVEF {g.ef}%</h3>
+      <ul className="mt-2 space-y-2">
+        {g.pillars.map((p) => (
+          <li key={p.key} className="rounded-lg border border-line p-3 text-sm" data-testid="gdmt-pillar">
+            <div className="flex flex-wrap items-center gap-2"><span className="font-medium">{p.label}</span><span className={`pill text-[10px] ${PILLAR_TONE[p.status]}`}>{PILLAR_LABEL[p.status]}</span>{p.current && <span className="text-xs text-ink-3">{p.current}</span>}</div>
+            <p className="mt-1 text-xs text-ink-2">Target: {p.target}. {p.note}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
