@@ -26,6 +26,7 @@ const NAV: { href: string; label: string; icon: typeof Calendar; group: string; 
   { href: "/insights", label: "Insights", icon: Chart, group: "Operations", roles: ["owner", "admin", "clinician", "viewer"] },
   { href: "/templates", label: "Templates", icon: Layout, group: "Setup", roles: ["owner", "admin", "clinician", "scribe"] },
   { href: "/forms", label: "PDF forms", icon: Layout, group: "Setup", roles: ["owner", "admin"] },
+  { href: "/compliance", label: "Compliance", icon: Shield, group: "Setup", roles: ["owner", "admin"] },
   { href: "/admin", label: "Admin", icon: Shield, group: "Setup", roles: ["owner", "admin"] },
   { href: "/settings", label: "Settings", icon: Gear, group: "Setup" },
 ];
