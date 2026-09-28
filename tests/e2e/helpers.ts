@@ -29,3 +29,11 @@ export async function draftNote(page: Page) {
   await page.getByTestId("finish").click();
   await expect(page.getByTestId("note-editor")).toBeVisible({ timeout: 60_000 });
 }
+
+export async function signNote(page: Page) {
+  await page.getByTestId("sign").click();
+  const anyway = page.getByTestId("sign-anyway");
+  await expect(anyway.or(page.locator("[data-status=signed]").first())).toBeVisible();
+  if (await anyway.isVisible()) await anyway.click();
+  await expect(page.locator("[data-status=signed]").first()).toBeVisible();
+}

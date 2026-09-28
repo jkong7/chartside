@@ -3,11 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, copyText } from "@/lib/client";
+import { CREDENTIALS } from "@/lib/engine/attest";
 import { ROLE_INFO, roleLabel, type Role } from "@/lib/roles";
 import { Check, Copy, Plus, Shield, X } from "./icons";
 import { Avatar, Kpi, Spinner, Tabs, Toast } from "./ui";
 
 const ROLES = Object.keys(ROLE_INFO) as Role[];
+
+const needsSupervisor = (credential: string, apps: boolean) => ["Resident", "Fellow", "Student"].includes(credential) || (apps && ["NP", "PA"].includes(credential));
 
 interface Member {
   userId: string;
@@ -17,6 +20,8 @@ interface Member {
   status: "active" | "disabled";
   joinedAt: string;
   hasPassword: boolean;
+  credential: string;
+  supervisorId: string | null;
 }
 
 interface Sso {
@@ -31,7 +36,7 @@ interface Sso {
 }
 
 interface Data {
-  org: { id: string; name: string; slug: string; createdAt: string };
+  org: { id: string; name: string; slug: string; createdAt: string; appsRequireCosign: boolean };
   members: Member[];
   invites: { token: string; email: string; role: Role; expiresAt: string; createdAt: string }[];
   sso: Sso | null;
@@ -57,6 +62,12 @@ const ACTION_LABEL: Record<string, string> = {
   "org.renamed": "Renamed the organization",
   "org.switched": "Switched organization",
   "note.signed": "Signed a note",
+  "note.cosigned": "Co-signed a note",
+  "note.returned": "Returned a note for changes",
+  "note.addendum": "Added an addendum",
+  "cosign.requested": "Requested a co-signature",
+  "member.clinical_updated": "Updated a credential or supervisor",
+  "org.cosign_policy": "Changed the co-signature policy",
   "note.edited": "Edited a note",
   "note.generated": "Drafted a note",
   "consent.granted": "Recorded consent",
@@ -164,6 +175,29 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
                     <p className="truncate text-xs text-ink-3">{m.email} · {m.hasPassword ? "Password" : "SSO"}{m.status === "disabled" ? " · Disabled" : ""}</p>
                   </div>
                   <select
+                    className="input w-36 py-1.5 text-sm"
+                    aria-label={`Credential for ${m.name}`}
+                    data-testid="member-credential"
+                    value={m.credential}
+                    disabled={busy}
+                    onChange={(e) => run(() => api(`/admin/members/${m.userId}`, { method: "PATCH", body: { credential: e.target.value } }), `${m.name}'s credential was updated.`)}
+                  >
+                    {CREDENTIALS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  </select>
+                  {needsSupervisor(m.credential, d.org.appsRequireCosign) && (
+                    <select
+                      className="input w-44 py-1.5 text-sm"
+                      aria-label={`Supervising physician for ${m.name}`}
+                      data-testid="member-supervisor"
+                      value={m.supervisorId ?? ""}
+                      disabled={busy}
+                      onChange={(e) => run(() => api(`/admin/members/${m.userId}`, { method: "PATCH", body: { supervisorId: e.target.value || null } }), e.target.value ? `${m.name}'s notes now go to ${d.members.find((x) => x.userId === e.target.value)?.name} for co-signature.` : `${m.name} has no supervisor.`)}
+                    >
+                      <option value="">No supervisor</option>
+                      {d.members.filter((x) => x.userId !== m.userId && x.status === "active" && ["MD", "DO"].includes(x.credential) && ["owner", "admin", "clinician"].includes(x.role)).map((x) => <option key={x.userId} value={x.userId}>Supervisor: {x.name}</option>)}
+                    </select>
+                  )}
+                  <select
                     className="input w-40 py-1.5 text-sm"
                     aria-label={`Role for ${m.name}`}
                     value={m.role}
@@ -236,6 +270,14 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
                 </ul>
               </div>
             )}
+            <div className="card p-4" data-testid="cosign-policy">
+              <p className="text-sm font-semibold">Co-signature</p>
+              <p className="mt-1 text-xs text-ink-3">Residents, fellows, and students always need a supervising physician to co-sign. Their claims are held until the attestation is added.</p>
+              <label className="mt-2 flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={d.org.appsRequireCosign} disabled={busy} onChange={(e) => run(() => api("/admin", { method: "PATCH", body: { appsRequireCosign: e.target.checked } }), e.target.checked ? "NP and PA notes now need a co-signature." : "NP and PA notes no longer need a co-signature.")} data-testid="apps-cosign" />
+                Also require co-signature for NP and PA notes
+              </label>
+            </div>
             <div className="card p-4">
               <p className="text-sm font-semibold">Roles</p>
               <dl className="mt-2 space-y-2 text-xs">

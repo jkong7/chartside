@@ -14,6 +14,7 @@ import Capture from "./Capture";
 import NoteEditor from "./NoteEditor";
 import { AuditPanel, CodesPanel, LettersPanel, OrdersPanel, SummaryPanel } from "./Panels";
 import PreVisit from "./PreVisit";
+import { Addenda, CosignBanner } from "./Signoff";
 import Transcript from "./Transcript";
 import type { Bundle, Highlight } from "./types";
 
@@ -69,11 +70,11 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
     setSigning(true);
     try {
       const r = await fetch(`/api/encounters/${id}/sign`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ force }) });
-      const data = (await r.json()) as { signed: boolean; blockers: string[]; learned?: number; error?: string; filing?: { status: string; reference?: string; message?: string } | null };
+      const data = (await r.json()) as { signed: boolean; blockers: string[]; learned?: number; cosign?: { supervisor: string } | null; error?: string; filing?: { status: string; reference?: string; message?: string } | null };
       if (data.signed) {
         setSignOpen(false);
         const filed = data.filing ? (data.filing.status === "filed" ? ` Filed to ${b?.artifacts.ehr_link?.system ?? "the EHR"}.` : ` Filing to ${b?.artifacts.ehr_link?.system ?? "the EHR"} failed.`) : "";
-        setToast(`${data.learned ? `Signed. Chartside learned ${data.learned} style preference${data.learned > 1 ? "s" : ""} from your edits.` : "Note signed."}${filed}`);
+        setToast(`${data.learned ? `Signed. Chartside learned ${data.learned} style preference${data.learned > 1 ? "s" : ""} from your edits.` : "Note signed."}${data.cosign ? ` Sent to ${data.cosign.supervisor} for co-signature.` : ""}${filed}`);
         await load();
       } else {
         setBlockers(data.blockers ?? [data.error ?? "Could not sign"]);
@@ -209,6 +210,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
                 </ul>
               </div>
             ) : null}
+            {tab === "note" && <CosignBanner key={`${b.artifacts.cosign?.status}-${b.addenda.length}`} b={b} onChange={load} onToast={setToast} />}
             {tab === "note" && (
               <NoteEditor
                 encounterId={id}
@@ -225,6 +227,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
                 onSaved={(n: Note, om?: OmissionFlag[]) => setB((x) => (x ? { ...x, note: { ...x.note!, content: n }, artifacts: { ...x.artifacts, omissions: om ?? x.artifacts.omissions } } : x))}
               />
             )}
+            {tab === "note" && <Addenda b={b} onChange={load} onToast={setToast} />}
             {tab === "codes" && <CodesPanel coding={b.artifacts.coding} encounterId={id} locked={locked} onUpdate={() => load()} onCite={(ids) => cite(ids)} />}
             {tab === "orders" && <OrdersPanel encounterId={id} orders={b.orders} locked={locked} onChange={(fn: (o: StagedOrder[]) => StagedOrder[]) => setB((x) => (x ? { ...x, orders: fn(x.orders) } : x))} onCite={(ids) => cite(ids)} />}
             {tab === "billing" && <BillingPanel key={b.claim?.updatedAt ?? "draft"} encounterId={id} record={b.claim} draft={b.artifacts.claim} priorAuth={b.artifacts.priorAuth ?? []} signed={signed} canReview={b.access.billingReview} onCite={(ids) => cite(ids)} />}

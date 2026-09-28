@@ -3,8 +3,10 @@ import { authed, body, fail, json } from "@/lib/server/http";
 import { speechConfig } from "@/lib/server/audio";
 import { consentScript } from "@/lib/server/pipeline";
 import { assertCan, can, canSign } from "@/lib/server/policy";
-import { artifacts, audioChunks, audit, claims, consents, encounters, feedback, notes, orders, patientFlags, patients, templates, users, utterances } from "@/lib/server/repo";
+import { addenda, artifacts, audioChunks, audit, claims, consents, encounters, feedback, notes, orders, orgs, patientFlags, patients, templates, users, utterances } from "@/lib/server/repo";
 import type { Encounter } from "@/lib/types";
+import { attestationsFor } from "@/lib/engine/attest";
+import { verifyChain, type Cosign } from "@/lib/server/signoff";
 
 export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
   const enc = await encounters.get(user, id);
@@ -12,7 +14,7 @@ export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
   const clinician = enc.userId === user.id ? user : await users.byId(enc.userId);
   const prefs = clinician?.prefs ?? user.prefs;
   const tplId = enc.templateId ?? prefs.defaultTemplate ?? "soap";
-  const [patient, rec, template, tpls, consent, utts, arts, ords, aud, fb, flags, chunks, claim] = await Promise.all([
+  const [patient, rec, template, tpls, consent, utts, arts, ords, aud, fb, flags, chunks, claim, adds, chain] = await Promise.all([
     enc.patientId ? patients.get(user, enc.patientId) : Promise.resolve(undefined),
     notes.latest(enc.id),
     templates.get(user, tplId).then(async (t) => t ?? (await templates.get(user, "soap"))),
@@ -26,7 +28,11 @@ export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
     patientFlags.list(enc.id),
     audioChunks.list(enc.id),
     claims.get(enc.id),
+    addenda.list(enc.id),
+    verifyChain(enc.id),
   ]);
+  const cosign = (arts.cosign ?? undefined) as unknown as Cosign | undefined;
+  const supervises = !!cosign && (cosign.supervisorId === user.id || (enc.userId !== user.id && (await orgs.membership(user.orgId, enc.userId))?.supervisor_id === user.id));
   return json({
     encounter: enc,
     patient: patient ?? null,
@@ -46,6 +52,9 @@ export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
     audio: { chunks: chunks.length, bytes: chunks.reduce((n, x) => n + x.bytes, 0), durationMs: chunks.at(-1)?.tMs ?? 0, retentionDays: prefs.audioRetentionDays ?? 0 },
     speech: speechConfig(),
     claim: claim ?? null,
+    addenda: adds,
+    chain,
+    attestations: cosign ? attestationsFor(cosign.authorCredential).map((a) => ({ key: a.key, label: a.label, modifier: a.modifier, source: a.source, preview: a.text({ supervisor: user.name, author: cosign.authorName }) })) : [],
     clinician: { id: enc.userId, name: clinician?.name ?? "Unknown" },
     access: {
       userId: user.id,
@@ -54,6 +63,8 @@ export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
       edit: can(user, "clinical.edit"),
       sign: canSign(user, enc),
       billingReview: can(user, "billing.review"),
+      cosign: supervises && cosign?.status === "pending",
+      addendum: enc.status === "signed" && (enc.userId === user.id || supervises),
     },
   });
 });

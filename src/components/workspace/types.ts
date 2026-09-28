@@ -23,6 +23,8 @@ export interface Bundle {
     ehr_link?: import("@/lib/server/ehr").EhrLink;
     ehr_filing?: import("@/lib/server/ehr").EhrFiling;
     priorAuth?: import("@/lib/engine/priorauth").PaPacket[];
+    signature?: import("@/lib/server/signoff").Signature;
+    cosign?: import("@/lib/server/signoff").Cosign;
   };
   orders: StagedOrder[];
   audit: { id: string; action: string; detail: Record<string, unknown>; created_at: string }[];
@@ -31,8 +33,11 @@ export interface Bundle {
   engine: { llm: boolean; model: string | null };
   audio: { chunks: number; bytes: number; durationMs: number; retentionDays: number };
   claim: import("@/lib/server/repo").ClaimRecord | null;
+  addenda: import("@/lib/server/repo").Addendum[];
+  chain: { intact: boolean | null; checked: number; brokenAt: string | null };
+  attestations: { key: string; label: string; modifier: string | null; source: string; preview: string }[];
   clinician: { id: string; name: string };
-  access: { userId: string; role: string; capture: boolean; edit: boolean; sign: boolean; billingReview: boolean };
+  access: { userId: string; role: string; capture: boolean; edit: boolean; sign: boolean; billingReview: boolean; cosign: boolean; addendum: boolean };
   speech: { provider: "deepgram" | "browser"; live: boolean; finalPass: boolean; wsUrl: string | null };
 }
 
