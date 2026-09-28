@@ -85,6 +85,11 @@ export async function completeSso(state: string, code: string, redirectUri: stri
   if (membership?.status === "disabled") throw new SsoError(`Your access to ${org.name} has been disabled. Contact your administrator.`);
   if (!membership) {
     if (!sso.jit) throw new SsoError(`You aren't a member of ${org.name}. Ask your administrator for an invitation.`);
+    try {
+      await (await import("./plan")).assertSeat(org.id, sso.defaultRole);
+    } catch {
+      throw new SsoError(`${org.name} has no clinician seats left. Ask your administrator to add seats.`);
+    }
     await orgs.addMember(org.id, userId, sso.defaultRole);
     await audit.log({ id: userId, orgId: org.id }, null, "member.provisioned", { via: "sso", role: sso.defaultRole, email });
   }

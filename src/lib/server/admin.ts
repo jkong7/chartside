@@ -1,3 +1,4 @@
+import { assertSeat } from "./plan";
 import { CREDENTIALS, SUPERVISORS, type Credential } from "../engine/attest";
 import { seal } from "../fhir/crypto";
 import { discoverOidc } from "../sso/oidc";
@@ -28,6 +29,8 @@ async function activeOwners(orgId: string) {
 export async function updateMember(actor: User, userId: string, patch: { role?: Role; status?: "active" | "disabled"; credential?: string; supervisorId?: string | null }) {
   const target = await orgs.membership(actor.orgId, userId);
   if (!target) throw new Error("Member not found");
+  const clinical = (r?: string) => !!r && ["owner", "admin", "clinician"].includes(r);
+  if ((patch.role && clinical(patch.role) && (!clinical(target.role) || target.status === "disabled")) || (patch.status === "active" && target.status === "disabled" && clinical(patch.role ?? target.role))) await assertSeat(actor.orgId, patch.role ?? target.role);
   if (patch.credential !== undefined || patch.supervisorId !== undefined) {
     const credential = patch.credential ?? target.credential ?? "";
     if (!CREDENTIALS.some((c) => c.value === credential)) throw new Invalid("Unknown credential");
@@ -79,6 +82,7 @@ export async function inviteMember(actor: User, email: string, role: Role, origi
   if (role === "owner" && actor.role !== "owner") throw new Forbidden("Only an owner can invite owners.");
   const existing = (await orgs.members(actor.orgId)).find((m) => m.email === clean);
   if (existing) throw new Invalid(`${clean} is already a member`);
+  await assertSeat(actor.orgId, role);
   const token = await invites.create(actor.orgId, clean, role, actor.id);
   await audit.log(actor, null, "member.invited", { email: clean, role });
   return { token, url: `${origin}/invite/${token}` };

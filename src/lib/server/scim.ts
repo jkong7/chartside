@@ -83,6 +83,11 @@ export async function createUser(o: { orgId: string; defaultRole: string }, base
   const role = roleFrom(body, o.defaultRole);
   let u = await users.byEmail(email);
   if (u && (await orgs.membership(o.orgId, u.id))) throw new ScimError(409, "User already exists", "uniqueness");
+  try {
+    await (await import("./plan")).assertSeat(o.orgId, role);
+  } catch (e) {
+    throw new ScimError(409, e instanceof Error ? e.message : "No seats available", "tooMany");
+  }
   const id = u?.id ?? (await users.create({ email, name, passwordHash: "", specialty: "" })).id;
   await orgs.addMember(o.orgId, id, role);
   if (body.active === false) await orgs.setStatus(o.orgId, id, "disabled");
