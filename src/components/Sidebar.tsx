@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import { roleLabel, type Role } from "@/lib/roles";
-import { Alert, Bed, Calendar, Chart, Check, Gear, Inbox, Layout, Logo, Logout, Receipt, Shield, Users } from "./icons";
+import { Alert, Bed, Calendar, Chart, Check, Gear, Inbox, Layout, Logo, Logout, Receipt, Search, Shield, Users } from "./icons";
 import { Avatar } from "./ui";
 
 const NAV: { href: string; label: string; icon: typeof Calendar; group: string; roles?: Role[] }[] = [
@@ -19,6 +19,7 @@ const NAV: { href: string; label: string; icon: typeof Calendar; group: string; 
   { href: "/revenue", label: "Revenue", icon: Receipt, group: "Revenue & quality", roles: ["owner", "admin", "clinician", "coder", "viewer"] },
   { href: "/risk", label: "Risk adjustment", icon: Receipt, group: "Revenue & quality", roles: ["owner", "admin", "clinician", "coder", "viewer"] },
   { href: "/quality", label: "Quality", icon: Check, group: "Revenue & quality", roles: ["owner", "admin", "clinician", "coder", "viewer"] },
+  { href: "/research", label: "Research", icon: Search, group: "Operations", roles: ["owner", "admin", "clinician", "viewer"] },
   { href: "/qa", label: "Note QA", icon: Shield, group: "Operations", roles: ["owner", "admin", "viewer"] },
   { href: "/impact", label: "Impact", icon: Chart, group: "Operations", roles: ["owner", "admin", "viewer"] },
   { href: "/insights", label: "Insights", icon: Chart, group: "Operations", roles: ["owner", "admin", "clinician", "viewer"] },

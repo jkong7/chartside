@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import type { MeasureAction, MeasureResult } from "@/lib/engine/quality";
 import { Check, Plus } from "../icons";
@@ -58,7 +58,42 @@ export default function QualityPanel({ encounterId, quality, locked, onChanged, 
           </li>
         ))}
       </ul>
+      <TrialMatches encounterId={encounterId} canRefer={!locked} />
     </div>
+  );
+}
+
+type Match = { trialId: string; title: string; status: "likely" | "possible"; met: string[]; unknown: string[]; referred: boolean; contact: string; nct: string | null };
+
+function TrialMatches({ encounterId, canRefer }: { encounterId: string; canRefer: boolean }) {
+  const [matches, setMatches] = useState<Match[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    api<{ matches: Match[] }>(`/encounters/${encounterId}/trials`).then((r) => setMatches(r.matches)).catch(() => setMatches([]));
+  }, [encounterId]);
+  if (!matches?.length) return null;
+  return (
+    <section className="mt-5 border-t border-line pt-4" data-testid="trial-matches">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-3">Research pre-screening</h3>
+      <p className="mt-1 text-xs text-ink-3">Studies at your organization this patient may qualify for. The study team confirms eligibility.</p>
+      {err && <p className="mt-2 text-sm text-rec" role="alert">{err}</p>}
+      <ul className="mt-2 space-y-2">
+        {matches.map((m) => (
+          <li key={m.trialId} className="rounded-lg border border-line p-3 text-sm" data-testid="trial-match">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">{m.title}</span>
+              <span className={`pill text-[10px] ${m.status === "likely" ? "bg-ok-50 text-ok" : "bg-warn-50 text-warn"}`}>{m.status === "likely" ? "Meets listed criteria" : "Needs data"}</span>
+              {m.referred ? <span className="ml-auto pill bg-info-50 text-[10px] text-info" data-testid="trial-referred">Referred</span> : canRefer && (
+                <button className="btn-outline ml-auto px-2.5 py-1 text-xs" disabled={!!busy} onClick={async () => { setBusy(m.trialId); setErr(null); try { setMatches((await api<{ matches: Match[] }>(`/encounters/${encounterId}/trials`, { body: { trialId: m.trialId } })).matches); } catch (e) { setErr(e instanceof Error ? e.message : "Could not refer"); } setBusy(null); }} data-testid="trial-refer">{busy === m.trialId ? <Spinner /> : null} Refer to study team</button>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-ink-2">{m.met.join(" · ")}</p>
+            {m.unknown.length > 0 && <p className="mt-0.5 text-xs text-warn">To confirm: {m.unknown.join("; ")}</p>}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
