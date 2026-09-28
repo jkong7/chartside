@@ -5,6 +5,7 @@ import { currentUser } from "@/lib/server/auth";
 import { orgs } from "@/lib/server/repo";
 import { mfaStatus, orgSecurity } from "@/lib/server/security";
 import IdleWarning from "@/components/IdleWarning";
+import Shortcuts from "@/components/Shortcuts";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await currentUser();
@@ -20,6 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {children}
       </div>
       <IdleWarning minutes={sec.idleMinutes ?? 30} />
+      <Shortcuts />
     </div>
   );
 }

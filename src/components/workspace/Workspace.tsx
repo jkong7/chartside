@@ -3,7 +3,7 @@
 import BreakGlass from "./BreakGlass";
 import ShareVisit from "./ShareVisit";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SegmentPlayer } from "@/lib/audio/player";
 import { age, api, ApiError, copyText, fmtDate, fmtTime } from "@/lib/client";
 import { roleLabel } from "@/lib/roles";
@@ -57,6 +57,12 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
   }, [load]);
 
   const cite = useCallback((ids: string[], source?: string) => setHl({ ids, source, nonce: Date.now() }), []);
+  const signRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    const h = () => signRef.current();
+    window.addEventListener("chartside:sign", h);
+    return () => window.removeEventListener("chartside:sign", h);
+  }, []);
   const audioChunks = b?.audio.chunks ?? 0;
   const player = useMemo(() => (audioChunks > 0 ? new SegmentPlayer(`/api/encounters/${id}/audio`) : null), [audioChunks, id]);
 
@@ -95,6 +101,10 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
       setSigning(false);
     }
   }
+
+  signRef.current = () => {
+    if (reviewable && !signed && b?.access.sign && !signing) sign(false);
+  };
 
   async function regenerate(templateId: string, detail?: "concise" | "standard" | "detailed") {
     setRegen(true);
