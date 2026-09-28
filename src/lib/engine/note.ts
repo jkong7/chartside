@@ -3,6 +3,7 @@ import type { Facts, MedFact, ProblemFact, SymptomFact } from "./extract";
 import { assessRisk, goalSentences, interventionSentences, psychotherapyCode, psychotherapyMinutes, responseSentences, riskSentences } from "./behavioral";
 import { edCourse, edDisposition } from "./ed";
 import { groupTopic } from "./group";
+import { dueSentences, extractPrenatal, obExamSentences, prenatalDue, pregnancySentences, warningSentences } from "./prenatal";
 import { extractProcedures, procedureSentences } from "./procedures";
 import { EVALS, extractTherapy, measureSentences, serviceSentences } from "./therapy";
 import { extractOncology, oncologyHistorySentences, toxicitySentences, treatmentSentences } from "./oncology";
@@ -532,6 +533,15 @@ export function buildSection(ts: TemplateSection, facts: Facts, ctx: NoteContext
         const code = f.evaluation.kind === "re" ? EVALS[disc].re : EVALS[disc][f.evaluation.complexity];
         sentences = [b.s(`${disc} ${f.evaluation.kind === "re" ? "re-evaluation" : `evaluation, ${f.evaluation.complexity} complexity`} (${code}): ${f.evaluation.basis}. Confirm complexity before signing.`, [], "system")];
       }
+      break;
+    }
+    case "ob_summary":
+    case "ob_warning":
+    case "ob_exam":
+    case "ob_due": {
+      const preg = ctx.patient?.chart.pregnancy;
+      const f = extractPrenatal(ctx.utterances ?? [], preg, new Date(ctx.encounter.scheduledAt));
+      sentences = kind === "ob_summary" ? pregnancySentences(preg, f, ts.key) : kind === "ob_warning" ? warningSentences(f, ts.key) : kind === "ob_exam" ? obExamSentences(f, ts.key) : dueSentences(prenatalDue(preg, f), ts.key);
       break;
     }
     case "procedure_note":

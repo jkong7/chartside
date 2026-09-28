@@ -21,6 +21,7 @@ export interface CodingContext {
   psychotherapyMinutes?: { minutes: number; evidence: string[] } | null;
   therapy?: { discipline: Discipline; facts: TherapyFacts };
   procedures?: ProcedureFacts;
+  prenatal?: { codes: { code: string; label: string }[]; globalPackage: boolean };
   oncology?: { cancer: { code: string; label: string; evidence: string[] } | null; monitoring: string[]; sideEffects: { label: string; code?: string; grade: number; evidence: string[] }[]; progression: string[] | null };
 }
 
@@ -178,9 +179,11 @@ export function computeCoding(facts: Facts, ctx: CodingContext): CodingResult {
   const th = ctx.therapy;
   const evalCode = th?.facts.evaluation ? (th.facts.evaluation.kind === "re" ? EVALS[th.discipline].re : EVALS[th.discipline][th.facts.evaluation.complexity]) : null;
   const therapyCode = th ? evalCode ?? th.facts.services.find((x) => !x.bundled)?.cpt ?? "97110" : null;
-  const code = therapyCode ?? psych ?? (cls === "discharge" ? (ctx.minutes > 30 ? "99239" : "99238") : cls === "office" ? EM[ctx.patientType][level] : EM[cls][level]);
+  if (ctx.prenatal?.codes.length) diagnoses.unshift(...ctx.prenatal.codes.filter((c) => !diagnoses.some((d) => d.code === c.code)).map((c) => ({ code: c.code, system: "ICD-10-CM" as const, label: c.label, rationale: c.code.startsWith("Z3A") ? "Weeks of gestation, reported with pregnancy codes" : "Routine prenatal care", evidence: [], confidence: 0.95, problem: "pregnancy" })));
+  const prenatalCode = ctx.prenatal?.globalPackage ? "0502F" : null;
+  const code = prenatalCode ?? therapyCode ?? psych ?? (cls === "discharge" ? (ctx.minutes > 30 ? "99239" : "99238") : cls === "office" ? EM[ctx.patientType][level] : EM[cls][level]);
   let tc: string | null = null;
-  if (psych || therapyCode || ctx.psychotherapy === "addon") tc = null;
+  if (psych || therapyCode || prenatalCode || ctx.psychotherapy === "addon") tc = null;
   else if (cls === "office") tc = ctx.minutes > 0 ? timeCode(ctx.patientType, ctx.minutes) : null;
   else if (cls === "initial_inpatient" || cls === "subsequent_inpatient") for (const [min, c] of INPATIENT_TIME[cls]) if (ctx.minutes >= min) tc = c;
 
@@ -228,6 +231,7 @@ export function computeCoding(facts: Facts, ctx: CodingContext): CodingResult {
   return {
     diagnoses,
     em: { code, level, patientType: ctx.patientType, problems, data, risk, timeBased: tc ? { minutes: ctx.minutes, code: tc } : undefined, auditRisk: { score: Math.max(0, score), direction, notes } },
+    prenatal: ctx.prenatal,
     procedures: ctx.procedures?.procedures.length || ctx.procedures?.drugs.length ? { procedures: ctx.procedures.procedures, drugs: ctx.procedures.drugs } : undefined,
     therapy: th ? { discipline: th.discipline, evalCode, services: th.facts.services } : undefined,
     psychotherapyAddOn: ctx.psychotherapy === "addon" && ctx.psychotherapyMinutes && ctx.psychotherapyMinutes.minutes >= 16 ? { code: psychotherapyCode(ctx.psychotherapyMinutes.minutes, true)!, minutes: ctx.psychotherapyMinutes.minutes, evidence: ctx.psychotherapyMinutes.evidence } : undefined,

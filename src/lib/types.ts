@@ -99,6 +99,10 @@ export type SectionKind =
   | "therapy_measures"
   | "therapy_eval"
   | "procedure_note"
+  | "ob_summary"
+  | "ob_warning"
+  | "ob_exam"
+  | "ob_due"
   | "onc_history"
   | "onc_treatment"
   | "toxicity"
@@ -162,6 +166,14 @@ export interface Chart {
   immunizations?: { name: string; date: string }[];
   smoking?: "never" | "former" | "current";
   oncology?: OncologyProfile;
+  pregnancy?: Pregnancy;
+}
+
+export interface Pregnancy {
+  edd: string;
+  gravida?: number;
+  para?: number;
+  rh?: "positive" | "negative";
 }
 
 export interface OncologyProfile {
@@ -289,6 +301,7 @@ export interface CodingResult {
   risk?: RiskSummary;
   reference?: { label: string; version: string }[];
   psychotherapyAddOn?: { code: string; minutes: number; evidence: string[] };
+  prenatal?: { codes: { code: string; label: string }[]; globalPackage: boolean };
   procedures?: { procedures: import("./engine/procedures").ProcedureLine[]; drugs: import("./engine/procedures").DrugLine[] };
   therapy?: { discipline: "PT" | "OT" | "SLP"; evalCode: string | null; services: { cpt: string; label: string; minutes: number | null; timed: boolean; bundled: boolean; evidence: string[] }[] };
 }

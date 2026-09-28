@@ -123,6 +123,7 @@ export const SERVICE_SUMMARY: Record<string, string> = {
   "97035": "Ultrasound, each 15 minutes",
   "97014": "Electrical stimulation, unattended",
   "97010": "Hot or cold packs (bundled)",
+  "0502F": "Subsequent prenatal care visit (global OB package, tracking only)",
   "20600": "Arthrocentesis/injection, small joint", "20604": "Arthrocentesis/injection, small joint, with ultrasound",
   "20605": "Arthrocentesis/injection, intermediate joint", "20606": "Arthrocentesis/injection, intermediate joint, with ultrasound",
   "20610": "Arthrocentesis/injection, major joint", "20611": "Arthrocentesis/injection, major joint, with ultrasound",
@@ -307,7 +308,9 @@ export function buildClaim(facts: Facts, coding: CodingResult, ctx: BillingConte
   const problemsAddressed = facts.problems.filter((p) => p.key !== "well" && (p.plan.length || p.assessed));
   let emLine: ClaimLine | null = null;
   const therapy = coding.therapy;
-  if (therapy) {
+  if (coding.prenatal?.globalPackage) {
+    lines.push(line("0502F", "em", "Routine prenatal visit included in the global obstetric package (59400, 59510, 59610, or 59618), reported with CPT II 0502F for tracking", [], problemDx.length ? problemDx : ["A"]));
+  } else if (therapy) {
     const mod = DISCIPLINE_MODIFIER[therapy.discipline];
     const ptrs = problemDx.length ? problemDx : ["A"];
     if (therapy.evalCode) lines.push(line(therapy.evalCode, "procedure", `${therapy.discipline} ${/9716[48]|92524/.test(therapy.evalCode) ? "re-evaluation" : "evaluation"}`, [], ptrs, [mod]));

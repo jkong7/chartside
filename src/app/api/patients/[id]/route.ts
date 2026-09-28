@@ -16,6 +16,17 @@ export const PATCH = authed<{ id: string }>(async (req, user, { id }) => {
   const b = await body<{ chart?: Partial<Chart> }>(req);
   const coverageOnly = !!b.chart && Object.keys(b.chart).every((k) => k === "coverage");
   if (!(coverageOnly && can(user, "billing.review"))) assertCan(user, "patients.write");
-  await patients.updateChart(user, id, { ...p.chart, ...(b.chart ?? {}) });
+  const next = { ...p.chart, ...(b.chart ?? {}) };
+  if (b.chart && "pregnancy" in b.chart) {
+    const g = b.chart.pregnancy;
+    if (!g) delete next.pregnancy;
+    else {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(g.edd ?? "") || Number.isNaN(Date.parse(g.edd))) return fail("Enter the estimated due date", 422);
+      const days = (Date.parse(g.edd) - Date.now()) / 86400000;
+      if (days < -60 || days > 300) return fail("That due date doesn't fit a current pregnancy", 422);
+      next.pregnancy = { edd: g.edd, gravida: Number.isInteger(g.gravida) ? g.gravida : undefined, para: Number.isInteger(g.para) ? g.para : undefined, rh: g.rh === "negative" || g.rh === "positive" ? g.rh : undefined };
+    }
+  }
+  await patients.updateChart(user, id, next);
   return json({ patient: await patients.get(user, id) });
 });

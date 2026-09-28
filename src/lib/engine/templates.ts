@@ -302,6 +302,23 @@ export const SYSTEM_TEMPLATES: Template[] = [
     ],
   },
   {
+    id: "ob_prenatal",
+    userId: null,
+    name: "Prenatal visit",
+    specialty: "Obstetrics",
+    description: "Gestational age by EDD, warning-sign review, fundal height and fetal heart rate, preeclampsia screening, what is due at this gestational age, Z34/Z3A codes, and global OB billing.",
+    style: { verbosity: "standard" },
+    sections: [
+      { key: "pregnancy", title: "Pregnancy", kind: "ob_summary", format: "paragraph" },
+      { key: "interval", title: "Interval History", kind: "hpi", format: "paragraph" },
+      { key: "warning", title: "Warning Signs", kind: "ob_warning", format: "bullets" },
+      { key: "vitals", title: "Vitals", kind: "vitals", format: "paragraph" },
+      { key: "obexam", title: "Prenatal Exam", kind: "ob_exam", format: "bullets" },
+      { key: "due", title: "Due at This Gestational Age", kind: "ob_due", format: "bullets" },
+      { key: "ap", title: "Assessment & Plan", kind: "assessment_plan", format: "bullets" },
+    ],
+  },
+  {
     id: "peds_acute",
     userId: null,
     name: "Pediatric sick visit",
