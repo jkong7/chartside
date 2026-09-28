@@ -127,9 +127,32 @@ export async function seedArchive(user: User) {
   }
 }
 
+const DEMO_MESSAGES: { patient: string; body: string; hoursAgo: number }[] = [
+  { patient: "Elena Russo", body: "Since my thyroid dose changed I've had a racing heart, and this morning I have chest pain that won't go away.", hoursAgo: 0.3 },
+  { patient: "Lucia Torres", body: "Hola, mi hija tiene fiebre de 102 desde anoche y está vomitando. ¿Qué debo hacer?", hoursAgo: 1.5 },
+  { patient: "Linda Park", body: "Hi, I'm almost out of my lisinopril. Can you send a refill to my CVS on Main Street?", hoursAgo: 3 },
+  { patient: "Grace Liu", body: "I got a notification that my A1c results are in. What do they mean?", hoursAgo: 20 },
+  { patient: "Marcus Webb", body: "Could I get a work note for missing Monday for the appointment?", hoursAgo: 26 },
+];
+
+export async function seedMessages(user: User) {
+  const { receiveMessage } = await import("./inbox");
+  const { run } = await import("../db");
+  const list = await patients.list(user);
+  for (const m of DEMO_MESSAGES) {
+    const p = list.find((x) => x.name === m.patient);
+    if (!p) continue;
+    const id = await receiveMessage({ orgId: user.orgId, patient: p, assigneeId: user.id, body: m.body, channel: "portal", actor: user });
+    await run("UPDATE messages SET received_at = ? WHERE id = ?", new Date(Date.now() - m.hoursAgo * 3600000).toISOString(), id);
+  }
+}
+
 export async function seedDemo(user: User, opts: { archive?: boolean } = {}) {
   const org = await orgs.get(user.orgId);
   if (org && !org.settings.billing?.npi) await orgs.update(org.id, { settings: { ...org.settings, billing: { ...(org.settings.billing ?? {}), npi: "1234567893", tin: "12-3456789", demoIdentifiers: true } } });
   await seedSchedule(user);
-  if (opts.archive !== false) await seedArchive(user);
+  if (opts.archive !== false) {
+    await seedArchive(user);
+    await seedMessages(user);
+  }
 }

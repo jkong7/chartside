@@ -21,6 +21,7 @@ import { buildClaim, claimStatus } from "../engine/billing";
 import { buildPriorAuths } from "../engine/priorauth";
 import { enrichCoding, hccMapper, payerFor, referenceFor } from "./rcm";
 import { canSign, Forbidden } from "./policy";
+import { syncTasks } from "./inbox";
 import { cosignPlan, documentText, holdClaimForCosign, recordSignature } from "./signoff";
 import { addenda, artifacts, audit, claims, consents, encounters, notes, orders, patients, styleRules, templates, utterances, users, type User } from "./repo";
 
@@ -161,6 +162,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   const prevPa = (await artifacts.get<import("../engine/priorauth").PaPacket[]>(enc.id, "priorAuth")) ?? [];
   await artifacts.set(enc.id, "priorAuth", buildPriorAuths(facts, coding, savedOrders, paContext(clinician.name, enc, patient)).map((p) => ({ ...p, submission: prevPa.find((x) => x.service === p.service)?.submission ?? p.submission })));
   await encounters.update(user, enc.id, { status: "review", endedAt: enc.endedAt ?? new Date().toISOString() });
+  await syncTasks(user, enc);
   const stats = supportStats(note);
   await audit.log(user, enc.id, "note.generated", { engine: note.meta.engine, model: note.meta.model ?? null, template: template.id, ms: Date.now() - started, sentences: stats.total, supportedPct: stats.pct, omissions: omissions.length });
   return { note, warnings };
@@ -245,6 +247,7 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   await audit.log(user, enc.id, "note.signed", { edited, editRatio, learned: candidates.length, forced: !!opts.force, overrides: blockers });
   await finalizeClaim(user, (await encounters.get(user, enc.id))!);
   await holdClaimForCosign(user, enc.id, cosign);
+  await syncTasks(user, enc);
   if (retentionDays(user) === 0) await deleteAudio(user, enc.id, "signed (retention: delete at signing)");
   await purgeExpired(user);
   return { signed: true, blockers: [] as string[], learned: candidates.length, cosign: cosign ? { supervisor: cosign.supervisorName } : null };

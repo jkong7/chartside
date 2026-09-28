@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { all, jsonText } from "../db";
 import { addendumTitle, attestationsFor, needsCosign, PRIMARY_CARE_EXCEPTION_CODES, type AddendumKind, type AttestationKey } from "../engine/attest";
 import { claimStatus } from "../engine/billing";
 import type { Encounter, Note } from "../types";
@@ -217,11 +218,10 @@ export async function documentText(encId: string, note: Note) {
 }
 
 export async function pendingCosigns(user: User) {
-  const list = await encounters.list(user, { statuses: ["signed"] });
-  const out: { encounterId: string; cosign: Cosign; scheduledAt: string; reason: string }[] = [];
-  for (const e of list) {
-    const c = await artifacts.get<Cosign>(e.id, "cosign");
-    if (c?.status === "pending" && c.supervisorId === user.id) out.push({ encounterId: e.id, cosign: c, scheduledAt: e.scheduledAt, reason: e.reason });
-  }
-  return out;
+  const rows = await all<{ encounter_id: string; content: string; scheduled_at: string; reason: string }>(
+    `SELECT a.encounter_id, a.content, e.scheduled_at, e.reason FROM artifacts a JOIN encounters e ON e.id = a.encounter_id WHERE a.kind = 'cosign' AND e.org_id = ? AND ${jsonText("a.content", "status")} = 'pending' AND ${jsonText("a.content", "supervisorId")} = ? ORDER BY e.scheduled_at`,
+    user.orgId,
+    user.id,
+  );
+  return rows.map((r) => ({ encounterId: r.encounter_id, cosign: JSON.parse(r.content) as Cosign, scheduledAt: r.scheduled_at, reason: r.reason }));
 }

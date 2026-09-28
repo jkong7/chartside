@@ -155,3 +155,15 @@ export async function assistWithClaude(input: { message: string; note: Note | nu
   if (response.stop_reason === "refusal" || !response.parsed_output) throw new Error("Assistant unavailable");
   return response.parsed_output;
 }
+
+export async function polishReplyWithClaude(input: { message: string; draft: string; chart?: Chart | null; lang: string }) {
+  const response = await anthropic().messages.create({
+    model: llmModel(),
+    max_tokens: 2000,
+    system: `You polish a clinician's draft reply to a patient portal message. Keep it warm, clear, and at a 6th-grade reading level, in ${input.lang === "es" ? "Spanish" : "English"}. Keep every clinical fact, number, medication, dose, and safety instruction exactly as in the draft, and never add clinical facts, diagnoses, or promises that are not in the draft or chart. Keep every "***" marker exactly where the clinician must decide something. Keep the greeting and sign-off. Reply with the message text only.`,
+    messages: [{ role: "user", content: `Patient message:\n${input.message}\n\nChart:\n${JSON.stringify({ problems: input.chart?.problems ?? [], medications: input.chart?.medications ?? [], labs: input.chart?.labs ?? [] })}\n\nDraft reply:\n${input.draft}` }],
+  });
+  const text = response.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("").trim();
+  if (!text || response.stop_reason === "refusal") throw new Error("Draft unavailable");
+  return text;
+}

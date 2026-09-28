@@ -1,5 +1,6 @@
 import { assertCan } from "@/lib/server/policy";
 import { authed, body, fail, json } from "@/lib/server/http";
+import { syncTasks } from "@/lib/server/inbox";
 import { audit, encounters, orders } from "@/lib/server/repo";
 
 export const PATCH = authed<{ id: string; oid: string }>(async (req, user, { id, oid }) => {
@@ -14,5 +15,6 @@ export const PATCH = authed<{ id: string; oid: string }>(async (req, user, { id,
   if (b.status === "accepted" && cur.alerts.some((a) => a.level === "block") && !b.override) return fail("This order has a blocking safety alert. Override explicitly to accept it.", 422);
   const o = await orders.setStatus(enc.id, oid, b.status);
   await audit.log(user, enc.id, `order.${b.status}`, { order: cur.name, override: !!b.override });
+  await syncTasks(user, enc);
   return json({ order: o });
 });

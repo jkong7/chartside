@@ -255,6 +255,46 @@ CREATE TABLE IF NOT EXISTS addenda (
   ord BIGINT NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS tasks (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  encounter_id TEXT REFERENCES encounters(id) ON DELETE CASCADE,
+  patient_id TEXT REFERENCES patients(id) ON DELETE CASCADE,
+  message_id TEXT,
+  assignee_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  key TEXT NOT NULL,
+  title TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT '',
+  due_at TEXT,
+  status TEXT NOT NULL DEFAULT 'open',
+  evidence TEXT NOT NULL DEFAULT '[]',
+  source TEXT NOT NULL DEFAULT 'auto',
+  created_by TEXT,
+  completed_by TEXT,
+  completed_at TEXT,
+  ord BIGINT NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS messages (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  patient_id TEXT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  encounter_id TEXT,
+  assignee_id TEXT NOT NULL,
+  subject TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL,
+  channel TEXT NOT NULL DEFAULT 'portal',
+  triage TEXT NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'new',
+  draft TEXT,
+  draft_meta TEXT,
+  reply TEXT,
+  replied_by TEXT,
+  replied_at TEXT,
+  ord BIGINT NOT NULL DEFAULT 0,
+  received_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ehr_connections (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -281,6 +321,9 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS patients_org ON patients(org_id)",
   "CREATE INDEX IF NOT EXISTS memberships_user ON memberships(user_id)",
   "CREATE INDEX IF NOT EXISTS addenda_enc ON addenda(encounter_id, ord)",
+  "CREATE INDEX IF NOT EXISTS tasks_assignee ON tasks(org_id, assignee_id, status)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS tasks_enc_key ON tasks(encounter_id, key)",
+  "CREATE INDEX IF NOT EXISTS messages_assignee ON messages(org_id, assignee_id, status)",
 ];
 
 const LEGACY_COLUMNS: [string, string, string][] = [

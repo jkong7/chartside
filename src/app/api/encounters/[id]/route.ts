@@ -7,6 +7,7 @@ import { addenda, artifacts, audioChunks, audit, claims, consents, encounters, f
 import type { Encounter } from "@/lib/types";
 import { attestationsFor } from "@/lib/engine/attest";
 import { verifyChain, type Cosign } from "@/lib/server/signoff";
+import { tasks } from "@/lib/server/inbox";
 
 export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
   const enc = await encounters.get(user, id);
@@ -31,6 +32,7 @@ export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
     addenda.list(enc.id),
     verifyChain(enc.id),
   ]);
+  const encTasks = await tasks.forEncounter(enc.id);
   const cosign = (arts.cosign ?? undefined) as unknown as Cosign | undefined;
   const supervises = !!cosign && (cosign.supervisorId === user.id || (enc.userId !== user.id && (await orgs.membership(user.orgId, enc.userId))?.supervisor_id === user.id));
   return json({
@@ -53,6 +55,7 @@ export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
     speech: speechConfig(),
     claim: claim ?? null,
     addenda: adds,
+    tasks: encTasks,
     chain,
     attestations: cosign ? attestationsFor(cosign.authorCredential).map((a) => ({ key: a.key, label: a.label, modifier: a.modifier, source: a.source, preview: a.text({ supervisor: user.name, author: cosign.authorName }) })) : [],
     clinician: { id: enc.userId, name: clinician?.name ?? "Unknown" },
