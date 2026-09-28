@@ -2,6 +2,7 @@ import type { Encounter, Note, NoteSection, NoteSentence, Patient, SectionKind, 
 import type { Facts, MedFact, ProblemFact, SymptomFact } from "./extract";
 import { assessRisk, interventionSentences, psychotherapyCode, responseSentences, riskSentences } from "./behavioral";
 import { edCourse, edDisposition } from "./ed";
+import { extractOncology, oncologyHistorySentences, toxicitySentences, treatmentSentences } from "./oncology";
 import { NORMAL_EXAM, type RosSystem } from "./lexicon";
 import { ageFrom, durationText, ensurePeriod, joinList, pronounsFor, sentenceCase, unique } from "./text";
 
@@ -480,6 +481,15 @@ export function buildSection(ts: TemplateSection, facts: Facts, ctx: NoteContext
       break;
     case "disposition":
       sentences = edDisposition(ctx.utterances ?? [], ts.key);
+      break;
+    case "onc_history":
+      sentences = oncologyHistorySentences(extractOncology(ctx.utterances ?? [], ctx.patient?.chart.oncology), ctx.patient?.chart.oncology, ts.key);
+      break;
+    case "onc_treatment":
+      sentences = treatmentSentences(extractOncology(ctx.utterances ?? [], ctx.patient?.chart.oncology), ts.key);
+      break;
+    case "toxicity":
+      sentences = toxicitySentences(extractOncology(ctx.utterances ?? [], ctx.patient?.chart.oncology), ts.key);
       break;
     case "custom":
       sentences = [];

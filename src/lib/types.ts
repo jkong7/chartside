@@ -92,6 +92,9 @@ export type SectionKind =
   | "therapy_time"
   | "ed_course"
   | "disposition"
+  | "onc_history"
+  | "onc_treatment"
+  | "toxicity"
   | "custom";
 
 export interface Template {
@@ -151,6 +154,19 @@ export interface Chart {
   screenings?: { name: string; date: string; result?: string }[];
   immunizations?: { name: string; date: string }[];
   smoking?: "never" | "former" | "current";
+  oncology?: OncologyProfile;
+}
+
+export interface OncologyProfile {
+  diagnosis: string;
+  icd10?: string;
+  stage?: string;
+  tnm?: string | null;
+  biomarkers?: string[];
+  diagnosedOn?: string;
+  regimens: { name: string; start: string; end?: string; cycles?: number; intent?: string; line?: string; reason?: string }[];
+  toxicityHistory?: { date: string; cycle?: number; term: string; grade: number }[];
+  ecogHistory?: { date: string; score: number }[];
 }
 
 export interface CoverageInfo {
