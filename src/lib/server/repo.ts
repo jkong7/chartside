@@ -207,15 +207,25 @@ export async function actorFor(userId: string, orgId?: string | null): Promise<U
 }
 
 export const sessions = {
-  create: async (userId: string, orgId: string | null, days = 14) => {
+  create: async (userId: string, orgId: string | null, days = 14, userAgent: string | null = null) => {
     const token = crypto.randomUUID() + crypto.randomUUID().replace(/-/g, "");
-    await run("INSERT INTO auth_sessions (token, user_id, org_id, expires_at) VALUES (?, ?, ?, ?)", token, userId, orgId, new Date(Date.now() + days * 86400000).toISOString());
+    await run("INSERT INTO auth_sessions (token, user_id, org_id, expires_at, created_at, last_seen_at, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?)", token, userId, orgId, new Date(Date.now() + days * 86400000).toISOString(), now(), now(), userAgent?.slice(0, 300) ?? null);
     return token;
   },
   user: async (token: string) => {
-    const r = await get<{ user_id: string; org_id: string | null; expires_at: string }>("SELECT user_id, org_id, expires_at FROM auth_sessions WHERE token = ?", token);
+    const r = await get<{ user_id: string; org_id: string | null; expires_at: string; last_seen_at: string | null }>("SELECT user_id, org_id, expires_at, last_seen_at FROM auth_sessions WHERE token = ?", token);
     if (!r || new Date(r.expires_at) < new Date()) return undefined;
-    return actorFor(r.user_id, r.org_id);
+    const actor = await actorFor(r.user_id, r.org_id);
+    if (!actor) return undefined;
+    const org = await orgs.get(actor.orgId);
+    const idle = ((org?.settings as { security?: { idleMinutes?: number } } | undefined)?.security?.idleMinutes ?? 30) * 60000;
+    const seen = r.last_seen_at ? new Date(r.last_seen_at).getTime() : Date.now();
+    if (Date.now() - seen > idle) {
+      await run("DELETE FROM auth_sessions WHERE token = ?", token);
+      return undefined;
+    }
+    if (Date.now() - seen > 30000) await run("UPDATE auth_sessions SET last_seen_at = ? WHERE token = ?", now(), token);
+    return actor;
   },
   setOrg: (token: string, orgId: string) => run("UPDATE auth_sessions SET org_id = ? WHERE token = ?", orgId, token),
   remove: (token: string) => run("DELETE FROM auth_sessions WHERE token = ?", token),

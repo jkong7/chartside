@@ -1,5 +1,5 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { can, type Permission } from "./policy";
 import { sessions, users, type Role, type User } from "./repo";
@@ -31,7 +31,7 @@ export async function sessionToken() {
 }
 
 export async function startSession(userId: string, orgId: string | null = null) {
-  const token = await sessions.create(userId, orgId);
+  const token = await sessions.create(userId, orgId, 14, (await headers()).get("user-agent"));
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",

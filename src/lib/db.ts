@@ -409,6 +409,13 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
   delivered_at TEXT,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS mfa_challenges (
+  token TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  org_id TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  expires_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ehr_connections (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -466,6 +473,12 @@ const LEGACY_COLUMNS: [string, string, string][] = [
   ["memberships", "credential", "TEXT NOT NULL DEFAULT ''"],
   ["encounters", "admission_id", "TEXT"],
   ["admissions", "care", "TEXT NOT NULL DEFAULT '[]'"],
+  ["users", "mfa_secret", "TEXT"],
+  ["users", "mfa_enabled_at", "TEXT"],
+  ["users", "mfa_recovery", "TEXT"],
+  ["auth_sessions", "created_at", "TEXT"],
+  ["auth_sessions", "last_seen_at", "TEXT"],
+  ["auth_sessions", "user_agent", "TEXT"],
   ["memberships", "supervisor_id", "TEXT"],
 ];
 
