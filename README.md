@@ -74,6 +74,8 @@ Chartside covers the work around the note that enterprise scribes compete on. Th
 | **Research** (`/research`) | Admins enter their studies' criteria (age, sex, diagnoses, lab thresholds, exclusions). Each visit is pre-screened, possible matches show what still needs confirming, and a referral opens a task for the study team. |
 | **Restricted notes** | Behavioral health notes open only for the author, their supervisor, or a colleague they shared with. Anyone else must break the glass with a reason, and every view, export, share, and break-the-glass open appears in the patient's access report (`/patients/[id]/access`, CSV export) for HIPAA access and disclosure requests. |
 | **Clinician experience** | An in-app NPS survey after ten signed notes (snoozable), and an Impact panel that flags low ambient use, after-hours charting, and unsigned backlogs with a specific tip for each. |
+| **Consistency checks** | Before signing, the note is checked against itself: a symptom both reported and denied, left and right for the same body part, an age or pronouns that don't match the patient, and one drug at two doses with no change documented. Issues show live in the editor and hold signing until reviewed. |
+| **Sign queue** (`/queue`) | Every note waiting for your signature with what still blocks it, one-click signing for ready notes, and "review next" for the rest. |
 | **Care management** (`/care-management`) | Chronic care management for patients with two or more chronic conditions: recorded consent, a care plan drafted from the chart, monthly time by staff or practitioner, and month-end 99490, 99439, 99491, and 99437 with a billing CSV. |
 | **HL7 v2 interface** | Signed notes go to your interface engine as MDM^T02 over MLLP, wait for the ACK, and are logged with resend. Restricted notes are withheld unless you opt in. |
 | **Record on phone** | "Record on phone" shows a QR code. A signed-in phone opens the same visit with a single-use, 5-minute link, and the draft opens on the desktop when the phone ends the visit. |
@@ -256,7 +258,7 @@ Optional configuration is in `.env.example`: `ANTHROPIC_API_KEY`, `CHARTSIDE_MOD
 ## Tests
 
 ```bash
-npm test               # 238 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
+npm test               # 242 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
                        # org scoping, RBAC, admin rules, OIDC token verification, SSO provisioning, Claude + Deepgram (mock servers),
                        # official code sets (hash verification, DOS release selection, pricing, HCC V28), diagnosis review, Medicare rules,
                        # NCCI/MUE/LCD logic, the claim lifecycle, co-signature and addenda, inbox triage and drafts, dictation grammar,
@@ -267,7 +269,7 @@ npm test               # 238 unit tests: extraction, notes, verification, coding
                        # SDOH Z-codes, visit sharing and one-time codes, research pre-screening, the 8-minute rule, procedures and
                        # J-code units, prenatal gestational age and flags, AcroForm filling, order sets, agenda, and access control
 npm run codesets:build # re-download and rebuild the official code sets (verifies pinned hashes)
-npm run test:e2e       # 76 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR, OIDC, SendGrid, and MLLP servers, and a fake microphone
+npm run test:e2e       # 78 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR, OIDC, SendGrid, and MLLP servers, and a fake microphone
 npm run test:pg        # both suites against Postgres (DATABASE_URL must point at a disposable database)
 npm run typecheck
 ```
