@@ -242,6 +242,7 @@ export interface Encounter {
   externalSystem?: string | null;
   externalId?: string | null;
   admissionId?: string | null;
+  locationId?: string | null;
 }
 
 export interface ConsentRecord {

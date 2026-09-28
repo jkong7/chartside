@@ -1,3 +1,4 @@
+import { defaultLocationFor, locations } from "@/lib/server/locations";
 import { authed, body, fail, json } from "@/lib/server/http";
 import { assertCan, can } from "@/lib/server/policy";
 import { encounters, notes, orgs, patients } from "@/lib/server/repo";
@@ -37,6 +38,7 @@ export const POST = authed(async (req, user) => {
     setting: b.setting ?? "in-person",
     inputLang: b.inputLang ?? "en",
     outputLang: b.outputLang ?? user.prefs.outputLang ?? "en",
+    locationId: b.locationId && (await locations.get(user.orgId, b.locationId)) ? b.locationId : await defaultLocationFor(user),
   });
   return json({ encounter: e }, 201);
 });

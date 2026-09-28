@@ -63,6 +63,7 @@ export type Payer = "Medicare" | "Medicare Advantage" | "Medicaid" | "Commercial
 
 export interface Claim {
   placeOfService: string;
+  serviceFacility?: { name: string; address: string } | null;
   payer: Payer;
   dx: ClaimDx[];
   lines: ClaimLine[];

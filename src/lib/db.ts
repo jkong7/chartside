@@ -334,6 +334,15 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS locations (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  address TEXT NOT NULL DEFAULT '',
+  pos TEXT NOT NULL DEFAULT '11',
+  archived INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS inbound_faxes (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,
@@ -709,6 +718,7 @@ const LEGACY_COLUMNS: [string, string, string][] = [
   ["auth_sessions", "org_id", "TEXT"],
   ["memberships", "credential", "TEXT NOT NULL DEFAULT ''"],
   ["encounters", "admission_id", "TEXT"],
+  ["encounters", "location_id", "TEXT"],
   ["admissions", "care", "TEXT NOT NULL DEFAULT '[]'"],
   ["patients", "phone", "TEXT"],
   ["patients", "email", "TEXT"],

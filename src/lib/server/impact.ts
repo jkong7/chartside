@@ -23,8 +23,8 @@ export async function impact(u: User, opts: { days?: number; baselineMinutes?: n
   const days = opts.days ?? 30;
   const baseline = opts.baselineMinutes ?? 7;
   const since = new Date(Date.now() - days * 86400000).toISOString();
-  const encs = await all<{ id: string; user_id: string; name: string; scheduled_at: string; status: string; signed_at: string | null; ended_at: string | null; captured: number }>(
-    "SELECT e.id, e.user_id, us.name, e.scheduled_at, e.status, e.signed_at, e.ended_at, (SELECT COUNT(*) FROM utterances ut WHERE ut.encounter_id = e.id AND ut.source <> 'typed') AS captured FROM encounters e JOIN users us ON us.id = e.user_id WHERE e.org_id = ? AND e.scheduled_at >= ? AND e.scheduled_at <= ?",
+  const encs = await all<{ id: string; user_id: string; name: string; scheduled_at: string; status: string; signed_at: string | null; ended_at: string | null; captured: number; location: string | null }>(
+    "SELECT e.id, e.user_id, us.name, e.scheduled_at, e.status, e.signed_at, e.ended_at, (SELECT COUNT(*) FROM utterances ut WHERE ut.encounter_id = e.id AND ut.source <> 'typed') AS captured, l.name AS location FROM encounters e JOIN users us ON us.id = e.user_id LEFT JOIN locations l ON l.id = e.location_id WHERE e.org_id = ? AND e.scheduled_at >= ? AND e.scheduled_at <= ?",
     u.orgId, since, new Date().toISOString(),
   );
   const gen = new Map((await all<{ encounter_id: string; created_at: string }>("SELECT a.encounter_id, MAX(a.created_at) AS created_at FROM audit a WHERE a.org_id = ? AND a.action = 'note.generated' AND a.created_at >= ? GROUP BY a.encounter_id", u.orgId, since)).map((r) => [r.encounter_id, r.created_at]));
@@ -69,6 +69,7 @@ export async function impact(u: User, opts: { days?: number; baselineMinutes?: n
       clinicians: clinicians.size,
       visits: encs.length,
       ambientRate: encs.length ? Math.round((encs.filter((e) => e.captured > 0).length / encs.length) * 100) : null,
+      byLocation: Object.entries(encs.reduce<Record<string, { visits: number; ambient: number; signed: number }>>((acc, e) => { const k = e.location ?? "Unassigned"; acc[k] ??= { visits: 0, ambient: 0, signed: 0 }; acc[k].visits++; if (Number(e.captured) > 0) acc[k].ambient++; if (e.signed_at) acc[k].signed++; return acc; }, {})).map(([name, x]) => ({ name, ...x, rate: x.visits ? Math.round((x.ambient / x.visits) * 100) : 0 })).sort((a, b) => b.visits - a.visits),
       byClinician: [...clinicians.values()].map((c) => ({ ...c, rate: c.visits ? Math.round((c.ambient / c.visits) * 100) : 0 })).sort((a, b) => b.visits - a.visits),
     },
     time: {

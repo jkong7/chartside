@@ -205,7 +205,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   const savedOrders = await orders.replace(enc.id, staged);
   const { criticalCareMinutes } = await import("../engine/ed");
   const billCtx = { ...billingContext(enc, patient, patientType, minutes, savedOrders, false, criticalCareMinutes(utts)), ref: await referenceFor(enc, user.orgId) };
-  await artifacts.set(enc.id, "claim", buildClaim(facts, coding, billCtx));
+  await artifacts.set(enc.id, "claim", await withFacility(enc, buildClaim(facts, coding, billCtx)));
   const prevPa = (await artifacts.get<import("../engine/priorauth").PaPacket[]>(enc.id, "priorAuth")) ?? [];
   await artifacts.set(enc.id, "priorAuth", buildPriorAuths(facts, coding, savedOrders, paContext(clinician.name, enc, patient)).map((p) => ({ ...p, submission: prevPa.find((x) => x.service === p.service)?.submission ?? p.submission })));
   await encounters.update(user, enc.id, { status: "review", endedAt: enc.endedAt ?? new Date().toISOString() });
@@ -226,6 +226,14 @@ function therapyContext(templateId: string, utts: import("../types").Utterance[]
   const discipline = therapyDiscipline(templateId);
   if (!discipline) return undefined;
   return { discipline, facts: extractTherapy(utts, { comorbidities: (patient?.chart.problems ?? []).length, evaluation: therapyEvaluation(templateId, utts) }) };
+}
+
+async function withFacility<T extends import("../engine/billing").Claim>(enc: Encounter, claim: T): Promise<T> {
+  if (!enc.locationId) return claim;
+  const { locations } = await import("./locations");
+  const loc = await locations.get((await encounters.byIdUnscoped(enc.id))?.orgId ?? "", enc.locationId);
+  if (!loc) return claim;
+  return { ...claim, serviceFacility: { name: loc.name, address: loc.address }, placeOfService: claim.placeOfService === "11" && loc.pos !== "11" ? loc.pos : claim.placeOfService };
 }
 
 function oncologyContext(templateId: string, utts: import("../types").Utterance[], patient: Patient | null): CodingContext["oncology"] {
@@ -258,7 +266,7 @@ export async function finalizeClaim(user: User, enc: Encounter) {
   const patientType = coding.em.patientType;
   const minutes = Math.round((enc.durationS || 0) / 60);
   const { criticalCareMinutes } = await import("../engine/ed");
-  const claim = buildClaim(facts, coding, { ...billingContext(enc, patient, patientType, minutes, await orders.list(enc.id), true, criticalCareMinutes(await utterances.list(enc.id))), ref: await referenceFor(enc, user.orgId) });
+  const claim = await withFacility(enc, buildClaim(facts, coding, { ...billingContext(enc, patient, patientType, minutes, await orders.list(enc.id), true, criticalCareMinutes(await utterances.list(enc.id))), ref: await referenceFor(enc, user.orgId) }));
   const existing = await claims.get(enc.id);
   const status = claimStatus(claim);
   return claims.save(enc.userId, enc.id, status, claim, [...(existing?.history ?? []), { at: new Date().toISOString(), action: "created", note: status === "ready" ? "No edits; ready to submit" : `${claim.edits.filter((e) => e.severity !== "info").length} edit(s) need review` }]);
@@ -528,7 +536,7 @@ export async function refreshDraftClaim(user: User, enc: Encounter) {
   if (!coding) return null;
   const minutes = Math.round((enc.durationS || 0) / 60);
   const { criticalCareMinutes } = await import("../engine/ed");
-  const claim = buildClaim(facts, coding, { ...billingContext(enc, patient, coding.em.patientType, minutes, await orders.list(enc.id), false, criticalCareMinutes(await utterances.list(enc.id))), ref: await referenceFor(enc, user.orgId) });
+  const claim = await withFacility(enc, buildClaim(facts, coding, { ...billingContext(enc, patient, coding.em.patientType, minutes, await orders.list(enc.id), false, criticalCareMinutes(await utterances.list(enc.id))), ref: await referenceFor(enc, user.orgId) }));
   await artifacts.set(enc.id, "claim", claim);
   return claim;
 }

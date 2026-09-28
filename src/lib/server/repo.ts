@@ -48,6 +48,7 @@ export interface UserPrefs {
   autoDocuments?: string[];
   surveySnoozedUntil?: string;
   onboardingDismissed?: boolean;
+  locationId?: string;
 }
 
 export const j = <T>(s: string | null | undefined, fallback: T): T => {
@@ -329,6 +330,7 @@ interface EncounterRow {
   external_system: string | null;
   external_id: string | null;
   admission_id?: string | null;
+  location_id?: string | null;
   clinician_name?: string;
 }
 
@@ -358,6 +360,7 @@ const toEncounter = (r: EncounterRow): EncounterWithClinician => ({
   externalSystem: r.external_system,
   externalId: r.external_id,
   admissionId: r.admission_id ?? null,
+  locationId: r.location_id ?? null,
   clinicianName: r.clinician_name,
 });
 
@@ -366,7 +369,7 @@ function encounterScope(u: User) {
 }
 
 export const encounters = {
-  list: async (u: User, opts: { from?: string; to?: string; patientId?: string; clinicianId?: string; statuses?: string[]; admissionId?: string; outpatient?: boolean } = {}) => {
+  list: async (u: User, opts: { from?: string; to?: string; patientId?: string; clinicianId?: string; statuses?: string[]; admissionId?: string; outpatient?: boolean; locationId?: string } = {}) => {
     const scope = encounterScope(u);
     const where = [scope.sql];
     const params: string[] = [...scope.params];
@@ -376,6 +379,7 @@ export const encounters = {
     if (opts.clinicianId) { where.push("e.user_id = ?"); params.push(opts.clinicianId); }
     if (opts.statuses?.length) { where.push(`e.status IN (${opts.statuses.map(() => "?").join(", ")})`); params.push(...opts.statuses); }
     if (opts.admissionId) { where.push("e.admission_id = ?"); params.push(opts.admissionId); }
+    if (opts.locationId) { where.push("e.location_id = ?"); params.push(opts.locationId); }
     if (opts.outpatient) where.push("e.admission_id IS NULL AND e.setting <> 'ed'");
     return (await all<EncounterRow>(`SELECT e.*, u.name AS clinician_name FROM encounters e JOIN users u ON u.id = e.user_id WHERE ${where.join(" AND ")} ORDER BY e.scheduled_at`, ...params)).map(toEncounter);
   },
@@ -391,8 +395,8 @@ export const encounters = {
   create: async (u: User, e: Partial<Encounter> & { scheduledAt: string; clinicianId?: string }) => {
     const id = uid("enc_");
     await run(
-      "INSERT INTO encounters (id, user_id, org_id, patient_id, scheduled_at, visit_type, reason, status, template_id, setting, input_lang, output_lang, admission_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      id, e.clinicianId ?? u.id, u.orgId, e.patientId ?? null, e.scheduledAt, e.visitType ?? "follow-up", e.reason ?? "", e.status ?? "scheduled", e.templateId ?? null, e.setting ?? "in-person", e.inputLang ?? "en", e.outputLang ?? "en", e.admissionId ?? null, now(),
+      "INSERT INTO encounters (id, user_id, org_id, patient_id, scheduled_at, visit_type, reason, status, template_id, setting, input_lang, output_lang, admission_id, location_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      id, e.clinicianId ?? u.id, u.orgId, e.patientId ?? null, e.scheduledAt, e.visitType ?? "follow-up", e.reason ?? "", e.status ?? "scheduled", e.templateId ?? null, e.setting ?? "in-person", e.inputLang ?? "en", e.outputLang ?? "en", e.admissionId ?? null, e.locationId ?? null, now(),
     );
     return (await encounters.get(u, id))!;
   },
