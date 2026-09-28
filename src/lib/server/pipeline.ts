@@ -119,6 +119,10 @@ export async function processEncounter(user: User, encId: string, opts: { templa
     }
   }
   if (!note) note = buildNote(facts, { patient, encounter: enc, template });
+  if (enc.admissionId) {
+    const { inpatientNote } = await import("./inpatient");
+    note = await inpatientNote(user, enc, facts, patient, note);
+  }
   note = applyStyle(note, rules);
   note = applyReplacements(note, await vocabulary.replacements(enc.userId, enc.orgId));
   note = scoreSupport(note, utts, patient?.chart);
@@ -130,7 +134,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   const pediatric = patient ? ageFrom(patient.dob) < 18 : false;
   const priorVisits = (await encounters.list(user, { patientId: enc.patientId ?? "__none__" })).filter((e) => e.id !== enc!.id && e.status === "signed").length;
   const patientType = enc.visitType === "new" || (!patient?.chart.priorVisits?.length && !priorVisits) ? "new" : "established";
-  const coding = await enrichCoding(user, enc, patient, computeCoding(facts, { patientType, minutes, chart: patient?.chart, pediatric, hccFor: hccMapper(patient, enc.scheduledAt) }), facts);
+  const coding = await enrichCoding(user, enc, patient, computeCoding(facts, { patientType, minutes, chart: patient?.chart, pediatric, hccFor: hccMapper(patient, enc.scheduledAt), encounterClass: enc.visitType === "inpatient" ? "initial_inpatient" : enc.visitType === "progress" ? "subsequent_inpatient" : enc.visitType === "discharge" ? "discharge" : "office" }), facts);
   const staged = stageOrders(facts, { chart: patient?.chart, ageYears: patient ? ageFrom(patient.dob) : undefined, now: new Date(enc.scheduledAt) });
   const coverage = computeCoverage(facts, { visitType: enc.visitType });
 
@@ -262,6 +266,10 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   await finalizeClaim(user, (await encounters.get(user, enc.id))!);
   await holdClaimForCosign(user, enc.id, cosign);
   await syncTasks(user, enc);
+  if (enc.admissionId) {
+    const { onInpatientSigned } = await import("./inpatient");
+    await onInpatientSigned(user, (await encounters.get(user, enc.id))!);
+  }
   if (retentionDays(user) === 0) await deleteAudio(user, enc.id, "signed (retention: delete at signing)");
   await purgeExpired(user);
   return { signed: true, blockers: [] as string[], learned: candidates.length, cosign: cosign ? { supervisor: cosign.supervisorName } : null };

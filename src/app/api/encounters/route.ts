@@ -7,7 +7,8 @@ export const GET = authed(async (req, user) => {
   const url = new URL(req.url);
   const from = url.searchParams.get("from") ?? undefined;
   const to = url.searchParams.get("to") ?? undefined;
-  const list = await Promise.all((await encounters.list(user, { from, to })).map(async (e) => {
+  const outpatient = url.searchParams.get("all") !== "1";
+  const list = await Promise.all((await encounters.list(user, { from, to, outpatient })).map(async (e) => {
     const p = e.patientId ? await patients.get(user, e.patientId) : undefined;
     return { ...e, patient: p ? { id: p.id, name: p.name, dob: p.dob, sex: p.sex, mrn: p.mrn, openLoops: p.chart.priorVisits?.[0]?.plan ?? [] } : null, noteVersion: (await notes.latest(e.id))?.version ?? 0 };
   }));

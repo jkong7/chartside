@@ -296,6 +296,7 @@ interface EncounterRow {
   created_at: string;
   external_system: string | null;
   external_id: string | null;
+  admission_id?: string | null;
   clinician_name?: string;
 }
 
@@ -324,6 +325,7 @@ const toEncounter = (r: EncounterRow): EncounterWithClinician => ({
   createdAt: r.created_at,
   externalSystem: r.external_system,
   externalId: r.external_id,
+  admissionId: r.admission_id ?? null,
   clinicianName: r.clinician_name,
 });
 
@@ -332,7 +334,7 @@ function encounterScope(u: User) {
 }
 
 export const encounters = {
-  list: async (u: User, opts: { from?: string; to?: string; patientId?: string; clinicianId?: string; statuses?: string[] } = {}) => {
+  list: async (u: User, opts: { from?: string; to?: string; patientId?: string; clinicianId?: string; statuses?: string[]; admissionId?: string; outpatient?: boolean } = {}) => {
     const scope = encounterScope(u);
     const where = [scope.sql];
     const params: string[] = [...scope.params];
@@ -341,6 +343,8 @@ export const encounters = {
     if (opts.patientId) { where.push("e.patient_id = ?"); params.push(opts.patientId); }
     if (opts.clinicianId) { where.push("e.user_id = ?"); params.push(opts.clinicianId); }
     if (opts.statuses?.length) { where.push(`e.status IN (${opts.statuses.map(() => "?").join(", ")})`); params.push(...opts.statuses); }
+    if (opts.admissionId) { where.push("e.admission_id = ?"); params.push(opts.admissionId); }
+    if (opts.outpatient) where.push("e.admission_id IS NULL");
     return (await all<EncounterRow>(`SELECT e.*, u.name AS clinician_name FROM encounters e JOIN users u ON u.id = e.user_id WHERE ${where.join(" AND ")} ORDER BY e.scheduled_at`, ...params)).map(toEncounter);
   },
   get: async (u: User, id: string) => {
@@ -355,8 +359,8 @@ export const encounters = {
   create: async (u: User, e: Partial<Encounter> & { scheduledAt: string; clinicianId?: string }) => {
     const id = uid("enc_");
     await run(
-      "INSERT INTO encounters (id, user_id, org_id, patient_id, scheduled_at, visit_type, reason, status, template_id, setting, input_lang, output_lang, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      id, e.clinicianId ?? u.id, u.orgId, e.patientId ?? null, e.scheduledAt, e.visitType ?? "follow-up", e.reason ?? "", e.status ?? "scheduled", e.templateId ?? null, e.setting ?? "in-person", e.inputLang ?? "en", e.outputLang ?? "en", now(),
+      "INSERT INTO encounters (id, user_id, org_id, patient_id, scheduled_at, visit_type, reason, status, template_id, setting, input_lang, output_lang, admission_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      id, e.clinicianId ?? u.id, u.orgId, e.patientId ?? null, e.scheduledAt, e.visitType ?? "follow-up", e.reason ?? "", e.status ?? "scheduled", e.templateId ?? null, e.setting ?? "in-person", e.inputLang ?? "en", e.outputLang ?? "en", e.admissionId ?? null, now(),
     );
     return (await encounters.get(u, id))!;
   },
@@ -375,7 +379,7 @@ export const encounters = {
     );
     return encounters.get(u, id);
   },
-  removeToday: (u: User, from: string, to: string) => run("DELETE FROM encounters WHERE org_id = ? AND user_id = ? AND scheduled_at >= ? AND scheduled_at < ?", u.orgId, u.id, from, to),
+  removeToday: (u: User, from: string, to: string) => run("DELETE FROM encounters WHERE org_id = ? AND user_id = ? AND scheduled_at >= ? AND scheduled_at < ? AND admission_id IS NULL", u.orgId, u.id, from, to),
   setSignedAt: (id: string, iso: string) => run("UPDATE encounters SET signed_at = ? WHERE id = ?", iso, id),
 };
 

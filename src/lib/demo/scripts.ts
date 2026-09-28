@@ -293,3 +293,93 @@ export const DEMO_PATIENTS: DemoPatient[] = [
     ],
   },
 ];
+export interface InpatientDemo {
+  mrn: string;
+  name: string;
+  dob: string;
+  sex: "F" | "M";
+  pronouns: string;
+  chart: Chart;
+  reason: string;
+  unit: string;
+  room: string;
+  scripts: { hp: DemoLine[]; day2: DemoLine[]; day3: DemoLine[]; discharge: DemoLine[] };
+}
+
+export const INPATIENT_DEMO: InpatientDemo = {
+  mrn: "200731",
+  name: "Harold Jensen",
+  dob: "1952-04-18",
+  sex: "M",
+  pronouns: "he/him",
+  reason: "Acute on chronic heart failure exacerbation",
+  unit: "4 West",
+  room: "412",
+  chart: {
+    problems: [
+      { name: "Chronic diastolic heart failure", icd10: "I50.32", since: "2021" },
+      { name: "Atrial fibrillation", icd10: "I48.91", since: "2019" },
+      { name: "Chronic kidney disease, stage 3a", icd10: "N18.31", since: "2022" },
+      { name: "Essential hypertension", icd10: "I10", since: "2010" },
+    ],
+    medications: [
+      { name: "furosemide", dose: "40 mg", frequency: "daily" },
+      { name: "apixaban", dose: "5 mg", frequency: "twice daily" },
+      { name: "metoprolol succinate", dose: "50 mg", frequency: "daily" },
+      { name: "lisinopril", dose: "10 mg", frequency: "daily" },
+    ],
+    allergies: [],
+    vitals: { Weight: "88 kg", BP: "136/80" },
+    labs: [{ name: "Creatinine", value: "1.2 mg/dL", date: "2026-08-20", flag: "high" }],
+    egfr: 58,
+    coverage: { payer: "Medicare", plan: "Medicare Part A and B", memberId: "1EG4TE5MK31" },
+    social: ["Former smoker, quit 2000", "Lives with his wife"],
+    smoking: "former",
+  },
+  scripts: {
+    hp: [
+      { s: "clinician", t: "Mr. Jensen, I'm the hospitalist taking care of you. What brought you in tonight?" },
+      { s: "patient", t: "I've been getting more short of breath over the last week, and my legs are swollen. I can't lie flat, so I've been sleeping in the recliner." },
+      { s: "clinician", t: "Any chest pain?" },
+      { s: "patient", t: "No, no chest pain." },
+      { s: "clinician", t: "Have you been taking your furosemide?" },
+      { s: "patient", t: "I ran out of the furosemide about ten days ago, and we had a lot of takeout." },
+      { s: "clinician", t: "Your oxygen is 91 percent on room air, blood pressure is 158 over 88, and your heart rate is 96. You weigh 94 kilograms, up from your usual 88." },
+      { s: "clinician", t: "Your BNP is 1450, creatinine is 1.4, and the chest x-ray shows pulmonary edema." },
+      { s: "clinician", t: "I hear crackles at both lung bases, and you have 2 plus pitting edema up to the knees." },
+      { s: "clinician", t: "This is an acute on chronic heart failure exacerbation, likely from missing the furosemide and extra salt." },
+      { s: "clinician", t: "We'll give IV furosemide 40 milligrams twice a day, limit salt to 2 grams, check a basic metabolic panel every morning, and get an echocardiogram." },
+      { s: "clinician", t: "Your atrial fibrillation rate is controlled, so continue apixaban 5 milligrams twice a day and metoprolol." },
+      { s: "clinician", t: "We'll hold the lisinopril while we diurese and watch your kidney function." },
+    ],
+    day2: [
+      { s: "clinician", t: "Good morning Mr. Jensen, how was your night?" },
+      { s: "patient", t: "Much better. I slept in the bed with two pillows, and I've been peeing a lot." },
+      { s: "clinician", t: "Any shortness of breath at rest?" },
+      { s: "patient", t: "No, only when I walk to the bathroom." },
+      { s: "clinician", t: "You're down 2 kilograms, weight is 92 kilograms this morning. Oxygen is 95 percent on room air and blood pressure is 138 over 78." },
+      { s: "clinician", t: "Creatinine is 1.5, a small bump, and potassium is 3.6." },
+      { s: "clinician", t: "The crackles are less, and the swelling is down to your shins." },
+      { s: "clinician", t: "The echocardiogram shows an ejection fraction of 55 percent, so this is heart failure with preserved ejection fraction." },
+      { s: "clinician", t: "Your heart failure is improving. Continue IV furosemide 40 milligrams twice a day, and start potassium chloride 20 milligrams daily." },
+      { s: "clinician", t: "Your atrial fibrillation is rate controlled; continue apixaban and metoprolol." },
+    ],
+    day3: [
+      { s: "clinician", t: "How are you feeling today?" },
+      { s: "patient", t: "Almost back to normal. I walked the hallway twice this morning." },
+      { s: "clinician", t: "Weight is 90 kilograms, down another 2. Oxygen is 97 percent on room air, and blood pressure is 128 over 74." },
+      { s: "clinician", t: "Creatinine is back to 1.3, and potassium is 4.1." },
+      { s: "clinician", t: "Your lungs are clear now, and there is only trace swelling at the ankles." },
+      { s: "clinician", t: "Your heart failure is much better. Let's switch to oral furosemide 40 milligrams daily and plan for discharge tomorrow if your weight holds." },
+    ],
+    discharge: [
+      { s: "clinician", t: "You're ready to go home today. Your weight is 89.5 kilograms this morning." },
+      { s: "clinician", t: "Take furosemide 40 milligrams every morning, keep taking apixaban and metoprolol, and continue potassium chloride 20 milligrams daily." },
+      { s: "clinician", t: "Restart the lisinopril 10 milligrams daily now that your kidney function is back to baseline." },
+      { s: "clinician", t: "Weigh yourself every morning and keep salt under 2 grams a day." },
+      { s: "clinician", t: "Follow up with cardiology in 1 week and get a basic metabolic panel in 3 days." },
+      { s: "patient", t: "Okay. What if I get short of breath again?" },
+      { s: "clinician", t: "Call us if you gain more than 2 pounds in a day or 5 pounds in a week. Come back to the emergency room if you're short of breath at rest, have chest pain, or feel faint." },
+    ],
+  },
+};

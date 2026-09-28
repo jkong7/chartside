@@ -334,6 +334,20 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS admissions (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  patient_id TEXT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  attending_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  unit TEXT NOT NULL DEFAULT '',
+  room TEXT NOT NULL DEFAULT '',
+  reason TEXT NOT NULL DEFAULT '',
+  admit_at TEXT NOT NULL,
+  discharge_at TEXT,
+  handoff TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ehr_connections (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -362,6 +376,7 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS addenda_enc ON addenda(encounter_id, ord)",
   "CREATE INDEX IF NOT EXISTS tasks_assignee ON tasks(org_id, assignee_id, status)",
   "CREATE UNIQUE INDEX IF NOT EXISTS tasks_enc_key ON tasks(encounter_id, key)",
+  "CREATE INDEX IF NOT EXISTS admissions_org ON admissions(org_id, status)",
   "CREATE INDEX IF NOT EXISTS documents_enc ON documents(encounter_id, ord)",
   "CREATE INDEX IF NOT EXISTS snippets_org ON snippets(org_id, user_id)",
   "CREATE INDEX IF NOT EXISTS vocabulary_org ON vocabulary(org_id, user_id)",
@@ -386,6 +401,7 @@ const LEGACY_COLUMNS: [string, string, string][] = [
   ["templates", "shared", "INTEGER NOT NULL DEFAULT 0"],
   ["auth_sessions", "org_id", "TEXT"],
   ["memberships", "credential", "TEXT NOT NULL DEFAULT ''"],
+  ["encounters", "admission_id", "TEXT"],
   ["memberships", "supervisor_id", "TEXT"],
 ];
 

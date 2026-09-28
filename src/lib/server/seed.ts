@@ -147,6 +147,34 @@ export async function seedMessages(user: User) {
   }
 }
 
+export async function seedInpatient(user: User) {
+  const { INPATIENT_DEMO: d } = await import("../demo/scripts");
+  const ip = await import("./inpatient");
+  const p = await patients.create(user, { mrn: d.mrn, name: d.name, dob: d.dob, sex: d.sex, pronouns: d.pronouns, language: "en", chart: d.chart });
+  const admitAt = localDate(2, "21:30");
+  const { admission, encounterId } = await ip.admit(user, { patientId: p.id, unit: d.unit, room: d.room, reason: d.reason, admitAt: admitAt.toISOString() });
+  const run1 = async (encId: string, script: typeof d.scripts.hp, start: Date) => {
+    const enc = (await encounters.get(user, encId))!;
+    await recordConsent(user, enc, { decision: "granted", method: "verbal", state: user.prefs.state ?? "IL", othersPresent: false });
+    let t = 0;
+    await utterances.append(encId, script.map((l) => {
+      const dur = Math.max(2.5, l.t.split(/\s+/).length * 0.42);
+      const u = { speaker: l.s, speakerSource: "manual" as const, text: l.t, tStart: t, tEnd: t + dur, lang: "en" };
+      t += dur + 0.6;
+      return u;
+    }));
+    await encounters.update(user, encId, { status: "processing", startedAt: start.toISOString(), endedAt: new Date(start.getTime() + t * 1000).toISOString(), durationS: Math.max(Math.round(t), 1800) });
+    await processEncounter(user, encId, { engine: "local" });
+    for (const o of await orders.list(encId)) if (o.status === "staged") await orders.setStatus(encId, o.id, "accepted");
+    await signEncounter(user, encId, { force: true });
+  };
+  await run1(encounterId, d.scripts.hp, admitAt);
+  const day2 = localDate(1, "08:15");
+  const d2 = await ip.startNote(user, admission.id, "progress", day2);
+  await run1(d2, d.scripts.day2, day2);
+  return admission;
+}
+
 export async function seedDemo(user: User, opts: { archive?: boolean } = {}) {
   const org = await orgs.get(user.orgId);
   if (org && !org.settings.billing?.npi) await orgs.update(org.id, { settings: { ...org.settings, billing: { ...(org.settings.billing ?? {}), npi: "1234567893", tin: "12-3456789", demoIdentifiers: true } } });
@@ -154,5 +182,6 @@ export async function seedDemo(user: User, opts: { archive?: boolean } = {}) {
   if (opts.archive !== false) {
     await seedArchive(user);
     await seedMessages(user);
+    await seedInpatient(user);
   }
 }

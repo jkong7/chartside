@@ -170,11 +170,11 @@ export interface Encounter {
   userId: string;
   patientId: string | null;
   scheduledAt: string;
-  visitType: "new" | "follow-up" | "acute" | "annual" | "telehealth";
+  visitType: "new" | "follow-up" | "acute" | "annual" | "telehealth" | "inpatient" | "progress" | "discharge";
   reason: string;
   status: EncounterStatus;
   templateId: string | null;
-  setting: "in-person" | "telehealth";
+  setting: "in-person" | "telehealth" | "inpatient";
   inputLang: string;
   outputLang: string;
   startedAt: string | null;
@@ -184,6 +184,7 @@ export interface Encounter {
   createdAt: string;
   externalSystem?: string | null;
   externalId?: string | null;
+  admissionId?: string | null;
 }
 
 export interface ConsentRecord {
