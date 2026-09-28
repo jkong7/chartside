@@ -9,6 +9,8 @@ import { attestationsFor } from "@/lib/engine/attest";
 import { verifyChain, type Cosign } from "@/lib/server/signoff";
 import { tasks } from "@/lib/server/inbox";
 import { documents } from "@/lib/server/documents";
+import { qualityFor } from "@/lib/server/quality";
+import type { MeasureResult } from "@/lib/engine/quality";
 
 export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
   const enc = await encounters.get(user, id);
@@ -34,6 +36,7 @@ export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
     verifyChain(enc.id),
   ]);
   const encTasks = await tasks.forEncounter(enc.id);
+  const quality = (arts.quality as unknown as MeasureResult[] | undefined) ?? (enc.status === "scheduled" ? await qualityFor(user, enc, { save: false }) : null) ?? [];
   const cosign = (arts.cosign ?? undefined) as unknown as Cosign | undefined;
   const supervises = !!cosign && (cosign.supervisorId === user.id || (enc.userId !== user.id && (await orgs.membership(user.orgId, enc.userId))?.supervisor_id === user.id));
   return json({
@@ -57,6 +60,7 @@ export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
     claim: claim ?? null,
     addenda: adds,
     tasks: encTasks,
+    quality,
     documents: (await documents.list(enc.id)).map((d) => ({ id: d.id, status: d.status })),
     chain,
     attestations: cosign ? attestationsFor(cosign.authorCredential).map((a) => ({ key: a.key, label: a.label, modifier: a.modifier, source: a.source, preview: a.text({ supervisor: user.name, author: cosign.authorName }) })) : [],

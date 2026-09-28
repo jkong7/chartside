@@ -16,5 +16,7 @@ export const PATCH = authed<{ id: string; oid: string }>(async (req, user, { id,
   const o = await orders.setStatus(enc.id, oid, b.status);
   await audit.log(user, enc.id, `order.${b.status}`, { order: cur.name, override: !!b.override });
   await syncTasks(user, enc);
+  const { qualityFor } = await import("@/lib/server/quality");
+  await qualityFor(user, enc);
   return json({ order: o });
 });

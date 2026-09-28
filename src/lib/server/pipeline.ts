@@ -171,6 +171,8 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   await syncTasks(user, enc);
   const { autoDocuments } = await import("./documents");
   await autoDocuments(user, enc);
+  const { qualityFor } = await import("./quality");
+  await qualityFor(user, enc);
   const stats = supportStats(note);
   await audit.log(user, enc.id, "note.generated", { engine: note.meta.engine, model: note.meta.model ?? null, template: template.id, ms: Date.now() - started, sentences: stats.total, supportedPct: stats.pct, omissions: omissions.length });
   return { note, warnings };
@@ -208,6 +210,8 @@ export async function saveNoteEdits(user: User, encId: string, note: Note) {
   await notes.saveContent(enc.id, scored);
   const omissions: OmissionFlag[] = detectOmissions(scored, facts, template);
   await artifacts.set(enc.id, "omissions", omissions);
+  const { qualityFor } = await import("./quality");
+  await qualityFor(user, enc);
   return { note: scored, omissions };
 }
 
@@ -222,6 +226,8 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   const staged = orderList.filter((o) => o.status === "staged");
   const blocked = orderList.filter((o) => o.status === "accepted" && o.alerts.some((a) => a.level === "block"));
   const unsupported = rec.content.sections.flatMap((s) => s.sentences).filter((s) => !s.pending && s.support === "none" && s.kind !== "default");
+  const blanks = rec.content.sections.flatMap((s) => s.sentences).filter((s) => !s.pending && s.text.includes("***"));
+  if (blanks.length) return { signed: false, blockers: [`${blanks.length} line${blanks.length > 1 ? "s" : ""} still ${blanks.length > 1 ? "have" : "has"} *** blanks to fill in: ${blanks.map((b) => `"${b.text.slice(0, 60)}"`).join(", ")}.`] };
   const blockers: string[] = [];
   if (blocked.length) blockers.push(`${blocked.length} accepted order(s) have a blocking safety alert: ${blocked.map((o) => o.name).join(", ")}.`);
   if (!opts.force) {
