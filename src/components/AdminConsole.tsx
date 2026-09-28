@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, copyText } from "@/lib/client";
 import { CREDENTIALS } from "@/lib/engine/attest";
+import DevelopersPanel from "./DevelopersPanel";
 import { ROLE_INFO, roleLabel, type Role } from "@/lib/roles";
 import { Check, Copy, Plus, Shield, X } from "./icons";
 import { Avatar, Kpi, Spinner, Tabs, Toast } from "./ui";
@@ -44,7 +45,7 @@ interface Data {
   audit: { id: string; action: string; detail: Record<string, unknown>; created_at: string; user_name: string | null; encounter_id: string | null }[];
 }
 
-type Tab = "members" | "sso" | "billing" | "analytics" | "audit" | "org";
+type Tab = "members" | "sso" | "billing" | "developers" | "analytics" | "audit" | "org";
 
 const ACTION_LABEL: Record<string, string> = {
   "user.login": "Signed in",
@@ -68,6 +69,11 @@ const ACTION_LABEL: Record<string, string> = {
   "cosign.requested": "Requested a co-signature",
   "member.clinical_updated": "Updated a credential or supervisor",
   "org.cosign_policy": "Changed the co-signature policy",
+  "api_key.created": "Created an API key",
+  "api_key.revoked": "Revoked an API key",
+  "webhook.created": "Added a webhook",
+  "webhook.deleted": "Deleted a webhook",
+  "api.call": "API request",
   "note.edited": "Edited a note",
   "note.generated": "Drafted a note",
   "consent.granted": "Recorded consent",
@@ -98,7 +104,7 @@ function describe(a: Data["audit"][number], members: Member[]) {
 export default function AdminConsole({ initial, me, tab: initialTab, redirectOrigin }: { initial: Data; me: { id: string; role: Role }; tab?: string; redirectOrigin: string | null }) {
   const router = useRouter();
   const [d, setD] = useState(initial);
-  const [tab, setTab] = useState<Tab>((["members", "sso", "billing", "analytics", "audit", "org"].includes(initialTab ?? "") ? initialTab : "members") as Tab);
+  const [tab, setTab] = useState<Tab>((["members", "sso", "billing", "developers", "analytics", "audit", "org"].includes(initialTab ?? "") ? initialTab : "members") as Tab);
   const [toast, setToast] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -153,6 +159,7 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
             { id: "members", label: "Members" },
             { id: "sso", label: "Single sign-on" },
             { id: "billing", label: "Billing & code sets" },
+            { id: "developers", label: "Developers" },
             { id: "analytics", label: "Clinician analytics" },
             { id: "audit", label: "Audit log" },
             { id: "org", label: "Organization" },
@@ -358,6 +365,7 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
 
       {tab === "billing" && <BillingAdmin onSaved={(m) => setToast(m)} />}
 
+      {tab === "developers" && <DevelopersPanel />}
       {tab === "analytics" && (
         <div className="card mt-5 overflow-x-auto" data-testid="org-analytics">
           <table className="w-full min-w-[640px] text-sm">
