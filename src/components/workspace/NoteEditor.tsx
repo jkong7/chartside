@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { checkConsistency } from "@/lib/engine/consistency";
 import { Dictation, type DictationStatus } from "@/lib/audio/dictation";
 import { api, copyText } from "@/lib/client";
 import { expandSnippet, findSnippet, type Snippet, type SnippetContext } from "@/lib/engine/snippets";
@@ -286,6 +287,7 @@ export default function NoteEditor({
   const weak = all.filter((s) => s.support !== "strong").length;
   const pending = visible.flatMap((s) => s.sentences.filter((x) => x.pending));
   const openFlags = omissions.filter((o) => !dismissed.has(o.id));
+  const issues = useMemo(() => (snippetCtx?.patient ? checkConsistency(note, { dob: snippetCtx.patient.dob, sex: snippetCtx.patient.sex as "F" | "M" | "X", pronouns: snippetCtx.patient.pronouns ?? "" }, snippetCtx.today ?? new Date()) : []), [note, snippetCtx]);
   const pct = all.length ? Math.round((strong / all.length) * 100) : 100;
 
   return (
@@ -297,6 +299,7 @@ export default function NoteEditor({
         <span className={weak ? "text-warn" : "text-ink-3"}>{weak} sentence{weak === 1 ? "" : "s"} to verify</span>
         <span className="text-ink-4">·</span>
         <span className={openFlags.length ? "text-warn" : "text-ink-3"} data-testid="omission-count">{openFlags.length} possible omission{openFlags.length === 1 ? "" : "s"}</span>
+        {issues.length > 0 && (<><span className="text-ink-4">·</span><span className="text-rec" data-testid="consistency-count">{issues.length} consistency issue{issues.length === 1 ? "" : "s"}</span></>)}
         {pending.length > 0 && (<><span className="text-ink-4">·</span><span className="text-default-ins-line">{pending.length} suggested normal finding{pending.length === 1 ? "" : "s"}</span></>)}
         <span className="ml-auto text-xs text-ink-3" data-testid="provenance">{note.meta.engine === "claude" ? `Drafted by ${note.meta.model}` : "Drafted by the on-device engine"} · {prov.edited + prov.clinician} of {prov.total} lines touched by you</span>
         <button className="btn-ghost px-2.5 py-1 text-xs" onClick={() => setHistoryOpen(true)} data-testid="open-history">History</button>
@@ -307,6 +310,19 @@ export default function NoteEditor({
           </button>
         )}
       </div>
+      {issues.length > 0 && !locked && (
+        <div className="rounded-xl border border-rec/30 bg-rec-50 px-4 py-3 text-sm" data-testid="consistency">
+          <p className="font-medium text-rec">Check before signing</p>
+          <ul className="mt-1 space-y-1">
+            {issues.map((iss, k) => (
+              <li key={k} className="flex items-start gap-2 text-ink-2" data-testid="consistency-issue">
+                <span className="flex-1">{iss.message}</span>
+                <button className="text-xs font-medium text-brand hover:underline" onClick={() => { const el = document.querySelector(`[data-sid="${iss.sentenceIds[0]}"]`); el?.scrollIntoView({ behavior: "smooth", block: "center" }); }}>Show</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {!locked && (listening || dictError) && (
         <div className={`flex flex-wrap items-center gap-2 rounded-xl border px-4 py-2 text-sm ${dictError ? "border-rec/30 bg-rec-50 text-rec" : "border-brand/30 bg-brand-50/60"}`} data-testid="dictation-bar" role="status">
           {dictError ? <span>{dictError}</span> : (

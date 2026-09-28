@@ -302,6 +302,9 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   if (!opts.force) {
     if (staged.length) blockers.push(`${staged.length} order(s) discussed in the visit are still unreviewed: ${staged.map((o) => o.name).join(", ")}.`);
     if (unsupported.length) blockers.push(`${unsupported.length} sentence(s) have no supporting evidence in the transcript.`);
+    const pat = enc.patientId ? await patients.get(user, enc.patientId) : null;
+    const { checkConsistency } = await import("../engine/consistency");
+    for (const iss of checkConsistency(rec.content, pat ? { dob: pat.dob, sex: pat.sex, pronouns: pat.pronouns } : null, new Date(enc.scheduledAt))) blockers.push(iss.message);
   }
   const plan = await cosignPlan(user);
   if (plan.required && !plan.supervisor) return { signed: false, blockers: [`Your notes need a co-signature, but no supervising physician is assigned to you. Ask an admin to set one in Admin → Members.`] };

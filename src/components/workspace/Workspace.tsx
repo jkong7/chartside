@@ -255,7 +255,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
                 locked={locked}
                 activeSentence={active}
                 feedback={b.feedback}
-                snippetCtx={{ patient: p ? { name: p.name, dob: p.dob, sex: p.sex } : null, chart: p?.chart ?? null, clinician: b.clinician.name }}
+                snippetCtx={{ patient: p ? { name: p.name, dob: p.dob, sex: p.sex, pronouns: p.pronouns } : null, chart: p?.chart ?? null, clinician: b.clinician.name }}
                 templateKinds={Object.fromEntries(b.template.sections.map((x) => [x.key, x.kind]))}
                 onCalculators={() => setCalcOpen(true)}
                 onSelect={(s: NoteSentence | null) => {

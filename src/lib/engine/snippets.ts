@@ -21,7 +21,7 @@ export const SYSTEM_SNIPPETS: Snippet[] = [
 ];
 
 export interface SnippetContext {
-  patient?: { name: string; dob: string; sex: string } | null;
+  patient?: { name: string; dob: string; sex: string; pronouns?: string } | null;
   chart?: Chart | null;
   clinician?: string;
   today?: Date;
