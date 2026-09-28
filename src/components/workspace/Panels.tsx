@@ -1,5 +1,6 @@
 "use client";
 
+import CheckinCard from "./CheckinCard";
 import OrderSets from "./OrderSets";
 import { useState } from "react";
 import { api, copyText } from "@/lib/client";
@@ -350,6 +351,7 @@ export function SummaryPanel({ b, onFlags }: { b: Bundle; onFlags: () => void })
         ) : <div className="p-5"><Empty title="No summary yet." /></div>}
       </div>
       <div className="space-y-4">
+        <CheckinCard encounterId={b.encounter.id} signed={b.encounter.status === "signed"} hasPatient={!!b.patient} />
         <div className="card p-4">
           <p className="font-semibold">Send to patient</p>
           <p className="mt-1 text-sm text-ink-3">A private link shows the summary and the transcript, and lets the patient flag anything that doesn&apos;t match what they said.</p>
