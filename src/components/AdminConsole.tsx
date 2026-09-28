@@ -38,7 +38,7 @@ interface Sso {
 }
 
 interface Data {
-  org: { id: string; name: string; slug: string; createdAt: string; appsRequireCosign: boolean };
+  org: { id: string; name: string; slug: string; createdAt: string; appsRequireCosign: boolean; aiDisclosure: boolean };
   members: Member[];
   invites: { token: string; email: string; role: Role; expiresAt: string; createdAt: string }[];
   sso: Sso | null;
@@ -295,6 +295,10 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
               <label className="mt-2 flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={d.org.appsRequireCosign} disabled={busy} onChange={(e) => run(() => api("/admin", { method: "PATCH", body: { appsRequireCosign: e.target.checked } }), e.target.checked ? "NP and PA notes now need a co-signature." : "NP and PA notes no longer need a co-signature.")} data-testid="apps-cosign" />
                 Also require co-signature for NP and PA notes
+              </label>
+              <label className="mt-3 flex items-center gap-2 border-t border-line pt-3 text-sm">
+                <input type="checkbox" checked={d.org.aiDisclosure} disabled={busy} onChange={(e) => run(() => api("/admin", { method: "PATCH", body: { aiDisclosure: e.target.checked } }), e.target.checked ? "Signed notes now include an AI disclosure line." : "AI disclosure line turned off.")} data-testid="ai-disclosure" />
+                Add an AI-assistance disclosure to signed notes
               </label>
             </div>
             <div className="card p-4">

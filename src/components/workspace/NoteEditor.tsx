@@ -4,11 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Dictation, type DictationStatus } from "@/lib/audio/dictation";
 import { api, copyText } from "@/lib/client";
 import { expandSnippet, findSnippet, type Snippet, type SnippetContext } from "@/lib/engine/snippets";
+import { provenance } from "@/lib/engine/diff";
 import { applyOps, parseUtterance, sectionTarget, VOICE_HELP, type VoiceOp } from "@/lib/engine/voice";
 import { overlap } from "@/lib/engine/text";
 import type { Note, NoteSection, NoteSentence, OmissionFlag } from "@/lib/types";
 import { Alert, Check, Copy, Mic, Pencil, Shield, ThumbDown, ThumbUp, X } from "../icons";
 import { Modal, Spinner } from "../ui";
+import History from "./History";
 
 function sentenceClass(s: NoteSentence, active: boolean) {
   const base = "cursor-pointer rounded-[3px] transition-colors decoration-2 underline-offset-4";
@@ -86,6 +88,7 @@ export default function NoteEditor({
   const [interim, setInterim] = useState("");
   const [heard, setHeard] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [snips, setSnips] = useState<Snippet[]>([]);
   const [reps, setReps] = useState<{ from: string; to: string }[]>([]);
   const dictRef = useRef<Dictation | null>(null);
@@ -276,6 +279,7 @@ export default function NoteEditor({
   }
 
   const listening = dictStatus === "listening" || dictStatus === "starting";
+  const prov = provenance(note);
   const consent = note.sections.find((s) => s.key === "__consent");
   const all = visible.flatMap((s) => s.sentences.filter((x) => !x.pending && !x.heading));
   const strong = all.filter((s) => s.support === "strong").length;
@@ -294,7 +298,8 @@ export default function NoteEditor({
         <span className="text-ink-4">·</span>
         <span className={openFlags.length ? "text-warn" : "text-ink-3"} data-testid="omission-count">{openFlags.length} possible omission{openFlags.length === 1 ? "" : "s"}</span>
         {pending.length > 0 && (<><span className="text-ink-4">·</span><span className="text-default-ins-line">{pending.length} suggested normal finding{pending.length === 1 ? "" : "s"}</span></>)}
-        <span className="ml-auto text-xs text-ink-3">{note.meta.engine === "claude" ? `Drafted by ${note.meta.model}` : "Drafted by the on-device engine"}</span>
+        <span className="ml-auto text-xs text-ink-3" data-testid="provenance">{note.meta.engine === "claude" ? `Drafted by ${note.meta.model}` : "Drafted by the on-device engine"} · {prov.edited + prov.clinician} of {prov.total} lines touched by you</span>
+        <button className="btn-ghost px-2.5 py-1 text-xs" onClick={() => setHistoryOpen(true)} data-testid="open-history">History</button>
         {onCalculators && <button className="btn-outline px-2.5 py-1 text-xs" onClick={onCalculators} data-testid="open-calculators">Calculators</button>}
         {!locked && (
           <button className={`btn-outline px-2.5 py-1 text-xs ${listening ? "border-rec text-rec" : ""}`} onClick={toggleDictation} title="Dictate into the note (Ctrl+Space)" data-testid="dictate">
@@ -425,6 +430,7 @@ export default function NoteEditor({
         );
       })}
 
+      <History encounterId={encounterId} open={historyOpen} onClose={() => setHistoryOpen(false)} locked={locked} onRestored={(n, om) => { noteRef.current = n; onSaved(n, om); }} />
       <Modal open={helpOpen} onClose={() => setHelpOpen(false)} title="What you can say">
         <table className="w-full text-sm" data-testid="voice-help">
           <tbody>

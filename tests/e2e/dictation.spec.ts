@@ -69,3 +69,25 @@ test("switches note detail level and remembers 'always' rewrite instructions as 
   await page.goto("/settings");
   await expect(page.getByTestId("style-rules")).toContainText("Write Subjective as bullet points");
 });
+
+test("shows note history with diffs and restores an earlier draft", async ({ page }) => {
+  await register(page);
+  await page.goto("/today");
+  await page.getByTestId("visit-row").filter({ hasText: "Maria Gonzalez" }).click();
+  await consentAndSimulate(page);
+  await draftNote(page);
+  const plan = page.getByTestId("section-assessment_plan");
+  await plan.getByTestId("edit-section").click();
+  const area = plan.getByTestId("section-textarea");
+  await area.fill(`${await area.inputValue()}\nReviewed medication adherence strategies.`);
+  await plan.getByTestId("save-section").click();
+  await expect(plan).toContainText("Reviewed medication adherence strategies.");
+  await expect(page.getByTestId("provenance")).toContainText("lines touched by you");
+  await page.getByTestId("open-history").click();
+  const history = page.getByTestId("history");
+  await expect(history.getByTestId("revision")).toHaveCount(2);
+  await expect(history.getByTestId("revision").first()).toContainText("Edited");
+  await expect(history.getByTestId("diff-added").first()).toHaveText("Reviewed medication adherence strategies.");
+  await history.getByTestId("revision").nth(1).getByTestId("restore").click();
+  await expect(plan).not.toContainText("Reviewed medication adherence strategies.");
+});
