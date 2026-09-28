@@ -64,6 +64,7 @@ export class SpeakerRoles {
 export class DeepgramLive {
   private ws: WebSocket | null = null;
   private words: DgWord[] = [];
+  private channelWords = new Map<number, DgWord[]>();
   private keepAlive: ReturnType<typeof setInterval> | null = null;
   private roles = new SpeakerRoles();
   status: "connecting" | "open" | "closed" | "error" = "connecting";
@@ -73,6 +74,7 @@ export class DeepgramLive {
     private token: string,
     private offset: number,
     private handlers: { onSegment: (s: LiveSegment & { role: Speaker }) => void; onInterim: (text: string) => void; onStatus: (s: DeepgramLive["status"]) => void },
+    private channelRoles: Speaker[] | null = null,
   ) {}
 
   connect() {
@@ -104,7 +106,7 @@ export class DeepgramLive {
   }
 
   onMessage(raw: string) {
-    let msg: { type?: string; is_final?: boolean; speech_final?: boolean; channel?: DgResults["channel"] };
+    let msg: { type?: string; is_final?: boolean; speech_final?: boolean; channel?: DgResults["channel"]; channel_index?: number[] };
     try {
       msg = JSON.parse(raw);
     } catch {
@@ -114,7 +116,10 @@ export class DeepgramLive {
       const alt = msg.channel.alternatives[0];
       if (!alt) return;
       if (msg.is_final) {
-        this.words.push(...alt.words);
+        if (this.channelRoles) {
+          const ch = msg.channel_index?.[0] ?? 0;
+          this.channelWords.set(ch, [...(this.channelWords.get(ch) ?? []), ...alt.words]);
+        } else this.words.push(...alt.words);
         this.handlers.onInterim("");
         if (msg.speech_final) this.flush();
       } else {
@@ -126,6 +131,17 @@ export class DeepgramLive {
   }
 
   flush() {
+    if (this.channelRoles) {
+      const all: (LiveSegment & { role: Speaker })[] = [];
+      for (const [ch, words] of this.channelWords) {
+        if (!words.length) continue;
+        const text = words.map((w) => w.punctuated_word ?? w.word).join(" ").trim();
+        if (text) all.push({ speaker: ch, text, start: words[0].start + this.offset, end: words[words.length - 1].end + this.offset, lang: words[0].language?.slice(0, 2), confidence: Math.min(...words.map((w) => w.confidence ?? 1)), role: this.channelRoles[ch] ?? "other" });
+      }
+      this.channelWords.clear();
+      for (const seg of all.sort((a, b) => a.start - b.start)) this.handlers.onSegment(seg);
+      return;
+    }
     if (!this.words.length) return;
     const segs = wordsToSegments(this.words);
     this.words = [];

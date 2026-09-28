@@ -65,6 +65,31 @@ describe("server audio", () => {
     expect((await repo.audit.forEncounter(enc.id)).map((a) => a.action)).toContain("transcript.final_pass");
   });
 
+  it("maps speakers from channels when a telehealth visit was captured on two channels", async () => {
+    const { saveChunk, finalPass } = await import("@/lib/server/audio");
+    const { repo, user, enc } = await setup();
+    await repo.artifacts.set(enc.id, "capture", { mode: "dual" });
+    await saveChunk(enc.id, 0, 0, "audio/webm", Buffer.alloc(5000, 7));
+    const out = await finalPass(user, enc);
+    expect(out.ran).toBe(true);
+    const utts = await repo.utterances.list(enc.id);
+    expect(utts.map((x) => x.speaker)).toEqual(["clinician", "patient", "clinician", "patient", "clinician", "clinician"]);
+    const stats = (await (await fetch(`http://localhost:${PORT}/stats`)).json()) as { lastMultichannel: boolean };
+    expect(stats.lastMultichannel).toBe(true);
+    expect((await repo.audit.forEncounter(enc.id)).find((a) => a.action === "transcript.final_pass")!.detail).toMatchObject({ dualChannel: true });
+  });
+
+  it("assigns live caption roles by channel", async () => {
+    const { DeepgramLive } = await import("@/lib/audio/deepgram");
+    const segs: { role: string; text: string }[] = [];
+    const live = new DeepgramLive("ws://x", "t", 0, { onSegment: (s) => segs.push({ role: s.role, text: s.text }), onInterim: () => {}, onStatus: () => {} }, ["clinician", "patient"]);
+    const res = (ch: number, t: string, start: number) => JSON.stringify({ type: "Results", channel_index: [ch, 2], is_final: true, speech_final: false, channel: { alternatives: [{ transcript: t, confidence: 0.9, words: t.split(" ").map((w, i) => ({ word: w, punctuated_word: w, start: start + i * 0.3, end: start + i * 0.3 + 0.25, speaker: 0, confidence: 0.9 })) }] } });
+    live.onMessage(res(1, "I've had a cough for a week.", 2));
+    live.onMessage(res(0, "Any fever?", 0));
+    live.onMessage(JSON.stringify({ type: "UtteranceEnd" }));
+    expect(segs).toEqual([{ role: "clinician", text: "Any fever?" }, { role: "patient", text: "I've had a cough for a week." }]);
+  });
+
   it("purges audio per the retention policy", async () => {
     const { saveChunk, purgeExpired, recording } = await import("@/lib/server/audio");
     const { repo, user, enc } = await setup();

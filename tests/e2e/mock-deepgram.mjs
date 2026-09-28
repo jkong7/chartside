@@ -56,7 +56,9 @@ const server = createServer((req, res) => {
       }
       stats.prerecorded++;
       stats.lastBytes = size;
-      const utterances = FINAL.map(([spk, s, e, t], i) => ({ id: `u${i}`, start: s, end: e, confidence: 0.93, channel: 0, transcript: t, speaker: spk, words: words(spk, s, e, t) }));
+      const multi = url.searchParams.get("multichannel") === "true";
+      stats.lastMultichannel = multi;
+      const utterances = FINAL.map(([spk, s, e, t], i) => ({ id: `u${i}`, start: s, end: e, confidence: 0.93, channel: multi ? spk : 0, transcript: t, speaker: multi ? 0 : spk, words: words(multi ? 0 : spk, s, e, t) }));
       return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ metadata: { request_id: "mock" }, results: { channels: [], utterances } }));
     }
     res.writeHead(404).end();

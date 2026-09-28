@@ -116,11 +116,11 @@ interface DeepgramUtterance {
   words?: { word: string; start: number; end: number; speaker?: number; language?: string; punctuated_word?: string }[];
 }
 
-export async function transcribeWithDeepgram(buffer: Buffer, mime: string, lang: string) {
+export async function transcribeWithDeepgram(buffer: Buffer, mime: string, lang: string, multichannel = false) {
   const key = deepgramKey();
   if (!key) throw new Error("Deepgram is not configured");
   const language = lang === "en" || lang === "es" ? lang : "multi";
-  const params = `model=nova-3&smart_format=true&punctuate=true&diarize=true&utterances=true&language=${language}`;
+  const params = `model=nova-3&smart_format=true&punctuate=true&diarize=true&utterances=true&language=${language}${multichannel ? "&multichannel=true" : ""}`;
   const res = await fetch(`${deepgramBase()}/v1/listen?${params}`, {
     method: "POST",
     headers: { Authorization: `Token ${key}`, "Content-Type": mime },
@@ -145,7 +145,8 @@ export async function finalPass(user: User, enc: Encounter) {
   const rec = await recording(enc.id);
   if (!rec) return { ran: false as const, reason: "no-audio" };
   const started = Date.now();
-  const dg = await transcribeWithDeepgram(rec.buffer, rec.mime, enc.inputLang);
+  const dual = (await artifacts.get<{ mode: string }>(enc.id, "capture"))?.mode === "dual";
+  const dg = (await transcribeWithDeepgram(rec.buffer, rec.mime, enc.inputLang, dual)).sort((a, b) => a.start - b.start);
   if (!dg.length) return { ran: false as const, reason: "empty" };
   const live = await utterances.list(enc.id);
   const draft: Utterance[] = dg.map((u, i) => ({
@@ -165,13 +166,13 @@ export async function finalPass(user: User, enc: Encounter) {
   const groups = keys.map((k) => ({ key: k, utterances: draft.filter((_, i) => speakerOf[i] === k) }));
   let roles: Record<string, Speaker> = assignRoles(groups, draft.map((d, i) => ({ ...d, speaker: speakerOf[i] as Speaker })));
   if (keys.length === 1) roles = {};
-  const rows = draft.map((d, i) => ({ ...d, speaker: roles[speakerOf[i]] ?? d.speaker }));
+  const rows = dual ? draft.map((d, i) => ({ ...d, speaker: (dg[i].channel === 0 ? "clinician" : "patient") as Speaker })) : draft.map((d, i) => ({ ...d, speaker: roles[speakerOf[i]] ?? d.speaker }));
   await artifacts.set(enc.id, "live_transcript", live.map((u) => ({ speaker: u.speaker, text: u.text, tStart: u.tStart })));
   const saved = await utterances.replaceAll(
     enc.id,
     rows.map(({ id: _id, seq: _seq, ...rest }) => rest),
   );
-  await audit.log(user, enc.id, "transcript.final_pass", { provider: "deepgram", utterances: saved.length, speakers: keys.length, replaced: live.length, ms: Date.now() - started });
+  await audit.log(user, enc.id, "transcript.final_pass", { provider: "deepgram", dualChannel: dual, utterances: saved.length, speakers: keys.length, replaced: live.length, ms: Date.now() - started });
   return { ran: true as const, utterances: saved.length, speakers: keys.length };
 }
 

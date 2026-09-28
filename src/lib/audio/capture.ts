@@ -20,6 +20,7 @@ export interface CaptureOptions {
   offset: number;
   live: { url: string; token: string } | null;
   patientName?: string;
+  telehealth?: boolean;
 }
 
 function pickMime() {
@@ -30,6 +31,9 @@ function pickMime() {
 
 export class AudioCapture {
   private stream: MediaStream | null = null;
+  private tab: MediaStream | null = null;
+  private record: MediaStream | null = null;
+  dualChannel = false;
   private recorder: MediaRecorder | null = null;
   private liveRecorder: MediaRecorder | null = null;
   private ctx: AudioContext | null = null;
@@ -72,6 +76,19 @@ export class AudioCapture {
       this.set("error", "Microphone permission was denied.");
       return false;
     }
+    if (this.opts.telehealth) {
+      try {
+        this.tab = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: { echoCancellation: false, noiseSuppression: false } as MediaTrackConstraints, preferCurrentTab: false } as DisplayMediaStreamOptions);
+      } catch {
+        this.tab = null;
+      }
+      this.tab?.getVideoTracks().forEach((t) => t.stop());
+      if (this.tab && !this.tab.getAudioTracks().length) {
+        this.tab.getTracks().forEach((t) => t.stop());
+        this.tab = null;
+        this.h.onStatus("starting", "The shared tab had no audio. Recording your microphone only; turn on Share tab audio to separate speakers.");
+      }
+    }
     this.mime = pickMime();
     if (!this.mime) {
       this.set("error", "This browser can't record audio.");
@@ -87,8 +104,20 @@ export class AudioCapture {
     this.ctx = new AudioContext();
     this.meter = new VoiceMeter(this.ctx, this.stream, this.clock);
     this.meter.start(this.h.onLevel);
+    this.record = this.stream;
+    if (this.tab) {
+      const merger = this.ctx.createChannelMerger(2);
+      this.ctx.createMediaStreamSource(this.stream).connect(merger, 0, 0);
+      this.ctx.createMediaStreamSource(this.tab).connect(merger, 0, 1);
+      const dest = this.ctx.createMediaStreamDestination();
+      dest.channelCount = 2;
+      merger.connect(dest);
+      this.record = dest.stream;
+      this.dualChannel = true;
+      this.tab.getAudioTracks()[0].onended = () => this.set("interrupted", "Tab sharing ended. The patient's side is no longer being captured.");
+    }
 
-    this.recorder = new MediaRecorder(this.stream, { mimeType: this.mime, audioBitsPerSecond: 32000 });
+    this.recorder = new MediaRecorder(this.record, { mimeType: this.mime, audioBitsPerSecond: this.dualChannel ? 64000 : 32000 });
     this.recorder.ondataavailable = (e) => {
       if (e.data.size) this.queue.enqueue({ seq: this.seq++, tMs: Math.round(this.clock() * 1000), mime: this.mime.split(";")[0], blob: e.data });
     };
@@ -115,11 +144,11 @@ export class AudioCapture {
   private async startLive(cfg: { url: string; token: string }) {
     if (!this.stream) return;
     this.h.onLive("connecting");
-    const live = new DeepgramLive(cfg.url, cfg.token, this.clock(), {
+    const live = new DeepgramLive(this.dualChannel ? `${cfg.url}&multichannel=true` : cfg.url, cfg.token, this.clock(), {
       onStatus: (s) => this.h.onLive(s),
       onInterim: this.h.onInterim,
       onSegment: (s: LiveSegment & { role: Speaker }) => this.h.onSegment({ text: s.text, start: s.start, end: s.end, speaker: s.role, lang: s.lang, confidence: s.confidence, voice: this.meter?.summarize(s.start, s.end) ?? null }),
-    });
+    }, this.dualChannel ? ["clinician", "patient"] : null);
     try {
       await live.connect();
     } catch {
@@ -127,7 +156,7 @@ export class AudioCapture {
       return;
     }
     this.live = live;
-    this.liveRecorder = new MediaRecorder(this.stream, { mimeType: this.mime });
+    this.liveRecorder = new MediaRecorder(this.record ?? this.stream, { mimeType: this.mime });
     this.liveRecorder.ondataavailable = (e) => e.data.size && live.send(e.data);
     this.liveRecorder.start(250);
   }
@@ -175,6 +204,7 @@ export class AudioCapture {
     this.live?.close();
     this.meter?.stop();
     this.stream?.getTracks().forEach((t) => t.stop());
+    this.tab?.getTracks().forEach((t) => t.stop());
     await this.ctx?.close().catch(() => undefined);
     const drained = await this.queue.drain();
     this.set("stopped");
@@ -184,6 +214,7 @@ export class AudioCapture {
   dispose() {
     this.meter?.stop();
     this.stream?.getTracks().forEach((t) => t.stop());
+    this.tab?.getTracks().forEach((t) => t.stop());
     this.live?.close();
     this.queue.dispose();
     if ("mediaSession" in navigator) {
