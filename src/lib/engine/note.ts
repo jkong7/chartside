@@ -3,6 +3,8 @@ import type { Facts, MedFact, ProblemFact, SymptomFact } from "./extract";
 import { assessRisk, goalSentences, interventionSentences, psychotherapyCode, psychotherapyMinutes, responseSentences, riskSentences } from "./behavioral";
 import { edCourse, edDisposition } from "./ed";
 import { groupTopic } from "./group";
+import { guidanceSentences, screenSentences, wellChild } from "./wellchild";
+import { ageInMonths, dueLabel, immunizationGaps } from "./immunizations";
 import { gdmtFor, gdmtSentences } from "./gdmt";
 import { dueSentences, extractPrenatal, obExamSentences, prenatalDue, pregnancySentences, warningSentences } from "./prenatal";
 import { extractProcedures, procedureSentences } from "./procedures";
@@ -548,6 +550,24 @@ export function buildSection(ts: TemplateSection, facts: Facts, ctx: NoteContext
     case "gdmt": {
       const g = gdmtFor(ctx.utterances ?? [], facts, ctx.patient?.chart);
       sentences = gdmtSentences(g.ef, g.pillars, ts.key);
+      break;
+    }
+    case "well_screens":
+    case "guidance":
+    case "imm_due": {
+      const dob = ctx.patient?.dob;
+      if (!dob) {
+        sentences = [b.s("Attach the patient to see age-based screenings.", [], "system")];
+        break;
+      }
+      const at = new Date(ctx.encounter.scheduledAt);
+      const r = wellChild(ageInMonths(dob, at), ctx.utterances ?? []);
+      if (kind === "well_screens") sentences = screenSentences(r, ts.key);
+      else if (kind === "guidance") sentences = guidanceSentences(r, ts.key);
+      else {
+        const gaps = immunizationGaps(dob, ctx.patient?.chart.immunizations ?? [], at);
+        sentences = gaps.length ? gaps.map((g) => b.s(`Due: ${dueLabel(g)}.`, [], "system")) : [b.s("Up to date for age.", [], "system")];
+      }
       break;
     }
     case "procedure_note":

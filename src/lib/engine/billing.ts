@@ -1,4 +1,5 @@
 import { DISCIPLINE_MODIFIER, unitsFor } from "./therapy";
+import { pediatricPreventive } from "./wellchild";
 import type { Chart, CodingResult, StagedOrder } from "../types";
 import type { Facts } from "./extract";
 
@@ -124,6 +125,9 @@ export const SERVICE_SUMMARY: Record<string, string> = {
   "97014": "Electrical stimulation, unattended",
   "97010": "Hot or cold packs (bundled)",
   "0502F": "Subsequent prenatal care visit (global OB package, tracking only)",
+  "96110": "Developmental screening with standardized instrument", "96161": "Caregiver-focused health risk assessment", "99188": "Topical fluoride varnish", "99173": "Visual acuity screening", "92551": "Screening pure tone audiometry", "85018": "Hemoglobin", "83655": "Lead",
+  "99381": "Preventive visit, new patient, under 1 year", "99382": "Preventive visit, new patient, 1 to 4 years", "99383": "Preventive visit, new patient, 5 to 11 years", "99384": "Preventive visit, new patient, 12 to 17 years",
+  "99391": "Preventive visit, established patient, under 1 year", "99392": "Preventive visit, established patient, 1 to 4 years", "99393": "Preventive visit, established patient, 5 to 11 years", "99394": "Preventive visit, established patient, 12 to 17 years",
   "20600": "Arthrocentesis/injection, small joint", "20604": "Arthrocentesis/injection, small joint, with ultrasound",
   "20605": "Arthrocentesis/injection, intermediate joint", "20606": "Arthrocentesis/injection, intermediate joint, with ultrasound",
   "20610": "Arthrocentesis/injection, major joint", "20611": "Arthrocentesis/injection, major joint, with ultrasound",
@@ -191,7 +195,8 @@ const FALLBACK_CHARGE: Record<string, number> = {
   G2211: 16, G2212: 31, "99417": 31, "99395": 118, "99396": 125, "99397": 135, G0438: 175, G0439: 130,
   "36415": 3, "87880": 16, "87804": 16, "87811": 41, "81003": 3, "83036": 13, "93000": 17,
   "90656": 24, "90715": 40, "90750": 196, "90677": 254, "91320": 128, "90471": 25, "90472": 13, "90480": 45, G0008: 34, G0009: 34, G0010: 34,
-  "96127": 5, "99406": 15,
+  "96127": 5, "99406": 15, "96110": 10, "96161": 5, "99188": 20, "99173": 3, "92551": 12, "85018": 3, "83655": 12,
+  "99381": 120, "99382": 125, "99383": 130, "99384": 140, "99391": 105, "99392": 115, "99393": 115, "99394": 125,
   "97161": 101, "97162": 101, "97163": 101, "97164": 70, "97165": 104, "97166": 104, "97167": 104, "97168": 71,
   "20600": 56, "20604": 75, "20605": 58, "20606": 80, "20610": 63, "20611": 92, "11102": 100, "11103": 55, "11104": 125, "11105": 65, "11106": 150, "11107": 75,
   "17000": 68, "17003": 5, "17004": 145, "17110": 110, "17111": 132, "12001": 105, "12002": 120, "12004": 145, "12005": 175, "12011": 115, "12013": 125, "12014": 145, "12015": 170,
@@ -237,12 +242,13 @@ export function defaultPayer(age: number): Payer {
   return age >= 65 ? "Medicare" : "Commercial";
 }
 
-function preventiveCode(age: number, payer: Payer, chart?: Chart) {
+function preventiveCode(age: number, payer: Payer, chart?: Chart, patientType: "new" | "established" = "established") {
+  if (age < 18) return pediatricPreventive(age, patientType);
   if (isMedicare(payer)) {
     const priorAwv = (chart?.priorVisits ?? []).some((v) => /annual wellness|AWV|G043[89]/i.test(v.summary));
     return priorAwv ? "G0439" : "G0438";
   }
-  return age >= 65 ? "99397" : age >= 40 ? "99396" : "99395";
+  return pediatricPreventive(age, patientType);
 }
 
 export function prolongedUnits(emCode: string, minutes: number, payer: Payer) {
@@ -300,15 +306,19 @@ export function buildClaim(facts: Facts, coding: CodingResult, ctx: BillingConte
 
   const wellness = facts.problems.find((p) => p.key === "well");
   const problemDx = dx.filter((d) => !/^Z00\.0/.test(d.code)).map((d) => d.pointer).slice(0, 4);
-  if (wellness) {
-    const code = preventiveCode(ctx.age, payer, ctx.chart);
+  if (wellness && !coding.wellChild) {
+    const code = preventiveCode(ctx.age, payer, ctx.chart, ctx.patientType);
     const why = code === "G0438" ? "Initial Medicare annual wellness visit" : code === "G0439" ? "Subsequent Medicare annual wellness visit" : `Preventive visit for age ${ctx.age}`;
     lines.push(line(code, "em", why, wellness.evidence, [dx.find((d) => d.code.startsWith("Z00"))?.pointer ?? "A"]));
   }
   const problemsAddressed = facts.problems.filter((p) => p.key !== "well" && (p.plan.length || p.assessed));
   let emLine: ClaimLine | null = null;
   const therapy = coding.therapy;
-  if (coding.prenatal?.globalPackage) {
+  if (coding.wellChild) {
+    const wcPtr = [dx.find((d) => d.code.startsWith("Z00"))?.pointer ?? "A"];
+    lines.push(line(coding.wellChild.preventive, "em", `Preventive visit, age ${ctx.age}`, [], wcPtr));
+    for (const s of coding.wellChild.screens) lines.push(line(s.cpt, s.cpt === "85018" || s.cpt === "83655" || s.cpt === "80061" ? "lab" : "screening", s.label, [], wcPtr, [], s.units));
+  } else if (coding.prenatal?.globalPackage) {
     lines.push(line("0502F", "em", "Routine prenatal visit included in the global obstetric package (59400, 59510, 59610, or 59618), reported with CPT II 0502F for tracking", [], problemDx.length ? problemDx : ["A"]));
   } else if (therapy) {
     const mod = DISCIPLINE_MODIFIER[therapy.discipline];

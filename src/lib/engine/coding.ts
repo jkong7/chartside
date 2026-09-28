@@ -1,3 +1,4 @@
+import { pediatricPreventive, type WellChildResult } from "./wellchild";
 import type { ProcedureFacts } from "./procedures";
 import { EVALS, type Discipline, type TherapyFacts } from "./therapy";
 import { psychotherapyCode } from "./behavioral";
@@ -22,6 +23,7 @@ export interface CodingContext {
   therapy?: { discipline: Discipline; facts: TherapyFacts };
   procedures?: ProcedureFacts;
   prenatal?: { codes: { code: string; label: string }[]; globalPackage: boolean };
+  wellChild?: WellChildResult;
   oncology?: { cancer: { code: string; label: string; evidence: string[] } | null; monitoring: string[]; sideEffects: { label: string; code?: string; grade: number; evidence: string[] }[]; progression: string[] | null };
 }
 
@@ -181,9 +183,18 @@ export function computeCoding(facts: Facts, ctx: CodingContext): CodingResult {
   const therapyCode = th ? evalCode ?? th.facts.services.find((x) => !x.bundled)?.cpt ?? "97110" : null;
   if (ctx.prenatal?.codes.length) diagnoses.unshift(...ctx.prenatal.codes.filter((c) => !diagnoses.some((d) => d.code === c.code)).map((c) => ({ code: c.code, system: "ICD-10-CM" as const, label: c.label, rationale: c.code.startsWith("Z3A") ? "Weeks of gestation, reported with pregnancy codes" : "Routine prenatal care", evidence: [], confidence: 0.95, problem: "pregnancy" })));
   const prenatalCode = ctx.prenatal?.globalPackage ? "0502F" : null;
-  const code = prenatalCode ?? therapyCode ?? psych ?? (cls === "discharge" ? (ctx.minutes > 30 ? "99239" : "99238") : cls === "office" ? EM[ctx.patientType][level] : EM[cls][level]);
+  const wc = ctx.wellChild;
+  const wellCode = wc ? pediatricPreventive(Math.floor(wc.ageMonths / 12), ctx.patientType) : null;
+  if (wc) {
+    const well = diagnoses.find((d) => d.code.startsWith("Z00"));
+    const code = wc.ageMonths < 1 ? "Z00.111" : "Z00.129";
+    const label = wc.ageMonths < 1 ? "Health examination for newborn 8 to 28 days old" : "Encounter for routine child health examination without abnormal findings";
+    if (well) Object.assign(well, { code, label });
+    else diagnoses.unshift({ code, system: "ICD-10-CM", label, rationale: "Well-child visit", evidence: [], confidence: 0.95, problem: "well" });
+  }
+  const code = wellCode ?? prenatalCode ?? therapyCode ?? psych ?? (cls === "discharge" ? (ctx.minutes > 30 ? "99239" : "99238") : cls === "office" ? EM[ctx.patientType][level] : EM[cls][level]);
   let tc: string | null = null;
-  if (psych || therapyCode || prenatalCode || ctx.psychotherapy === "addon") tc = null;
+  if (psych || therapyCode || prenatalCode || wellCode || ctx.psychotherapy === "addon") tc = null;
   else if (cls === "office") tc = ctx.minutes > 0 ? timeCode(ctx.patientType, ctx.minutes) : null;
   else if (cls === "initial_inpatient" || cls === "subsequent_inpatient") for (const [min, c] of INPATIENT_TIME[cls]) if (ctx.minutes >= min) tc = c;
 
@@ -232,6 +243,7 @@ export function computeCoding(facts: Facts, ctx: CodingContext): CodingResult {
     diagnoses,
     em: { code, level, patientType: ctx.patientType, problems, data, risk, timeBased: tc ? { minutes: ctx.minutes, code: tc } : undefined, auditRisk: { score: Math.max(0, score), direction, notes } },
     prenatal: ctx.prenatal,
+    wellChild: wc && wellCode ? { preventive: wellCode, screens: Object.values(wc.due.filter((d) => d.done).reduce<Record<string, { cpt: string; label: string; units: number }>>((acc, d) => { acc[d.cpt] = acc[d.cpt] ? { ...acc[d.cpt], units: acc[d.cpt].units + 1, label: `${acc[d.cpt].label}; ${d.label}` } : { cpt: d.cpt, label: d.label, units: 1 }; return acc; }, {})) } : undefined,
     procedures: ctx.procedures?.procedures.length || ctx.procedures?.drugs.length ? { procedures: ctx.procedures.procedures, drugs: ctx.procedures.drugs } : undefined,
     therapy: th ? { discipline: th.discipline, evalCode, services: th.facts.services } : undefined,
     psychotherapyAddOn: ctx.psychotherapy === "addon" && ctx.psychotherapyMinutes && ctx.psychotherapyMinutes.minutes >= 16 ? { code: psychotherapyCode(ctx.psychotherapyMinutes.minutes, true)!, minutes: ctx.psychotherapyMinutes.minutes, evidence: ctx.psychotherapyMinutes.evidence } : undefined,

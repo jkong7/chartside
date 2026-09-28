@@ -336,6 +336,23 @@ export const SYSTEM_TEMPLATES: Template[] = [
     ],
   },
   {
+    id: "peds_well",
+    userId: null,
+    name: "Well-child visit",
+    specialty: "Pediatrics",
+    description: "Bright Futures periodicity: screenings due at this age with their codes, immunizations due, anticipatory guidance covered, and the age-based preventive code.",
+    style: { verbosity: "standard" },
+    sections: [
+      { key: "hpi", title: "Interval History", kind: "hpi", format: "paragraph" },
+      { key: "vitals", title: "Growth and Vitals", kind: "vitals", format: "paragraph" },
+      { key: "exam", title: "Physical Exam", kind: "exam", format: "bullets" },
+      { key: "screens", title: "Screenings", kind: "well_screens", format: "bullets" },
+      { key: "imms", title: "Immunizations", kind: "imm_due", format: "bullets" },
+      { key: "guidance", title: "Anticipatory Guidance", kind: "guidance", format: "bullets" },
+      { key: "ap", title: "Assessment & Plan", kind: "assessment_plan", format: "bullets" },
+    ],
+  },
+  {
     id: "peds_acute",
     userId: null,
     name: "Pediatric sick visit",

@@ -104,6 +104,9 @@ export type SectionKind =
   | "ob_exam"
   | "ob_due"
   | "gdmt"
+  | "well_screens"
+  | "guidance"
+  | "imm_due"
   | "onc_history"
   | "onc_treatment"
   | "toxicity"
@@ -302,6 +305,7 @@ export interface CodingResult {
   risk?: RiskSummary;
   reference?: { label: string; version: string }[];
   psychotherapyAddOn?: { code: string; minutes: number; evidence: string[] };
+  wellChild?: { preventive: string; screens: { cpt: string; label: string; units: number }[] };
   prenatal?: { codes: { code: string; label: string }[]; globalPackage: boolean };
   procedures?: { procedures: import("./engine/procedures").ProcedureLine[]; drugs: import("./engine/procedures").DrugLine[] };
   therapy?: { discipline: "PT" | "OT" | "SLP"; evalCode: string | null; services: { cpt: string; label: string; minutes: number | null; timed: boolean; bundled: boolean; evidence: string[] }[] };
