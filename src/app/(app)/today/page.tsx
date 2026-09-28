@@ -4,6 +4,8 @@ import { can } from "@/lib/server/policy";
 import Link from "next/link";
 import { encounters, orgs, patients, SEES_ORG } from "@/lib/server/repo";
 import { sharedWithMe } from "@/lib/server/sharing";
+import { surveyDue } from "@/lib/server/survey";
+import SurveyPrompt from "@/components/SurveyPrompt";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +23,7 @@ export default async function Today() {
   const orgWide = SEES_ORG.has(user.role);
   const clinicians = orgWide ? (await orgs.members(user.orgId)).filter((m) => m.status === "active" && ["owner", "admin", "clinician"].includes(m.role)).map((m) => ({ id: m.userId, name: m.name })) : [];
   const shared = await sharedWithMe(user);
+  const survey = await surveyDue(user);
   return (
     <>
     <TodayList
@@ -32,6 +35,7 @@ export default async function Today() {
       canCreate={can(user, "clinical.create")}
       canCapture={can(user, "clinical.capture")}
     />
+    {survey && <SurveyPrompt />}
     {shared.length > 0 && (
       <section className="mx-auto max-w-5xl px-4 pb-10 md:px-8" data-testid="shared-with-me">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-3">Shared with you</h2>

@@ -1,6 +1,7 @@
 import { all } from "../db";
 import type { MeasureResult } from "../engine/quality";
 import { j, type User } from "./repo";
+import { adoptionNudges, npsFor } from "./survey";
 
 function median(xs: number[]) {
   if (!xs.length) return null;
@@ -86,6 +87,8 @@ export async function impact(u: User, opts: { days?: number; baselineMinutes?: n
     },
     quality: { evaluated: measures.filter((m) => m.status !== "excluded").length, addressed: measures.filter((m) => m.status === "addressed").length, open: measures.filter((m) => m.status === "gap").length },
     messages: { received: msgs.length, replied: replyHours.length, medianReplyHours: median(replyHours) === null ? null : Math.round(median(replyHours)! * 10) / 10 },
+    satisfaction: await npsFor(u.orgId, Math.max(days, 90)),
+    nudges: await adoptionNudges(u.orgId, days),
     weeks: [...weeks.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([week, x]) => ({ week, ...x })),
   };
 }

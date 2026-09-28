@@ -46,6 +46,7 @@ export interface UserPrefs {
   finalPass?: boolean;
   noteDetail?: "concise" | "standard" | "detailed";
   autoDocuments?: string[];
+  surveySnoozedUntil?: string;
 }
 
 export const j = <T>(s: string | null | undefined, fallback: T): T => {

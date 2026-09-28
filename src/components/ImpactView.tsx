@@ -83,6 +83,22 @@ export default function ImpactView({ data: d }: { data: Data }) {
           <p className="mt-2 text-xs text-ink-3">Chart-grounded drafts don&apos;t save much typing time; their value is clearer answers, which reduces follow-up questions.</p>
         </div>
       </div>
+      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-ink-3">Clinician experience</h2>
+      <div className="mt-2 grid gap-3 md:grid-cols-2">
+        <div className="card p-4" data-testid="impact-nps">
+          <p className="text-sm font-semibold">Net Promoter Score</p>
+          <p className="mt-1 font-serif text-4xl">{d.satisfaction.nps === null ? "—" : d.satisfaction.nps}</p>
+          <p className="text-xs text-ink-3">{d.satisfaction.responses} responses · {d.satisfaction.promoters} promoters · {d.satisfaction.passives} passives · {d.satisfaction.detractors} detractors</p>
+          <ul className="mt-3 space-y-2 text-sm">{d.satisfaction.comments.map((c, i) => <li key={i}><span className="font-mono text-xs text-ink-3">{c.score}</span> {c.comment} <span className="text-xs text-ink-4">· {c.name}</span></li>)}</ul>
+        </div>
+        <div className="card p-4" data-testid="impact-nudges">
+          <p className="text-sm font-semibold">Who may need help</p>
+          <ul className="mt-2 space-y-3 text-sm">
+            {d.nudges.map((n, i) => <li key={i}><p><span className="font-medium">{n.name}</span> · {n.detail}</p><p className="text-xs text-ink-3">{n.tip}</p></li>)}
+            {!d.nudges.length && <li className="text-ink-3">Everyone is using Chartside steadily.</li>}
+          </ul>
+        </div>
+      </div>
     </div>
   );
 }
