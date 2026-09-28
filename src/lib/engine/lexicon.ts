@@ -25,7 +25,7 @@ const w = (s: string) => new RegExp(`\\b(?:${s})\\b`, "i");
 
 export const SYMPTOMS: SymptomDef[] = [
   { key: "headache", label: "headache", patterns: [w("headaches?|head (?:is )?(?:hurting|pounding)|migraines?")], system: "Neurological", plain: { en: "headache", es: "dolor de cabeza" } },
-  { key: "chest_pain", label: "chest pain", patterns: [w("chest (?:pain|pressure|tightness|discomfort)|pain in (?:my|the) chest|tightness in (?:my|the) chest")], system: "Cardiovascular", plain: { en: "chest pain", es: "dolor de pecho" } },
+  { key: "chest_pain", label: "chest pain", patterns: [w("chest (?:pain|pressure|tightness|discomfort)|(?:pain|pressure|tightness|heaviness) in (?:the middle of )?(?:my|the|his|her) chest")], system: "Cardiovascular", plain: { en: "chest pain", es: "dolor de pecho" } },
   { key: "dyspnea", label: "shortness of breath", patterns: [w("short(?:ness)? of breath|can't catch (?:my|her|his) breath|winded|breathless|trouble breathing|hard to breathe|out of breath")], system: "Respiratory", plain: { en: "shortness of breath", es: "falta de aire" } },
   { key: "cough", label: "cough", patterns: [w("cough(?:ing|s)?")], system: "Respiratory", plain: { en: "cough", es: "tos" } },
   { key: "wheezing", label: "wheezing", patterns: [w("wheez(?:e|ing|y)")], system: "Respiratory", plain: { en: "wheezing", es: "silbido al respirar" } },
@@ -133,6 +133,10 @@ export const CONDITIONS: ConditionDef[] = [
     { when: /preserved ejection fraction|diastolic heart failure|HFpEF/i, icd10: "I50.30", label: "Unspecified diastolic (congestive) heart failure" },
     { when: /reduced ejection fraction|systolic heart failure|HFrEF/i, icd10: "I50.20", label: "Unspecified systolic (congestive) heart failure" },
   ] },
+  { key: "unstable_angina", label: "Unstable angina", icd10: "I20.0", chronic: false, systemic: true, patterns: [w("unstable angina")], plain: { en: "unstable angina (chest pain from reduced blood flow to the heart)", es: "angina inestable" } },
+  { key: "nstemi", label: "Non-ST elevation (NSTEMI) myocardial infarction", icd10: "I21.4", chronic: false, systemic: true, patterns: [w("NSTEMI|non-ST(?:-| )elevation (?:myocardial infarction|MI)")], plain: { en: "a heart attack", es: "un ataque al corazón" } },
+  { key: "acs", label: "Acute coronary syndrome", icd10: "I24.9", chronic: false, systemic: true, patterns: [w("acute coronary syndrome|ACS")], plain: { en: "a heart problem from reduced blood flow", es: "síndrome coronario agudo" } },
+  { key: "pe", label: "Pulmonary embolism without acute cor pulmonale", icd10: "I26.99", chronic: false, systemic: true, patterns: [w("pulmonary embolism|PE (?:on|confirmed)")], plain: { en: "a blood clot in the lung", es: "un coágulo en el pulmón" } },
   { key: "chest_pain_dx", label: "Chest pain, unspecified", icd10: "R07.9", chronic: false, patterns: [w("atypical chest pain|chest pain (?:is )?(?:likely|probably|most likely) (?:musculoskeletal|non-cardiac)")], plain: { en: "chest pain", es: "dolor de pecho" }, specific: [{ when: w("musculoskeletal|chest wall|costochondritis"), icd10: "R07.89", label: "Other chest pain" }] },
   { key: "allergic_rhinitis", label: "Allergic rhinitis, unspecified", icd10: "J30.9", chronic: true, patterns: [w("allergic rhinitis|seasonal allergies|hay fever|allergies (?:are|have been) (?:acting up|bad)")], plain: { en: "seasonal allergies", es: "alergias estacionales" } },
   { key: "eczema", label: "Atopic dermatitis, unspecified", icd10: "L20.9", chronic: true, patterns: [w("eczema|atopic dermatitis")], plain: { en: "eczema", es: "eczema" } },

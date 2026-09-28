@@ -498,7 +498,7 @@ const RESULTS: { name: string; re: RegExp; abnormal: (v: number) => boolean; uni
   { name: "Creatinine", re: /\bcreatinine\b[^\d?]{0,25}?(\d(?:\.\d+)?)\b/i, abnormal: (v) => v > 1.3, unit: "mg/dL" },
   { name: "eGFR", re: /\b(?:eGFR|GFR|kidney function)\b[^\d?]{0,25}?(\d{2,3})\b/i, abnormal: (v) => v < 60, unit: "mL/min/1.73m²" },
   { name: "BNP", re: /\b(?:BNP|B-type natriuretic peptide)\b[^\d?]{0,20}?(\d{2,5})\b/i, abnormal: (v) => v > 100, unit: "pg/mL" },
-  { name: "Troponin", re: /\btroponin\b[^\d?]{0,25}?(\d+(?:\.\d+)?)\b/i, abnormal: (v) => v > 0.04, unit: "ng/mL" },
+  { name: "Troponin", re: /\btroponin\b(?! in)[^\d?]{0,25}?(\d+(?:\.\d+)?)\b/i, abnormal: (v) => v > 19, unit: "ng/L" },
   { name: "Sodium", re: /\bsodium\b(?! (?:restriction|intake|diet))[^\d?]{0,25}?(1[0-6]\d)\b/i, abnormal: (v) => v < 135 || v > 145, unit: "mmol/L" },
   { name: "WBC", re: /\b(?:white (?:blood )?count|WBC)\b[^\d?]{0,25}?(\d{1,2}(?:\.\d)?)\b/i, abnormal: (v) => v > 11 || v < 4, unit: "K/uL" },
   { name: "Potassium", re: /\bpotassium\b(?! chloride)[^\d?]{0,25}?(\d(?:\.\d)?)\b/i, abnormal: (v) => v > 5.1 || v < 3.5, unit: "mmol/L" },
@@ -871,7 +871,8 @@ export function extractFacts(utterances: Utterance[], chart?: Chart, who?: { pro
         const m = r.re.exec(clause);
         if (m && !/\b(?:check|order|draw|get)\b[^.]*$/i.test(clause.slice(0, m.index))) {
           const v = Number(m[1]);
-          if (!Number.isNaN(v) && !results.some((x) => x.name === r.name)) results.push({ name: r.name, value: `${m[1]} ${r.unit}`, evidence: [u.id], abnormal: r.abnormal(v) });
+          const below = /\b(?:under|less than|below)\s*$/i.test(clause.slice(m.index, m.index + m[0].length - m[1].length));
+          if (!Number.isNaN(v) && !results.some((x) => x.name === r.name)) results.push({ name: r.name, value: `${below ? "<" : ""}${m[1]} ${r.unit}`, evidence: [u.id], abnormal: below ? false : r.abnormal(v) });
         }
       }
 
