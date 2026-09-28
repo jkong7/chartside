@@ -11,4 +11,8 @@ test("security and compliance center shows safeguard checks and exports the audi
   const csv = await (await page.request.get("/api/admin/audit-export")).text();
   expect(csv.split("\n")[0]).toBe("When,Who,Action,Visit,Detail");
   expect(csv.split("\n").length).toBeGreaterThan(5);
+  const ndjson = await (await page.request.get(await page.getByTestId("data-export").getAttribute("href") ?? "")).text();
+  const types = new Set(ndjson.trim().split("\n").map((l) => JSON.parse(l).resourceType));
+  expect(types.has("Patient")).toBe(true);
+  expect(types.has("Composition")).toBe(true);
 });

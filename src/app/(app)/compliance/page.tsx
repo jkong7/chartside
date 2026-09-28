@@ -18,6 +18,7 @@ export default async function CompliancePage() {
           <p className="mt-1 text-sm text-ink-2">How your organization's settings and the last {r.days} days of activity line up with HIPAA safeguards and recording-consent law. Share this page with your privacy officer.</p>
         </div>
         <a className="btn-outline" href="/api/admin/audit-export" data-testid="audit-export">Export audit log (30 days)</a>
+        <a className="btn-outline" href="/api/admin/export" data-testid="data-export">Export all data (FHIR NDJSON)</a>
       </div>
       <div className="card mt-5 flex items-center gap-4 p-4" data-testid="compliance-score"><p className="font-serif text-4xl">{r.score}%</p><p className="text-sm text-ink-2">of checks pass</p></div>
       <ul className="card mt-4 divide-y divide-line" data-testid="compliance-checks">
