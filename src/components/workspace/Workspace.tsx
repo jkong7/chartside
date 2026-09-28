@@ -1,10 +1,11 @@
 "use client";
 
+import BreakGlass from "./BreakGlass";
 import ShareVisit from "./ShareVisit";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SegmentPlayer } from "@/lib/audio/player";
-import { age, api, copyText, fmtDate, fmtTime } from "@/lib/client";
+import { age, api, ApiError, copyText, fmtDate, fmtTime } from "@/lib/client";
 import { roleLabel } from "@/lib/roles";
 import type { Note, NoteSentence, OmissionFlag, Speaker, StagedOrder, Utterance } from "@/lib/types";
 import { Alert, Check, Copy, Download, Play, Refresh, Shield } from "../icons";
@@ -40,10 +41,13 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
   const [dirty, setDirty] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
 
+  const [gate, setGate] = useState<string | null>(null);
   const load = useCallback(async () => {
     try {
       setB(await api<Bundle>(`/encounters/${id}`));
+      setGate(null);
     } catch (e) {
+      if (e instanceof ApiError && e.status === 423) return setGate(e.message);
       setErr(e instanceof Error ? e.message : "Could not load visit");
     }
   }, [id]);
@@ -56,6 +60,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
   const audioChunks = b?.audio.chunks ?? 0;
   const player = useMemo(() => (audioChunks > 0 ? new SegmentPlayer(`/api/encounters/${id}/audio`) : null), [audioChunks, id]);
 
+  if (gate) return <BreakGlass encounterId={id} message={gate} onOpened={load} />;
   if (err) return <div className="p-10 text-rec">{err}</div>;
   if (!b) return <div className="flex h-screen items-center justify-center text-brand"><Spinner /></div>;
 

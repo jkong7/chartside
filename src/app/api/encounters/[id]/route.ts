@@ -3,6 +3,7 @@ import { authed, body, fail, json } from "@/lib/server/http";
 import { speechConfig } from "@/lib/server/audio";
 import { consentScript, processEncounter } from "@/lib/server/pipeline";
 import { isStuck, recordingMinutesFromEnv } from "@/lib/engine/limits";
+import { assertNoteAccess, logView } from "@/lib/server/access";
 import { assertCan, can, canSign } from "@/lib/server/policy";
 import { addenda, artifacts, audioChunks, audit, claims, consents, encounters, feedback, notes, orders, orgs, patientFlags, patients, SEES_ORG, templates, users, utterances } from "@/lib/server/repo";
 import type { Encounter } from "@/lib/types";
@@ -25,6 +26,8 @@ export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
     }
     enc = (await encounters.get(user, id))!;
   }
+  await assertNoteAccess(user, enc);
+  await logView(user, enc.id);
   const clinician = enc.userId === user.id ? user : await users.byId(enc.userId);
   const prefs = clinician?.prefs ?? user.prefs;
   const tplId = enc.templateId ?? prefs.defaultTemplate ?? "soap";

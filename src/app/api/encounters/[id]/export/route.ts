@@ -1,4 +1,5 @@
 import { authed, fail, json } from "@/lib/server/http";
+import { assertNoteAccess } from "@/lib/server/access";
 import { exportFhir, noteText } from "@/lib/server/pipeline";
 import { documentText } from "@/lib/server/signoff";
 import { audit, encounters, notes, patients } from "@/lib/server/repo";
@@ -6,6 +7,7 @@ import { audit, encounters, notes, patients } from "@/lib/server/repo";
 export const GET = authed<{ id: string }>(async (req, user, { id }) => {
   const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
+  await assertNoteAccess(user, enc);
   const format = new URL(req.url).searchParams.get("format") ?? "text";
   if (format === "fhir") {
     return new Response(JSON.stringify(await exportFhir(user, enc.id), null, 2), { headers: { "content-type": "application/fhir+json", "content-disposition": `attachment; filename="chartside-${enc.id}.fhir.json"` } });

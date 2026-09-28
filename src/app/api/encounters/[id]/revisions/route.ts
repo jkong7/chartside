@@ -1,5 +1,6 @@
 import { diffNotes, provenance } from "@/lib/engine/diff";
 import { authed, body, fail, json } from "@/lib/server/http";
+import { assertNoteAccess } from "@/lib/server/access";
 import { saveNoteEdits } from "@/lib/server/pipeline";
 import { assertCan, Invalid } from "@/lib/server/policy";
 import { audit, encounters, revisions } from "@/lib/server/repo";
@@ -7,6 +8,7 @@ import { audit, encounters, revisions } from "@/lib/server/repo";
 export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
   const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
+  await assertNoteAccess(user, enc);
   const list = await revisions.list(enc.id);
   return json({
     revisions: list.map((r, i) => {
