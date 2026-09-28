@@ -144,6 +144,13 @@ describe("EHR launch, import, and write-back against a SMART server", () => {
     expect(stats.docs[0].text).toContain("Signed electronically by Dr. Avery Chen");
     expect((await repo.audit.forEncounter(enc.id)).map((a) => a.action)).toEqual(expect.arrayContaining(["ehr.context", "ehr.filed"]));
 
+    const signoff = await import("@/lib/server/signoff");
+    const add = await signoff.addAddendum(user, enc.id, { kind: "addendum", text: "Repeat A1c resulted at 7.9%; plan unchanged." });
+    expect(add.filing).toMatchObject({ status: "filed", reference: "DocumentReference/doc-2" });
+    const after = (await (await fetch(`http://localhost:${PORT}/stats`)).json()) as { docs: { text: string; appends: string | null }[] };
+    expect(after.docs[1]).toMatchObject({ appends: "DocumentReference/doc-1" });
+    expect(after.docs[1].text).toContain("ADDENDUM · Dr. Avery Chen");
+
     const again = await ehr.resyncPatient(user, p.id);
     expect(again.id).toBe(p.id);
     expect((await repo.patients.list(user)).filter((x) => x.externalId === "eX7tQ2pVh9Lw")).toHaveLength(1);

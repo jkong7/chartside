@@ -21,7 +21,8 @@ import { buildClaim, claimStatus } from "../engine/billing";
 import { buildPriorAuths } from "../engine/priorauth";
 import { enrichCoding, hccMapper, payerFor, referenceFor } from "./rcm";
 import { canSign, Forbidden } from "./policy";
-import { artifacts, audit, claims, consents, encounters, notes, orders, patients, styleRules, templates, utterances, users, type User } from "./repo";
+import { cosignPlan, documentText, holdClaimForCosign, recordSignature } from "./signoff";
+import { addenda, artifacts, audit, claims, consents, encounters, notes, orders, patients, styleRules, templates, utterances, users, type User } from "./repo";
 
 export const CONSENT_SCRIPT_VERSION = "2026.09-a";
 
@@ -217,6 +218,8 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
     if (staged.length) blockers.push(`${staged.length} order(s) discussed in the visit are still unreviewed: ${staged.map((o) => o.name).join(", ")}.`);
     if (unsupported.length) blockers.push(`${unsupported.length} sentence(s) have no supporting evidence in the transcript.`);
   }
+  const plan = await cosignPlan(user);
+  if (plan.required && !plan.supervisor) return { signed: false, blockers: [`Your notes need a co-signature, but no supervising physician is assigned to you. Ask an admin to set one in Admin → Members.`] };
   if (blockers.length && (blocked.length || !opts.force)) return { signed: false, blockers };
 
   const consent = await consents.latest(enc.id);
@@ -231,6 +234,7 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   await notes.setStatus(enc.id, "signed");
   const signedAt = new Date().toISOString();
   await encounters.update(user, enc.id, { status: "signed", signedAt });
+  const cosign = await recordSignature(user, enc, final, signedAt);
 
   const candidates = learnFromEdits(rec.generated, final);
   for (const c of candidates) await styleRules.learn(enc.userId, c);
@@ -240,9 +244,10 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   const editRatio = editDistanceRatio(genText, finText);
   await audit.log(user, enc.id, "note.signed", { edited, editRatio, learned: candidates.length, forced: !!opts.force, overrides: blockers });
   await finalizeClaim(user, (await encounters.get(user, enc.id))!);
+  await holdClaimForCosign(user, enc.id, cosign);
   if (retentionDays(user) === 0) await deleteAudio(user, enc.id, "signed (retention: delete at signing)");
   await purgeExpired(user);
-  return { signed: true, blockers: [] as string[], learned: candidates.length };
+  return { signed: true, blockers: [] as string[], learned: candidates.length, cosign: cosign ? { supervisor: cosign.supervisorName } : null };
 }
 
 function editDistanceRatio(a: string, b: string) {
@@ -297,7 +302,8 @@ export async function exportFhir(user: User, encId: string) {
   const clinician = await clinicianOf(enc);
   const title = (await templateFor(user, enc)).name;
   const orderList = await orders.list(enc.id);
-  const text = rec ? noteText(rec.content) : "";
+  const text = rec ? (enc.status === "signed" ? await documentText(enc.id, rec.content) : noteText(rec.content)) : "";
+  const addendaList = await addenda.list(enc.id);
   const patientRef = { reference: `Patient/${patient?.id ?? "unknown"}`, display: patient?.name };
   const composition = {
     resourceType: "Composition",
@@ -335,6 +341,19 @@ export async function exportFhir(user: User, encId: string) {
     content: [{ attachment: { contentType: "text/plain", data: Buffer.from(text).toString("base64"), title: composition.title } }],
     context: { encounter: [{ reference: `Encounter/${enc.id}` }] },
   };
+  const addendumDocs = addendaList.map((a) => ({
+    resourceType: "DocumentReference",
+    id: `doc-${a.id}`,
+    status: "current",
+    docStatus: "final",
+    type: composition.type,
+    subject: patientRef,
+    date: a.createdAt,
+    author: [{ reference: `Practitioner/${a.userId}`, display: a.author }],
+    description: a.kind === "attestation" ? "Supervising physician attestation" : a.kind.replace("_", " "),
+    relatesTo: [{ code: "appends", target: { reference: `DocumentReference/doc-${enc.id}` } }],
+    content: [{ attachment: { contentType: "text/plain", data: Buffer.from(a.text).toString("base64") } }],
+  }));
   const serviceRequests = orderList.filter((o) => o.status === "accepted" && o.kind !== "medication" && o.kind !== "follow_up").map((o) => ({ resourceType: "ServiceRequest", id: `sr-${o.id}`, status: "active", intent: "order", code: { text: o.name }, subject: patientRef, encounter: { reference: `Encounter/${enc.id}` }, note: o.detail ? [{ text: o.detail }] : undefined }));
   const medRequests = orderList.filter((o) => o.status === "accepted" && o.kind === "medication").map((o) => ({ resourceType: "MedicationRequest", id: `mr-${o.id}`, status: "active", intent: "order", medicationCodeableConcept: { text: o.name }, subject: patientRef, dosageInstruction: o.detail ? [{ text: o.detail }] : undefined }));
   await audit.log(user, enc.id, "export.fhir", {});
@@ -342,7 +361,7 @@ export async function exportFhir(user: User, encId: string) {
     resourceType: "Bundle",
     type: "document",
     timestamp: new Date().toISOString(),
-    entry: [composition, docRef, ...conditions, ...serviceRequests, ...medRequests].map((r) => ({ fullUrl: `urn:uuid:${r.id}`, resource: r })),
+    entry: [composition, docRef, ...addendumDocs, ...conditions, ...serviceRequests, ...medRequests].map((r) => ({ fullUrl: `urn:uuid:${r.id}`, resource: r })),
   };
 }
 

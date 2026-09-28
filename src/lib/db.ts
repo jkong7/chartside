@@ -242,6 +242,19 @@ CREATE TABLE IF NOT EXISTS smart_launches (
   redirect_uri TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS addenda (
+  id TEXT PRIMARY KEY,
+  encounter_id TEXT NOT NULL REFERENCES encounters(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  text TEXT NOT NULL,
+  reason TEXT NOT NULL DEFAULT '',
+  prev_digest TEXT NOT NULL,
+  digest TEXT NOT NULL,
+  filing TEXT,
+  ord BIGINT NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ehr_connections (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -267,6 +280,7 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS encounters_org ON encounters(org_id, scheduled_at)",
   "CREATE INDEX IF NOT EXISTS patients_org ON patients(org_id)",
   "CREATE INDEX IF NOT EXISTS memberships_user ON memberships(user_id)",
+  "CREATE INDEX IF NOT EXISTS addenda_enc ON addenda(encounter_id, ord)",
 ];
 
 const LEGACY_COLUMNS: [string, string, string][] = [
@@ -286,6 +300,8 @@ const LEGACY_COLUMNS: [string, string, string][] = [
   ["templates", "org_id", "TEXT"],
   ["templates", "shared", "INTEGER NOT NULL DEFAULT 0"],
   ["auth_sessions", "org_id", "TEXT"],
+  ["memberships", "credential", "TEXT NOT NULL DEFAULT ''"],
+  ["memberships", "supervisor_id", "TEXT"],
 ];
 
 export type Param = string | number | null | boolean;

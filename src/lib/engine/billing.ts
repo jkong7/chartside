@@ -70,6 +70,7 @@ export interface Claim {
   excludedOrders: string[];
   dos?: string;
   reference?: { label: string; version: string }[];
+  supervising?: { name: string; modifier: string | null };
 }
 
 export interface ClaimReference {

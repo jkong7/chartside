@@ -1,5 +1,6 @@
 import { authed, fail, json } from "@/lib/server/http";
 import { exportFhir, noteText } from "@/lib/server/pipeline";
+import { documentText } from "@/lib/server/signoff";
 import { audit, encounters, notes, patients } from "@/lib/server/repo";
 
 export const GET = authed<{ id: string }>(async (req, user, { id }) => {
@@ -13,5 +14,5 @@ export const GET = authed<{ id: string }>(async (req, user, { id }) => {
   if (!rec) return fail("No note yet", 404);
   const p = enc.patientId ? await patients.get(user, enc.patientId) : undefined;
   await audit.log(user, enc.id, "export.text", {});
-  return json({ text: `${p ? `${p.name} · MRN ${p.mrn} · DOB ${p.dob}\n` : ""}${new Date(enc.scheduledAt).toLocaleDateString("en-US")} · ${user.name}\n\n${noteText(rec.content)}` });
+  return json({ text: `${p ? `${p.name} · MRN ${p.mrn} · DOB ${p.dob}\n` : ""}${new Date(enc.scheduledAt).toLocaleDateString("en-US")} · ${user.name}\n\n${enc.status === "signed" ? await documentText(enc.id, rec.content) : noteText(rec.content)}` });
 });

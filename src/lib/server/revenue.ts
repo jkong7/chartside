@@ -84,6 +84,8 @@ export async function claimAction(user: User, encId: string, action: string, opt
   const ch = sandboxClearinghouse;
 
   if (action === "approve") {
+    const cosign = await artifacts.get<{ status: string; supervisorName: string }>(encId, "cosign");
+    if (cosign && cosign.status !== "cosigned") throw new Error(`The note still needs a co-signature from ${cosign.supervisorName} before this claim can be approved`);
     if (claim.edits.some((e) => e.severity === "error")) throw new Error("Resolve claim errors before approving");
     if (LOCKED.includes(status)) throw new Error("Claim already submitted");
     status = "approved";

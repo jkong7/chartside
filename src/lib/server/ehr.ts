@@ -4,7 +4,8 @@ import { buildChart, buildDocumentReference, mapEncounter, mapPatient, type Fhir
 import { authorizeUrl, discover, exchangeCode, fhirRequest, fhirUserOf, normalizeIss, refreshToken, type TokenResponse } from "../fhir/smart";
 import type { Encounter } from "../types";
 import { noteText } from "./pipeline";
-import { artifacts, audit, consents, encounters, notes, patients, users, type User } from "./repo";
+import { addendumBlock, documentText } from "./signoff";
+import { artifacts, audit, consents, encounters, notes, patients, users, type Addendum, type User } from "./repo";
 
 export const EPIC_SANDBOX = "https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4";
 
@@ -230,7 +231,8 @@ export async function fileNote(user: User, encId: string): Promise<EhrFiling> {
   if (!rec) throw new Error("No note to file");
   const consent = await consents.latest(enc.id);
   const clinician = (await users.byId(enc.userId)) ?? user;
-  const text = `${noteText(rec.content)}${consent && !rec.content.sections.some((s) => s.key === "__consent") ? `\n\nDOCUMENTATION CONSENT\n${consent.statement}` : ""}\n\nSigned electronically by ${clinician.name} on ${new Date(enc.signedAt ?? Date.now()).toLocaleString("en-US")}.`;
+  const sig = await artifacts.get<{ at: string }>(enc.id, "signature");
+  const text = sig ? `${consent && !rec.content.sections.some((s) => s.key === "__consent") ? `DOCUMENTATION CONSENT\n${consent.statement}\n\n` : ""}${await documentText(enc.id, rec.content)}` : `${noteText(rec.content)}${consent && !rec.content.sections.some((s) => s.key === "__consent") ? `\n\nDOCUMENTATION CONSENT\n${consent.statement}` : ""}\n\nSigned electronically by ${clinician.name} on ${new Date(enc.signedAt ?? Date.now()).toLocaleString("en-US")}.`;
   const doc = buildDocumentReference({
     patientId: link.patient,
     encounterId: link.encounter,
@@ -261,4 +263,26 @@ export async function resyncPatient(user: User, patientId: string) {
   const conn = await connections.latestFor(user.id, p.externalSystem);
   if (!conn) throw new Error("No active EHR connection. Relaunch Chartside from the EHR.");
   return importPatient(user, conn.id, p.externalId);
+}
+
+export async function fileAddendum(user: User, encId: string, a: Addendum, target?: string): Promise<EhrFiling> {
+  const link = await artifacts.get<EhrLink>(encId, "ehr_link");
+  if (!link?.encounter) throw new Error("This visit is not linked to an EHR encounter");
+  const doc = {
+    ...buildDocumentReference({
+      patientId: link.patient,
+      encounterId: link.encounter,
+      text: addendumBlock(a),
+      title: `${a.kind === "attestation" ? "Attestation" : "Addendum"} (Chartside)`,
+      date: a.createdAt,
+      authorRef: link.fhirUser && /Practitioner\//.test(link.fhirUser) ? link.fhirUser.replace(/^.*?(Practitioner\/[^/]+)$/, "$1") : undefined,
+      kind: "progress",
+    }),
+    ...(target ? { relatesTo: [{ code: "appends", target: { reference: target } }] } : {}),
+  };
+  const { token, iss } = await accessToken(link.connectionOwner ?? user.id, link.connectionId);
+  const r = await fhirRequest<FhirResource>(iss, token, "DocumentReference", { method: "POST", body: doc });
+  const ref = r.data?.id ? `DocumentReference/${r.data.id}` : (r.location?.match(/DocumentReference\/[^/]+/)?.[0] ?? "DocumentReference");
+  await audit.log(user, encId, "ehr.addendum_filed", { iss, reference: ref, appends: target ?? null });
+  return { status: "filed", at: now(), reference: ref };
 }

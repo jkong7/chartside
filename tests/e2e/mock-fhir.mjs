@@ -130,7 +130,7 @@ const server = createServer((req, res) => {
         const att = doc.content?.[0]?.attachment;
         if (att?.contentType !== "text/plain" || !att.data) return outcome(res, 400, "attachment");
         const id = `doc-${docs.length + 1}`;
-        docs.push({ id, text: Buffer.from(att.data, "base64").toString("utf8"), author: doc.author?.[0]?.reference ?? null, type: doc.type.coding[0].code });
+        docs.push({ id, text: Buffer.from(att.data, "base64").toString("utf8"), author: doc.author?.[0]?.reference ?? null, type: doc.type.coding[0].code, appends: doc.relatesTo?.[0]?.target?.reference ?? null });
         res.writeHead(201, { location: `${BASE}/DocumentReference/${id}`, "content-type": "application/fhir+json" });
         return res.end("");
       }

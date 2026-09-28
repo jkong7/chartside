@@ -32,6 +32,8 @@ export interface User extends BaseUser {
   orgId: string;
   orgName: string;
   role: Role;
+  credential?: string;
+  supervisorId?: string | null;
 }
 
 export interface UserPrefs {
@@ -101,6 +103,7 @@ export interface SsoConfig {
 export interface OrgSettings {
   sso?: SsoConfig;
   shareTemplates?: boolean;
+  appsRequireCosign?: boolean;
   billing?: Partial<import("../rcm/reference").BillingSettings>;
 }
 
@@ -122,6 +125,8 @@ export interface Member {
   status: "active" | "disabled";
   joinedAt: string;
   hasPassword: boolean;
+  credential: string;
+  supervisorId: string | null;
 }
 
 export const orgs = {
@@ -153,10 +158,11 @@ export const orgs = {
     return o?.settings.sso?.requireSso ? o : undefined;
   },
   memberships: async (userId: string) =>
-    all<{ org_id: string; name: string; role: Role; status: string }>("SELECT m.org_id, o.name, m.role, m.status FROM memberships m JOIN organizations o ON o.id = m.org_id WHERE m.user_id = ? ORDER BY m.created_at", userId),
-  membership: (orgId: string, userId: string) => get<{ role: Role; status: string }>("SELECT role, status FROM memberships WHERE org_id = ? AND user_id = ?", orgId, userId),
+    all<{ org_id: string; name: string; role: Role; status: string; credential: string; supervisor_id: string | null }>("SELECT m.org_id, o.name, m.role, m.status, m.credential, m.supervisor_id FROM memberships m JOIN organizations o ON o.id = m.org_id WHERE m.user_id = ? ORDER BY m.created_at", userId),
+  membership: (orgId: string, userId: string) => get<{ role: Role; status: string; credential: string; supervisor_id: string | null }>("SELECT role, status, credential, supervisor_id FROM memberships WHERE org_id = ? AND user_id = ?", orgId, userId),
   members: async (orgId: string): Promise<Member[]> =>
-    (await all<{ user_id: string; name: string; email: string; role: Role; status: "active" | "disabled"; created_at: string; password_hash: string }>("SELECT m.user_id, u.name, u.email, m.role, m.status, m.created_at, u.password_hash FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.org_id = ? ORDER BY m.created_at", orgId)).map((r) => ({ userId: r.user_id, name: r.name, email: r.email, role: r.role, status: r.status, joinedAt: r.created_at, hasPassword: !!r.password_hash })),
+    (await all<{ user_id: string; name: string; email: string; role: Role; status: "active" | "disabled"; created_at: string; password_hash: string; credential: string; supervisor_id: string | null }>("SELECT m.user_id, u.name, u.email, m.role, m.status, m.created_at, u.password_hash, m.credential, m.supervisor_id FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.org_id = ? ORDER BY m.created_at", orgId)).map((r) => ({ userId: r.user_id, name: r.name, email: r.email, role: r.role, status: r.status, joinedAt: r.created_at, hasPassword: !!r.password_hash, credential: r.credential ?? "", supervisorId: r.supervisor_id ?? null })),
+  setClinical: (orgId: string, userId: string, credential: string, supervisorId: string | null) => run("UPDATE memberships SET credential = ?, supervisor_id = ? WHERE org_id = ? AND user_id = ?", credential, supervisorId, orgId, userId),
   addMember: (orgId: string, userId: string, role: Role) => run("INSERT INTO memberships (org_id, user_id, role, status, created_at) VALUES (?, ?, ?, 'active', ?) ON CONFLICT (org_id, user_id) DO UPDATE SET role = excluded.role, status = 'active'", orgId, userId, role, now()),
   setRole: (orgId: string, userId: string, role: Role) => run("UPDATE memberships SET role = ? WHERE org_id = ? AND user_id = ?", role, orgId, userId),
   setStatus: (orgId: string, userId: string, status: "active" | "disabled") => run("UPDATE memberships SET status = ? WHERE org_id = ? AND user_id = ?", status, orgId, userId),
@@ -195,7 +201,7 @@ export async function actorFor(userId: string, orgId?: string | null): Promise<U
   const ms = (await orgs.memberships(userId)).filter((m) => m.status === "active");
   const m = ms.find((x) => x.org_id === orgId) ?? ms[0];
   if (!m) return undefined;
-  return { ...u, orgId: m.org_id, orgName: m.name, role: m.role };
+  return { ...u, orgId: m.org_id, orgName: m.name, role: m.role, credential: m.credential ?? "", supervisorId: m.supervisor_id ?? null };
 }
 
 export const sessions = {
@@ -320,7 +326,7 @@ const toEncounter = (r: EncounterRow): EncounterWithClinician => ({
 });
 
 function encounterScope(u: User) {
-  return SEES_ORG.has(u.role) ? { sql: "e.org_id = ?", params: [u.orgId] } : { sql: "e.org_id = ? AND e.user_id = ?", params: [u.orgId, u.id] };
+  return SEES_ORG.has(u.role) ? { sql: "e.org_id = ?", params: [u.orgId] } : { sql: "e.org_id = ? AND (e.user_id = ? OR e.user_id IN (SELECT sm.user_id FROM memberships sm WHERE sm.org_id = ? AND sm.supervisor_id = ?))", params: [u.orgId, u.id, u.orgId, u.id] };
 }
 
 export const encounters = {
@@ -733,4 +739,44 @@ export const claims = {
     for (const r of rows) out.push((await claims.get(r.encounter_id))!);
     return out;
   },
+};
+
+export interface Addendum {
+  id: string;
+  encounterId: string;
+  userId: string;
+  author: string;
+  kind: import("../engine/attest").AddendumKind;
+  text: string;
+  reason: string;
+  prevDigest: string;
+  digest: string;
+  filing: { status: "filed" | "error"; at: string; reference?: string; message?: string } | null;
+  createdAt: string;
+}
+
+interface AddendumRow {
+  id: string;
+  encounter_id: string;
+  user_id: string;
+  author: string | null;
+  kind: string;
+  text: string;
+  reason: string;
+  prev_digest: string;
+  digest: string;
+  filing: string | null;
+  created_at: string;
+}
+
+const toAddendum = (r: AddendumRow): Addendum => ({ id: r.id, encounterId: r.encounter_id, userId: r.user_id, author: r.author ?? "Former member", kind: r.kind as Addendum["kind"], text: r.text, reason: r.reason, prevDigest: r.prev_digest, digest: r.digest, filing: r.filing ? j(r.filing, null) : null, createdAt: r.created_at });
+
+export const addenda = {
+  list: async (encId: string) => (await all<AddendumRow>("SELECT a.*, u.name AS author FROM addenda a LEFT JOIN users u ON u.id = a.user_id WHERE a.encounter_id = ? ORDER BY a.ord", encId)).map(toAddendum),
+  add: async (a: Omit<Addendum, "id" | "author" | "filing">) => {
+    const id = uid("add_");
+    await run("INSERT INTO addenda (id, encounter_id, user_id, kind, text, reason, prev_digest, digest, ord, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", id, a.encounterId, a.userId, a.kind, a.text, a.reason, a.prevDigest, a.digest, nextOrd(), a.createdAt);
+    return (await addenda.list(a.encounterId)).find((x) => x.id === id)!;
+  },
+  setFiling: (id: string, filing: Addendum["filing"]) => run("UPDATE addenda SET filing = ? WHERE id = ?", JSON.stringify(filing), id),
 };

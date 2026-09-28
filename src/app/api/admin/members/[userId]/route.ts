@@ -5,7 +5,7 @@ import { orgs, type Role } from "@/lib/server/repo";
 
 export const PATCH = authed<{ userId: string }>(async (req, user, { userId }) => {
   assertCan(user, "org.manage");
-  const b = await body<{ role?: Role; status?: "active" | "disabled" }>(req);
+  const b = await body<{ role?: Role; status?: "active" | "disabled"; credential?: string; supervisorId?: string | null }>(req);
   await updateMember(user, userId, b);
   return json({ members: await orgs.members(user.orgId) });
 });

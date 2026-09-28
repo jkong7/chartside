@@ -1,3 +1,4 @@
+import { CREDENTIALS, SUPERVISORS, type Credential } from "../engine/attest";
 import { seal } from "../fhir/crypto";
 import { discoverOidc } from "../sso/oidc";
 import { Forbidden, Invalid } from "./policy";
@@ -9,7 +10,7 @@ export async function adminSnapshot(user: User) {
   const pending = (await Promise.all(pendingTokens.map((t) => invites.get(t)))).filter((x) => !!x);
   const sso = org.settings.sso;
   return {
-    org: { id: org.id, name: org.name, slug: org.slug, createdAt: org.createdAt },
+    org: { id: org.id, name: org.name, slug: org.slug, createdAt: org.createdAt, appsRequireCosign: !!org.settings.appsRequireCosign },
     members,
     invites: pending.map((i) => ({ token: i.token, email: i.email, role: i.role, expiresAt: i.expiresAt, createdAt: i.createdAt })),
     sso: sso ? { ...sso, clientSecret: undefined, hasSecret: !!sso.clientSecret } : null,
@@ -24,9 +25,25 @@ async function activeOwners(orgId: string) {
   return (await orgs.members(orgId)).filter((m) => m.role === "owner" && m.status === "active");
 }
 
-export async function updateMember(actor: User, userId: string, patch: { role?: Role; status?: "active" | "disabled" }) {
+export async function updateMember(actor: User, userId: string, patch: { role?: Role; status?: "active" | "disabled"; credential?: string; supervisorId?: string | null }) {
   const target = await orgs.membership(actor.orgId, userId);
   if (!target) throw new Error("Member not found");
+  if (patch.credential !== undefined || patch.supervisorId !== undefined) {
+    const credential = patch.credential ?? target.credential ?? "";
+    if (!CREDENTIALS.some((c) => c.value === credential)) throw new Invalid("Unknown credential");
+    const supervisorId = patch.supervisorId === undefined ? target.supervisor_id : patch.supervisorId || null;
+    if (supervisorId) {
+      if (supervisorId === userId) throw new Invalid("A clinician can't supervise themselves");
+      const sup = await orgs.membership(actor.orgId, supervisorId);
+      if (!sup || sup.status !== "active") throw new Invalid("The supervising physician must be an active member of this organization");
+      if (!SUPERVISORS.has(sup.credential as Credential)) throw new Invalid("Set the supervisor's credential to MD or DO first");
+      if (!["owner", "admin", "clinician"].includes(sup.role)) throw new Invalid("The supervisor needs a role that can sign notes");
+    }
+    await orgs.setClinical(actor.orgId, userId, credential, supervisorId);
+    await audit.log(actor, null, "member.clinical_updated", { userId, credential, supervisorId });
+    if (patch.role === undefined && patch.status === undefined) return;
+  }
+  if (patch.role === undefined && patch.status === undefined) return;
   if (userId === actor.id) throw new Forbidden("You can't change your own role or access. Ask another admin.");
   if ((target.role === "owner" || patch.role === "owner") && actor.role !== "owner") throw new Forbidden("Only an owner can change owners.");
   if (patch.role !== undefined) {
