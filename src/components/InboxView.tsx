@@ -1,5 +1,6 @@
 "use client";
 
+import FaxInbox from "./FaxInbox";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { age, api } from "@/lib/client";
@@ -88,6 +89,7 @@ export default function InboxView({ me, initialMessage }: { me: { id: string; na
         <Kpi label="Waiting for your co-sign" value={d.counts.cosign} tone="brand" />
         <Kpi label="Unsigned notes" value={d.counts.unsigned} hint={`${d.counts.queries} coding ${d.counts.queries === 1 ? "query" : "queries"}`} />
       </div>
+      <FaxInbox />
       <div className="mt-6 grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
         <nav className="flex gap-1 overflow-x-auto lg:flex-col" data-testid="inbox-sections">
           {sections.map((s) => (

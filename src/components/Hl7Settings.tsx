@@ -7,6 +7,17 @@ import { Spinner } from "./ui";
 type Cfg = { enabled: boolean; host: string; port: number; sendingFacility: string; receivingApp: string; receivingFacility: string; includeSensitive: boolean };
 type Log = { id: string; encounter_id: string; control_id: string; status: string; detail: string; created_at: string };
 
+export function FaxInboundSettings() {
+  const [r, setR] = useState<{ secret: string; url: string } | null>(null);
+  return (
+    <section className="card p-4" data-testid="fax-inbound">
+      <p className="text-sm font-semibold">Inbound fax</p>
+      <p className="mt-1 text-xs text-ink-3">Point your fax provider's inbound webhook here. Faxes land in the Inbox with suggested patients, and filing one adds it to outside records (closing any matching referral).</p>
+      {r ? <div className="mt-2 space-y-1 text-xs"><p>Webhook URL: <span className="font-mono" data-testid="fax-url">{r.url}</span></p><p>Header <span className="font-mono">X-Chartside-Fax-Secret</span>: <span className="font-mono" data-testid="fax-secret">{r.secret}</span> (shown once)</p></div> : <button className="btn-outline mt-2" onClick={async () => setR(await api("/admin/fax", { method: "POST" }))} data-testid="fax-rotate">Create webhook secret</button>}
+    </section>
+  );
+}
+
 export default function Hl7Settings() {
   const [cfg, setCfg] = useState<Cfg | null>(null);
   const [log, setLog] = useState<Log[]>([]);
