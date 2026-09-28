@@ -6,6 +6,7 @@ export type Channel = "sms" | "email";
 
 export function providers() {
   return {
+    fax: process.env.PHAXIO_KEY && process.env.PHAXIO_SECRET ? "phaxio" : null,
     sms: process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM ? "twilio" : null,
     email: process.env.SENDGRID_API_KEY && process.env.CHARTSIDE_EMAIL_FROM ? "sendgrid" : null,
   };
@@ -112,4 +113,33 @@ export async function notifyForEncounter(u: User, encId: string, kind: NoticeKin
   const e = await encounters.get(u, encId);
   if (!e?.patientId) throw new Error("Encounter not found");
   return notifyPatient(u, { orgId: u.orgId, patientId: e.patientId, encounterId: e.id, kind, url, channel });
+}
+
+export async function sendFax(u: User, input: { encounterId: string; to: string; pdf: Buffer; name: string; kind: string }) {
+  const to = normalizePhone(input.to);
+  if (!to) throw new Invalid("Enter a 10-digit US fax number");
+  const provider = providers().fax;
+  let status: "sent" | "failed" | "unconfigured" = "unconfigured";
+  let providerId: string | null = null;
+  let error: string | null = null;
+  if (provider) {
+    try {
+      const form = new FormData();
+      form.append("to", to);
+      form.append("file", new Blob([new Uint8Array(input.pdf)], { type: "application/pdf" }), `${input.name.replace(/[^\w.-]+/g, "-").slice(0, 60) || "document"}.pdf`);
+      const base = (process.env.PHAXIO_BASE_URL || "https://api.phaxio.com").replace(/\/$/, "");
+      const res = await fetch(`${base}/v2.1/faxes`, { method: "POST", headers: { authorization: `Basic ${Buffer.from(`${process.env.PHAXIO_KEY}:${process.env.PHAXIO_SECRET}`).toString("base64")}` }, body: form, signal: AbortSignal.timeout(15000) });
+      const j = (await res.json().catch(() => ({}))) as { success?: boolean; message?: string; data?: { id?: number | string } };
+      if (!res.ok || j.success === false) throw new Error(j.message || `Fax provider error ${res.status}`);
+      providerId = j.data?.id !== undefined ? String(j.data.id) : null;
+      status = "sent";
+    } catch (err) {
+      status = "failed";
+      error = err instanceof Error ? err.message : "Fax failed";
+    }
+  } else error = "No fax provider is configured";
+  const enc = await encounters.get(u, input.encounterId);
+  await run("INSERT INTO outbox (id, org_id, patient_id, encounter_id, kind, channel, recipient, subject, body, status, provider, provider_id, error, created_by, created_at) VALUES (?, ?, ?, ?, ?, 'fax', ?, ?, ?, ?, ?, ?, ?, ?, ?)", uid("out_"), u.orgId, enc?.patientId ?? null, input.encounterId, input.kind, to, input.name.slice(0, 120), `${input.pdf.length} byte PDF`, status, provider, providerId, error, u.id, now());
+  await audit.log(u, input.encounterId, `fax.${status}`, { to: to.replace(/\d(?=\d{4})/g, "•"), provider });
+  return { status, error, to: to.replace(/\d(?=\d{4})/g, "•") };
 }
