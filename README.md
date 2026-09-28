@@ -270,6 +270,7 @@ npm test               # 246 unit tests: extraction, notes, verification, coding
                        # ED course and disposition, oncology staging and CTCAE grading, group therapy attribution, psychotherapy add-ons,
                        # SDOH Z-codes, visit sharing and one-time codes, research pre-screening, the 8-minute rule, procedures and
                        # J-code units, prenatal gestational age and flags, AcroForm filling, order sets, agenda, and access control
+                       # e2e also runs an axe WCAG 2.1 AA scan of clinician pages and patient-facing pages (summary, intake, check-in)
 npm run codesets:build # re-download and rebuild the official code sets (verifies pinned hashes)
 npm run test:e2e       # 80 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR, OIDC, SendGrid, and MLLP servers, and a fake microphone
 npm run test:pg        # both suites against Postgres (DATABASE_URL must point at a disposable database)
