@@ -85,7 +85,7 @@ export interface ClaimReference {
 export interface BillingContext {
   age: number;
   sex: "F" | "M" | "X";
-  setting: "in-person" | "telehealth";
+  setting: "in-person" | "telehealth" | "inpatient";
   patientType: "new" | "established";
   chart?: Chart;
   minutes: number;
@@ -97,6 +97,14 @@ export interface BillingContext {
 }
 
 export const SERVICE_SUMMARY: Record<string, string> = {
+  "99221": "Initial hospital inpatient or observation care, straightforward or low MDM",
+  "99222": "Initial hospital inpatient or observation care, moderate MDM",
+  "99223": "Initial hospital inpatient or observation care, high MDM",
+  "99231": "Subsequent hospital inpatient or observation care, straightforward or low MDM",
+  "99232": "Subsequent hospital inpatient or observation care, moderate MDM",
+  "99233": "Subsequent hospital inpatient or observation care, high MDM",
+  "99238": "Hospital discharge day management, 30 minutes or less",
+  "99239": "Hospital discharge day management, more than 30 minutes",
   "99202": "Office visit, new patient, straightforward MDM",
   "99203": "Office visit, new patient, low MDM",
   "99204": "Office visit, new patient, moderate MDM",
@@ -129,6 +137,7 @@ export const SERVICE_SUMMARY: Record<string, string> = {
 };
 
 const FALLBACK_CHARGE: Record<string, number> = {
+  "99221": 105, "99222": 155, "99223": 205, "99231": 60, "99232": 90, "99233": 130, "99238": 95, "99239": 135,
   "99202": 75, "99203": 115, "99204": 172, "99205": 227, "99212": 58, "99213": 93, "99214": 132, "99215": 186,
   G2211: 16, G2212: 31, "99417": 31, "99395": 118, "99396": 125, "99397": 135, G0438: 175, G0439: 130,
   "36415": 3, "87880": 16, "87804": 16, "87811": 41, "81003": 3, "83036": 13, "93000": 17,
@@ -193,7 +202,8 @@ export function buildClaim(facts: Facts, coding: CodingResult, ctx: BillingConte
   lineSeq = 0;
   const payer = ctx.payer ?? defaultPayer(ctx.age);
   const telehealth = ctx.setting === "telehealth";
-  const placeOfService = telehealth ? "10" : "11";
+  const inpatient = ctx.setting === "inpatient";
+  const placeOfService = inpatient ? "21" : telehealth ? "10" : "11";
   const ref = ctx.ref;
   const describe = (code: string) => ref?.describe(code) ?? SERVICE_SUMMARY[code] ?? code;
   const valueOf = (code: string) => ref?.expected(code, { placeOfService, payer }) ?? FALLBACK_CHARGE[code] ?? 0;
@@ -227,8 +237,10 @@ export function buildClaim(facts: Facts, coding: CodingResult, ctx: BillingConte
   };
 
   const lines: ClaimLine[] = [];
-  const accepted = ctx.orders.filter((o) => (ctx.final ? o.status === "accepted" : o.status !== "rejected"));
-  const excludedOrders = ctx.orders.filter((o) => !accepted.includes(o) && o.kind !== "follow_up").map((o) => `${o.name} (${o.status === "rejected" ? "rejected" : "not accepted"})`);
+  const acceptedAll = ctx.orders.filter((o) => (ctx.final ? o.status === "accepted" : o.status !== "rejected"));
+  const accepted = inpatient ? [] : acceptedAll;
+  const excludedOrders = ctx.orders.filter((o) => !acceptedAll.includes(o) && o.kind !== "follow_up").map((o) => `${o.name} (${o.status === "rejected" ? "rejected" : "not accepted"})`);
+  if (inpatient) excludedOrders.push(...acceptedAll.filter((o) => o.kind !== "follow_up" && o.kind !== "medication" && o.kind !== "referral").map((o) => `${o.name} (billed on the hospital facility claim)`));
   const opportunities: Opportunity[] = [];
 
   const wellness = facts.problems.find((p) => p.key === "well");
@@ -302,7 +314,7 @@ export function buildClaim(facts: Facts, coding: CodingResult, ctx: BillingConte
   }
 
   const chronicLongitudinal = facts.problems.some((p) => p.chronic && !p.fromSymptom && (p.status === "not at goal" || p.plan.length > 0));
-  const g2211Eligible = emLine && ctx.patientType === "established" && chronicLongitudinal;
+  const g2211Eligible = emLine && !inpatient && ctx.patientType === "established" && chronicLongitudinal;
   if (g2211Eligible) {
     const ev = facts.problems.filter((p) => p.chronic).flatMap((p) => p.evidence).slice(0, 3);
     const addOn = line("G2211", "addon", "Ongoing longitudinal care of a serious or complex chronic condition", ev, emLine!.pointers.slice(0, 1));

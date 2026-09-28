@@ -332,7 +332,7 @@ function apSentences(b: Builder, facts: Facts, verbosity: string, split?: "asses
         const [n1, ...tail1] = rest(prev.text).split(" ");
         const [n2, ...tail2] = rest(it.text).split(" ");
         const tail = tail1.join(" ") || tail2.join(" ");
-        items[items.length - 1] = { ...prev, ref: `${prev.ref}+${it.ref}`, text: `${verb} ${n1} or ${n2}${tail ? " " + tail : ""}.` };
+        items[items.length - 1] = { ...prev, ref: `${prev.ref}+${it.ref}`, text: `${verb} ${n1} ${/^(Continue|Discontinue|Hold|Stop)$/.test(verb) ? "and" : "or"} ${n2}${tail ? " " + tail : ""}.` };
         continue;
       }
       items.push(it);

@@ -13,6 +13,7 @@ export interface CodingContext {
   chart?: Chart;
   pediatric?: boolean;
   hccFor?: (icd10: string) => { hcc: string; label: string }[];
+  encounterClass?: "office" | "initial_inpatient" | "subsequent_inpatient" | "discharge";
 }
 
 function problemsElement(facts: Facts, ctx?: CodingContext): MdmElement {
@@ -104,6 +105,13 @@ function riskElement(facts: Facts): MdmElement {
 const EM = {
   established: { straightforward: "99212", low: "99213", moderate: "99214", high: "99215" },
   new: { straightforward: "99202", low: "99203", moderate: "99204", high: "99205" },
+  initial_inpatient: { straightforward: "99221", low: "99221", moderate: "99222", high: "99223" },
+  subsequent_inpatient: { straightforward: "99231", low: "99231", moderate: "99232", high: "99233" },
+} as const;
+
+const INPATIENT_TIME = {
+  initial_inpatient: [[40, "99221"], [55, "99222"], [75, "99223"]],
+  subsequent_inpatient: [[25, "99231"], [35, "99232"], [50, "99233"]],
 } as const;
 
 function timeCode(type: "new" | "established", minutes: number) {
@@ -133,8 +141,11 @@ export function computeCoding(facts: Facts, ctx: CodingContext): CodingResult {
   const risk = riskElement(facts);
   const levels = [problems.level, data.level, risk.level].sort((a, b) => rank(b) - rank(a));
   const level = levels[1];
-  const code = EM[ctx.patientType][level];
-  const tc = ctx.minutes > 0 ? timeCode(ctx.patientType, ctx.minutes) : null;
+  const cls = ctx.encounterClass ?? "office";
+  const code = cls === "discharge" ? (ctx.minutes > 30 ? "99239" : "99238") : cls === "office" ? EM[ctx.patientType][level] : EM[cls][level];
+  let tc: string | null = null;
+  if (cls === "office") tc = ctx.minutes > 0 ? timeCode(ctx.patientType, ctx.minutes) : null;
+  else if (cls !== "discharge") for (const [min, c] of INPATIENT_TIME[cls]) if (ctx.minutes >= min) tc = c;
 
   const notes: string[] = [];
   let score = 100;
