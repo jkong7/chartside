@@ -9,6 +9,7 @@ import { CareGaps } from "./QualityPanel";
 import IntakeCard from "./IntakeCard";
 import Agenda from "./Agenda";
 import AskChart from "../AskChart";
+import PhonePairing from "./PhonePairing";
 import type { Bundle } from "./types";
 
 const STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
@@ -177,6 +178,7 @@ export default function PreVisit({ b, onChange, onStart }: { b: Bundle; onChange
             {b.encounter.setting === "telehealth" && <p className="text-xs text-ink-3" data-testid="telehealth-hint">Telehealth: when asked, share the video visit tab and turn on Share tab audio. Your microphone and the patient&apos;s side are recorded on separate channels, so speakers are never mixed up.</p>}
             <button className="btn-outline w-full" disabled={!granted} onClick={() => onStart("simulate")} data-testid="start-simulate">Play demo conversation</button>
             <button className="btn-ghost w-full" disabled={!consent} onClick={() => onStart("type")} data-testid="start-type">{granted ? "Type or paste the conversation" : "Document manually"}</button>
+            {granted && <div className="flex justify-center pt-1"><PhonePairing encounterId={b.encounter.id} onDone={onChange} /></div>}
           </div>
         </div>
       </div>
