@@ -9,15 +9,20 @@ import SurveyPrompt from "@/components/SurveyPrompt";
 import Onboarding from "@/components/Onboarding";
 import { onboarding } from "@/lib/server/onboarding";
 import { planFor } from "@/lib/server/plan";
+import { locations } from "@/lib/server/locations";
+import LocationFilter from "@/components/LocationFilter";
 
 export const dynamic = "force-dynamic";
 
-export default async function Today() {
+export default async function Today({ searchParams }: { searchParams: Promise<{ loc?: string }> }) {
   const user = await requireUser();
+  const sp = await searchParams;
+  const locs = await locations.list(user.orgId);
+  const loc = sp.loc && locs.some((l) => l.id === sp.loc) ? sp.loc : null;
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   const end = new Date(start.getTime() + 86400000);
-  const todays = await encounters.list(user, { from: start.toISOString(), to: end.toISOString(), outpatient: true });
+  const todays = await encounters.list(user, { from: start.toISOString(), to: end.toISOString(), outpatient: true, locationId: loc ?? undefined });
   const byId = new Map((await Promise.all([...new Set(todays.map((e) => e.patientId).filter((x): x is string => !!x))].map((id) => patients.get(user, id)))).filter((p) => !!p).map((p) => [p!.id, p!]));
   const rows: TodayRow[] = todays.map((e) => {
     const p = e.patientId ? byId.get(e.patientId) : undefined;
@@ -35,6 +40,7 @@ export default async function Today() {
       <div className="mx-auto max-w-5xl px-4 pt-6 md:px-8"><p className="rounded-lg bg-warn-50 px-4 py-2.5 text-sm text-warn" data-testid="trial-banner">Your free trial ends in {plan.daysLeft} day{plan.daysLeft === 1 ? "" : "s"}. <Link href="/admin" className="font-medium underline">Choose a plan</Link> to keep your notes flowing.</p></div>
     )}
     {steps && <Onboarding items={steps} />}
+    {locs.length > 1 && <LocationFilter locations={locs.map((l) => ({ id: l.id, name: l.name }))} selected={loc} mine={user.prefs.locationId ?? null} />}
     <TodayList
       rows={rows}
       me={user.id}

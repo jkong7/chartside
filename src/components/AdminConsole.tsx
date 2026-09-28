@@ -1,5 +1,6 @@
 "use client";
 
+import LocationsCard from "./LocationsCard";
 import PlanPanel from "./PlanPanel";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -456,6 +457,7 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
           <div className="flex justify-end"><button className="btn-primary" disabled={busy}>Save</button></div>
         </form>
       )}
+      {tab === "org" && <LocationsCard />}
       <Toast message={toast} onDone={() => setToast(null)} />
     </div>
   );

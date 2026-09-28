@@ -53,6 +53,7 @@ export default function ImpactView({ data: d }: { data: Data }) {
       </div>
       <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="card p-4"><p className="text-sm font-semibold">Visits per week <span className="font-normal text-ink-3">(teal: captured ambiently)</span></p><WeekBars weeks={d.weeks} /></div>
+        {d.adoption.byLocation.length > 1 && <div className="card p-4"><p className="text-sm font-semibold">By location</p><ul className="mt-2 space-y-1.5 text-sm" data-testid="impact-locations">{d.adoption.byLocation.map((l) => <li key={l.name} className="flex items-center gap-2"><span className="flex-1 truncate">{l.name}</span><span className="text-xs text-ink-3">{l.visits} visits · {l.signed} signed</span><span className="w-10 text-right font-mono text-xs">{l.rate}%</span></li>)}</ul></div>}
         <div className="card p-4"><p className="text-sm font-semibold">By clinician</p><ul className="mt-2 space-y-1.5 text-sm" data-testid="impact-clinicians">{d.adoption.byClinician.map((c) => <li key={c.name} className="flex items-center gap-2"><span className="flex-1 truncate">{c.name}</span><span className="text-xs text-ink-3">{c.visits} visits</span><span className="w-10 text-right font-mono text-xs">{c.rate}%</span></li>)}</ul></div>
       </div>
       <h2 className="mt-6 text-sm font-semibold uppercase tracking-wide text-ink-3">Time</h2>
