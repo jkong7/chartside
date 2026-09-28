@@ -13,7 +13,7 @@ export interface CodingContext {
   chart?: Chart;
   pediatric?: boolean;
   hccFor?: (icd10: string) => { hcc: string; label: string }[];
-  encounterClass?: "office" | "initial_inpatient" | "subsequent_inpatient" | "discharge";
+  encounterClass?: "office" | "initial_inpatient" | "subsequent_inpatient" | "discharge" | "ed";
   psychotherapy?: "standalone" | "intake";
 }
 
@@ -108,6 +108,7 @@ const EM = {
   new: { straightforward: "99202", low: "99203", moderate: "99204", high: "99205" },
   initial_inpatient: { straightforward: "99221", low: "99221", moderate: "99222", high: "99223" },
   subsequent_inpatient: { straightforward: "99231", low: "99231", moderate: "99232", high: "99233" },
+  ed: { straightforward: "99282", low: "99283", moderate: "99284", high: "99285" },
 } as const;
 
 const INPATIENT_TIME = {
@@ -148,7 +149,7 @@ export function computeCoding(facts: Facts, ctx: CodingContext): CodingResult {
   let tc: string | null = null;
   if (psych) tc = null;
   else if (cls === "office") tc = ctx.minutes > 0 ? timeCode(ctx.patientType, ctx.minutes) : null;
-  else if (cls !== "discharge") for (const [min, c] of INPATIENT_TIME[cls]) if (ctx.minutes >= min) tc = c;
+  else if (cls === "initial_inpatient" || cls === "subsequent_inpatient") for (const [min, c] of INPATIENT_TIME[cls]) if (ctx.minutes >= min) tc = c;
 
   const notes: string[] = [];
   let score = 100;

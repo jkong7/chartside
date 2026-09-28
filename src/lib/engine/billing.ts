@@ -85,7 +85,8 @@ export interface ClaimReference {
 export interface BillingContext {
   age: number;
   sex: "F" | "M" | "X";
-  setting: "in-person" | "telehealth" | "inpatient";
+  setting: "in-person" | "telehealth" | "inpatient" | "ed";
+  criticalCareMinutes?: number;
   patientType: "new" | "established";
   chart?: Chart;
   minutes: number;
@@ -97,6 +98,12 @@ export interface BillingContext {
 }
 
 export const SERVICE_SUMMARY: Record<string, string> = {
+  "99282": "Emergency department visit, straightforward MDM",
+  "99283": "Emergency department visit, low MDM",
+  "99284": "Emergency department visit, moderate MDM",
+  "99285": "Emergency department visit, high MDM",
+  "99291": "Critical care, first 30 to 74 minutes",
+  "99292": "Critical care, each additional 30 minutes",
   "90791": "Psychiatric diagnostic evaluation",
   "90832": "Psychotherapy, 30 minutes (16 to 37)",
   "90834": "Psychotherapy, 45 minutes (38 to 52)",
@@ -144,6 +151,7 @@ export const SERVICE_SUMMARY: Record<string, string> = {
 };
 
 const FALLBACK_CHARGE: Record<string, number> = {
+  "99282": 60, "99283": 100, "99284": 170, "99285": 250, "99291": 280, "99292": 125,
   "90791": 180, "90832": 80, "90834": 110, "90837": 160, "90833": 75, "90836": 95, "90838": 130,
   "99221": 105, "99222": 155, "99223": 205, "99231": 60, "99232": 90, "99233": 130, "99238": 95, "99239": 135,
   "99202": 75, "99203": 115, "99204": 172, "99205": 227, "99212": 58, "99213": 93, "99214": 132, "99215": 186,
@@ -210,8 +218,9 @@ export function buildClaim(facts: Facts, coding: CodingResult, ctx: BillingConte
   lineSeq = 0;
   const payer = ctx.payer ?? defaultPayer(ctx.age);
   const telehealth = ctx.setting === "telehealth";
-  const inpatient = ctx.setting === "inpatient";
-  const placeOfService = inpatient ? "21" : telehealth ? "10" : "11";
+  const ed = ctx.setting === "ed";
+  const inpatient = ctx.setting === "inpatient" || ed;
+  const placeOfService = ed ? "23" : ctx.setting === "inpatient" ? "21" : telehealth ? "10" : "11";
   const ref = ctx.ref;
   const describe = (code: string) => ref?.describe(code) ?? SERVICE_SUMMARY[code] ?? code;
   const valueOf = (code: string) => ref?.expected(code, { placeOfService, payer }) ?? FALLBACK_CHARGE[code] ?? 0;
@@ -263,6 +272,14 @@ export function buildClaim(facts: Facts, coding: CodingResult, ctx: BillingConte
   if (!wellness || problemsAddressed.length) {
     emLine = line(coding.em.code, "em", /^908/.test(coding.em.code) ? `Psychotherapy by session time (${ctx.minutes} min)` : `${coding.em.level} MDM (${coding.em.patientType} patient)`, [...coding.em.problems.evidence, ...coding.em.risk.evidence].slice(0, 6), problemDx.length ? problemDx : ["A"], telehealth ? ["95"] : []);
     lines.push(emLine);
+  }
+
+  const cc = ctx.criticalCareMinutes ?? 0;
+  if (ed && emLine && cc >= 30) {
+    lines.push(line("99291", "addon", `Critical care, ${cc} minutes documented`, [], emLine.pointers.slice(0, 1)));
+    const extra = cc >= 104 ? Math.floor((cc - 104) / 30) + 1 : 0;
+    if (extra) lines.push(line("99292", "addon", `Critical care beyond 74 minutes (${cc} total)`, [], emLine.pointers.slice(0, 1), [], extra));
+    emLine.modifiers = Array.from(new Set([...emLine.modifiers, "25"]));
   }
 
   const injury = dx.some((d) => /^[ST]/.test(d.code));

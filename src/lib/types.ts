@@ -90,6 +90,8 @@ export type SectionKind =
   | "interventions"
   | "response"
   | "therapy_time"
+  | "ed_course"
+  | "disposition"
   | "custom";
 
 export interface Template {
@@ -181,11 +183,11 @@ export interface Encounter {
   userId: string;
   patientId: string | null;
   scheduledAt: string;
-  visitType: "new" | "follow-up" | "acute" | "annual" | "telehealth" | "inpatient" | "progress" | "discharge";
+  visitType: "new" | "follow-up" | "acute" | "annual" | "telehealth" | "inpatient" | "progress" | "discharge" | "ed";
   reason: string;
   status: EncounterStatus;
   templateId: string | null;
-  setting: "in-person" | "telehealth" | "inpatient";
+  setting: "in-person" | "telehealth" | "inpatient" | "ed";
   inputLang: string;
   outputLang: string;
   startedAt: string | null;

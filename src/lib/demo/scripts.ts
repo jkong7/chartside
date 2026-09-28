@@ -441,3 +441,32 @@ export const NURSING_DEMO = [
   "0800 assessment. Blood pressure 128 over 74, heart rate 72, resp rate 16, temp 98.2, sats 97 percent on room air. Weight 90 kg. Alert and oriented times four. Lungs clear. Trace edema at the ankles. Pain is 2 out of 10 in the lower back. Skin intact, Braden 19. 20 gauge IV in the left forearm, site clean dry and intact. Drank 480 mL, ate 75 percent of breakfast, voided 600 mL. Morse 35, bed alarm on. Ambulated 150 feet with standby assist. 2 gram sodium diet. Educated on daily weights and fluid restriction, and he verbalized understanding. Needs the IV removed before discharge. Recheck potassium at noon.",
   "1200 update. Potassium drawn and sent. Blood pressure 124 over 70, heart rate 70. Ate 100 percent of lunch. Voided 400 mL. Wife at bedside, reviewed low salt food choices with her.",
 ];
+
+export const ED_DEMO = {
+  mrn: "300418",
+  name: "Marcus Hill",
+  dob: "1968-02-11",
+  sex: "M" as const,
+  pronouns: "he/him",
+  room: "ED 7",
+  complaint: "Chest pain",
+  chart: {
+    problems: [{ name: "Essential hypertension", icd10: "I10" }, { name: "Hyperlipidemia", icd10: "E78.5" }],
+    medications: [{ name: "amlodipine", dose: "5 mg", frequency: "daily" }, { name: "atorvastatin", dose: "40 mg", frequency: "daily" }],
+    allergies: [],
+    coverage: { payer: "Commercial" as const, plan: "Aetna PPO", memberId: "W300418" },
+  } as Chart,
+  script: [
+    { s: "clinician" as const, t: "Hi Mr. Hill, I'm the emergency physician. What brought you in?" },
+    { s: "patient" as const, t: "I had pressure in the middle of my chest for about 30 minutes while I was shoveling, and it went away when I sat down." },
+    { s: "clinician" as const, t: "Does it spread anywhere, and did you have shortness of breath or sweating?" },
+    { s: "patient" as const, t: "A little into my left arm, and I was sweaty. No trouble breathing now." },
+    { s: "clinician" as const, t: "Your blood pressure is 158 over 92, heart rate 84, and oxygen is 98 percent." },
+    { s: "clinician" as const, t: "Your heart sounds regular with no murmurs, and your lungs are clear." },
+    { s: "clinician" as const, t: "The first ECG shows normal sinus rhythm without ST changes, and the first troponin is under 5." },
+    { s: "clinician" as const, t: "I'm concerned about unstable angina, so we'll give aspirin 324 milligrams, get a chest x-ray, and repeat the troponin in two hours." },
+    { s: "clinician" as const, t: "Re-evaluating now after the aspirin, you're pain free and the repeat ECG is unchanged." },
+    { s: "clinician" as const, t: "The repeat troponin is still under 5, and the chest x-ray shows no acute findings." },
+    { s: "clinician" as const, t: "Your HEART score is 4, which is moderate risk, so I'm going to admit you to the observation unit for a stress test in the morning." },
+  ],
+};

@@ -1,6 +1,7 @@
 import type { Encounter, Note, NoteSection, NoteSentence, Patient, SectionKind, Template, TemplateSection } from "../types";
 import type { Facts, MedFact, ProblemFact, SymptomFact } from "./extract";
 import { assessRisk, interventionSentences, psychotherapyCode, responseSentences, riskSentences } from "./behavioral";
+import { edCourse, edDisposition } from "./ed";
 import { NORMAL_EXAM, type RosSystem } from "./lexicon";
 import { ageFrom, durationText, ensurePeriod, joinList, pronounsFor, sentenceCase, unique } from "./text";
 
@@ -10,6 +11,7 @@ export interface NoteContext {
   template: Template;
   utterances?: import("../types").Utterance[];
   minutes?: number;
+  startedAt?: string | null;
 }
 
 const RESULT_PROBLEM: Record<string, string[]> = {
@@ -69,7 +71,7 @@ function medLabel(m: { name: string; dose?: string; frequency?: string }) {
 
 function symptomPhrase(f: SymptomFact) {
   const parts: string[] = [];
-  const quality = f.quality && !f.label.includes(f.quality) ? `${f.quality} ` : "";
+  const quality = f.quality && !f.label.includes(f.quality) ? (/^pressure$/i.test(f.quality) ? "pressure-like " : `${f.quality} `) : "";
   let loc = "";
   const locWords = (f.location ?? "").split(/\s+/).filter((x) => !/^(left|right|both|bilateral|side|sides)$/.test(x));
   const redundant = locWords.length > 0 && locWords.every((x) => f.label.includes(x.replace(/er$/, "")));
@@ -473,6 +475,12 @@ export function buildSection(ts: TemplateSection, facts: Facts, ctx: NoteContext
       sentences = [b.s(min ? `Psychotherapy time: ${min} minutes face to face${code ? ` (supports ${code})` : " (under 16 minutes; not separately billable)"}.` : "Session time: *** minutes.", [], "system")];
       break;
     }
+    case "ed_course":
+      sentences = edCourse(ctx.utterances ?? [], ctx.startedAt ?? null, ts.key);
+      break;
+    case "disposition":
+      sentences = edDisposition(ctx.utterances ?? [], ts.key);
+      break;
     case "custom":
       sentences = [];
       break;

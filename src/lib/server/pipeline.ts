@@ -52,7 +52,7 @@ export async function recordConsent(user: User, enc: Encounter, input: { decisio
 }
 
 async function templateFor(user: User, enc: Encounter) {
-  return (await templates.get(user, enc.templateId ?? user.prefs.defaultTemplate ?? "soap")) ?? systemTemplate("soap")!;
+  return (await templates.get(user, enc.templateId ?? (enc.visitType === "ed" || enc.setting === "ed" ? "ed_note" : user.prefs.defaultTemplate ?? "soap"))) ?? systemTemplate("soap")!;
 }
 
 export async function clinicianOf(enc: Encounter) {
@@ -119,12 +119,12 @@ export async function processEncounter(user: User, encId: string, opts: { templa
     }
   }
   const sessionMinutes = Math.round((enc.durationS || (utts.at(-1)?.tEnd ?? 0)) / 60);
-  if (!note) note = buildNote(facts, { patient, encounter: enc, template, utterances: utts, minutes: sessionMinutes });
+  if (!note) note = buildNote(facts, { patient, encounter: enc, template, utterances: utts, minutes: sessionMinutes, startedAt: enc.startedAt });
   else {
-    const special = template.sections.filter((ts) => ["risk", "interventions", "response", "therapy_time"].includes(ts.kind));
+    const special = template.sections.filter((ts) => ["risk", "interventions", "response", "therapy_time", "ed_course", "disposition"].includes(ts.kind));
     if (special.length) {
       const { buildSection } = await import("../engine/note");
-      const ctx = { patient, encounter: enc, template, utterances: utts, minutes: sessionMinutes };
+      const ctx = { patient, encounter: enc, template, utterances: utts, minutes: sessionMinutes, startedAt: enc.startedAt };
       note = { ...note, sections: template.sections.map((ts) => (special.includes(ts) ? buildSection(ts, facts, ctx) : note!.sections.find((x) => x.key === ts.key) ?? buildSection(ts, facts, ctx))), meta: { ...note.meta, sensitive: /^(?:bh_|behavioral)/.test(template.id) || undefined } };
     }
   }
@@ -143,7 +143,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   const pediatric = patient ? ageFrom(patient.dob) < 18 : false;
   const priorVisits = (await encounters.list(user, { patientId: enc.patientId ?? "__none__" })).filter((e) => e.id !== enc!.id && e.status === "signed").length;
   const patientType = enc.visitType === "new" || (!patient?.chart.priorVisits?.length && !priorVisits) ? "new" : "established";
-  const coding = await enrichCoding(user, enc, patient, computeCoding(facts, { patientType, minutes, chart: patient?.chart, pediatric, hccFor: hccMapper(patient, enc.scheduledAt), psychotherapy: template.id.startsWith("bh_") ? "standalone" : template.id === "behavioral" ? "intake" : undefined, encounterClass: enc.visitType === "inpatient" ? "initial_inpatient" : enc.visitType === "progress" ? "subsequent_inpatient" : enc.visitType === "discharge" ? "discharge" : "office" }), facts);
+  const coding = await enrichCoding(user, enc, patient, computeCoding(facts, { patientType, minutes, chart: patient?.chart, pediatric, hccFor: hccMapper(patient, enc.scheduledAt), psychotherapy: template.id.startsWith("bh_") ? "standalone" : template.id === "behavioral" ? "intake" : undefined, encounterClass: enc.visitType === "ed" || enc.setting === "ed" ? "ed" : enc.visitType === "inpatient" ? "initial_inpatient" : enc.visitType === "progress" ? "subsequent_inpatient" : enc.visitType === "discharge" ? "discharge" : "office" }), facts);
   const staged = stageOrders(facts, { chart: patient?.chart, ageYears: patient ? ageFrom(patient.dob) : undefined, now: new Date(enc.scheduledAt) });
   const coverage = computeCoverage(facts, { visitType: enc.visitType });
 
@@ -176,7 +176,8 @@ export async function processEncounter(user: User, encId: string, opts: { templa
     languages: facts.languages,
   });
   const savedOrders = await orders.replace(enc.id, staged);
-  const billCtx = { ...billingContext(enc, patient, patientType, minutes, savedOrders), ref: await referenceFor(enc, user.orgId) };
+  const { criticalCareMinutes } = await import("../engine/ed");
+  const billCtx = { ...billingContext(enc, patient, patientType, minutes, savedOrders, false, criticalCareMinutes(utts)), ref: await referenceFor(enc, user.orgId) };
   await artifacts.set(enc.id, "claim", buildClaim(facts, coding, billCtx));
   const prevPa = (await artifacts.get<import("../engine/priorauth").PaPacket[]>(enc.id, "priorAuth")) ?? [];
   await artifacts.set(enc.id, "priorAuth", buildPriorAuths(facts, coding, savedOrders, paContext(clinician.name, enc, patient)).map((p) => ({ ...p, submission: prevPa.find((x) => x.service === p.service)?.submission ?? p.submission })));
@@ -194,9 +195,9 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   return { note, warnings };
 }
 
-function billingContext(enc: Encounter, patient: Patient | null, patientType: "new" | "established", minutes: number, list: import("../types").StagedOrder[], final = false) {
+function billingContext(enc: Encounter, patient: Patient | null, patientType: "new" | "established", minutes: number, list: import("../types").StagedOrder[], final = false, criticalCareMinutes = 0) {
   const age = patient ? ageFrom(patient.dob, new Date(enc.scheduledAt)) : 40;
-  return { age, sex: patient?.sex ?? "X", setting: enc.setting, patientType, chart: patient?.chart, minutes, orders: list, at: new Date(enc.scheduledAt), final, payer: payerFor(patient, age) } as const;
+  return { age, sex: patient?.sex ?? "X", setting: enc.visitType === "ed" ? "ed" : enc.setting, criticalCareMinutes, patientType, chart: patient?.chart, minutes, orders: list, at: new Date(enc.scheduledAt), final, payer: payerFor(patient, age) } as const;
 }
 
 function paContext(clinicianName: string, enc: Encounter, patient: Patient | null) {
@@ -210,7 +211,8 @@ export async function finalizeClaim(user: User, enc: Encounter) {
   if (!coding) return null;
   const patientType = coding.em.patientType;
   const minutes = Math.round((enc.durationS || 0) / 60);
-  const claim = buildClaim(facts, coding, { ...billingContext(enc, patient, patientType, minutes, await orders.list(enc.id), true), ref: await referenceFor(enc, user.orgId) });
+  const { criticalCareMinutes } = await import("../engine/ed");
+  const claim = buildClaim(facts, coding, { ...billingContext(enc, patient, patientType, minutes, await orders.list(enc.id), true, criticalCareMinutes(await utterances.list(enc.id))), ref: await referenceFor(enc, user.orgId) });
   const existing = await claims.get(enc.id);
   const status = claimStatus(claim);
   return claims.save(enc.userId, enc.id, status, claim, [...(existing?.history ?? []), { at: new Date().toISOString(), action: "created", note: status === "ready" ? "No edits; ready to submit" : `${claim.edits.filter((e) => e.severity !== "info").length} edit(s) need review` }]);
@@ -460,7 +462,8 @@ export async function refreshDraftClaim(user: User, enc: Encounter) {
   const coding = await artifacts.get<CodingResult>(enc.id, "coding");
   if (!coding) return null;
   const minutes = Math.round((enc.durationS || 0) / 60);
-  const claim = buildClaim(facts, coding, { ...billingContext(enc, patient, coding.em.patientType, minutes, await orders.list(enc.id)), ref: await referenceFor(enc, user.orgId) });
+  const { criticalCareMinutes } = await import("../engine/ed");
+  const claim = buildClaim(facts, coding, { ...billingContext(enc, patient, coding.em.patientType, minutes, await orders.list(enc.id), false, criticalCareMinutes(await utterances.list(enc.id))), ref: await referenceFor(enc, user.orgId) });
   await artifacts.set(enc.id, "claim", claim);
   return claim;
 }
