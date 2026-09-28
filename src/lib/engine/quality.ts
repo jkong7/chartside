@@ -54,6 +54,7 @@ export interface QualityInput {
   orders: StagedOrder[];
   at: Date;
   noteLines?: string[];
+  intake?: { phq2: number | null; tobacco?: string; falls?: string } | null;
 }
 
 const within = (date: string | undefined, at: Date, days: number) => {
@@ -129,15 +130,16 @@ export function evaluateQuality(input: QualityInput): MeasureResult[] {
     const mdd = hasProblem(chart, facts, /^F3[23]|bipolar|^F31/i);
     if (mdd) push("depression", { status: "excluded", reason: "Existing depression or bipolar diagnosis excludes the patient.", evidence: [], actions: [] });
     else if (noted(/phq-?[29].*\b\d{1,2}\b/i)) push("depression", { status: "met", reason: "PHQ result documented in the note.", evidence: [], actions: [] });
+    else if (input.intake?.phq2 != null) push("depression", { status: input.intake.phq2 >= 3 ? "addressed" : "met", reason: `PHQ-2 on the pre-visit intake: ${input.intake.phq2}/6${input.intake.phq2 >= 3 ? "; positive, so a follow-up plan is needed" : ""}.`, evidence: [], actions: [] });
     else if (asked.length || onFile) push("depression", { status: "met", reason: asked.length ? "Depression screening questions were asked during the visit." : `PHQ screen on file (${onFile!.date}).`, evidence: asked.length ? asked : ["chart"], actions: [] });
     else push("depression", { status: "gap", reason: "No depression screening in the last 12 months.", evidence: [], actions: [{ kind: "insert", label: "Add PHQ-2 result", text: "PHQ-2 depression screening completed; score ***/6." }] });
   }
 
   if (age >= 12) {
     const asked = said(utts, /\b(?:do you (?:smoke|vape|use tobacco)|smok\w*|tobacco|cigarette|vap(?:e|ing))\b/i);
-    const current = (facts?.social ?? []).some((s) => /\bsmokes?\b|pack|cigarette|vapes?\b/i.test(s.text) && !/never|quit|don't/i.test(s.text)) || chart.smoking === "current";
+    const current = (facts?.social ?? []).some((s) => /\bsmokes?\b|pack|cigarette|vapes?\b/i.test(s.text) && !/never|quit|don't/i.test(s.text)) || chart.smoking === "current" || input.intake?.tobacco === "current";
     const counseled = noted(/counseled on tobacco cessation/i) || !!facts?.counseling.some((c) => /quit|stop smoking|cessation/i.test(c.text)) || !!facts?.meds.some((m) => /varenicline|bupropion|nicotine/i.test(m.name) && m.action === "start");
-    if (!asked.length && !chart.smoking && !noted(/tobacco use screened/i)) push("tobacco", { status: "gap", reason: "Tobacco use was not asked about.", evidence: [], actions: [{ kind: "insert", label: "Document tobacco status", text: "Tobacco use screened: ***." }] });
+    if (!asked.length && !chart.smoking && !input.intake?.tobacco && !noted(/tobacco use screened/i)) push("tobacco", { status: "gap", reason: "Tobacco use was not asked about.", evidence: [], actions: [{ kind: "insert", label: "Document tobacco status", text: "Tobacco use screened: ***." }] });
     else if (current && !counseled) push("tobacco", { status: "gap", reason: "Current tobacco user without a documented cessation intervention.", evidence: asked, actions: [{ kind: "insert", label: "Add cessation counseling", text: "Counseled on tobacco cessation for *** minutes; discussed pharmacotherapy and 1-800-QUIT-NOW." }] });
     else push("tobacco", { status: "met", reason: current ? "Current tobacco user; cessation intervention documented." : "Screened for tobacco use.", evidence: asked, actions: [] });
   }
@@ -194,7 +196,7 @@ export function evaluateQuality(input: QualityInput): MeasureResult[] {
   if (age >= 65) {
     const asked = said(utts, /\b(?:any falls|have you (?:had a )?fall(?:en)?|fallen|trouble with (?:your )?balance|unsteady)\b/i, "clinician");
     const onFile = screened(/fall/i, 365);
-    push("falls", asked.length || onFile || noted(/falls screening: \d/i) ? { status: "met", reason: asked.length ? "Fall risk was asked about during the visit." : `Falls screen on file (${onFile!.date}).`, evidence: asked, actions: [] } : { status: "gap", reason: "No falls screening in the last 12 months.", evidence: [], actions: [{ kind: "insert", label: "Document falls screen", text: "Falls screening: *** falls in the past 12 months; balance and gait ***." }] });
+    push("falls", asked.length || onFile || !!input.intake?.falls || noted(/falls screening: \d/i) ? { status: "met", reason: asked.length ? "Fall risk was asked about during the visit." : `Falls screen on file (${onFile!.date}).`, evidence: asked, actions: [] } : { status: "gap", reason: "No falls screening in the last 12 months.", evidence: [], actions: [{ kind: "insert", label: "Document falls screen", text: "Falls screening: *** falls in the past 12 months; balance and gait ***." }] });
   }
 
   if (age < 19) {

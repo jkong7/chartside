@@ -10,7 +10,8 @@ export async function qualityFor(user: User, enc: Encounter, opts: { save?: bool
   const facts = utts.length ? (await factsFor(user, enc)).facts : null;
   const rec = await notes.latest(enc.id);
   const noteLines = (rec?.content.sections ?? []).flatMap((s) => s.sentences.filter((x) => !x.pending).map((x) => x.text));
-  const results = evaluateQuality({ patient, facts, utterances: utts, orders: await orders.list(enc.id), at: new Date(enc.scheduledAt), noteLines });
+  const intake = await artifacts.get<{ answers?: { tobacco?: string; falls?: string }; summary?: { phq2: number | null } }>(enc.id, "intake");
+  const results = evaluateQuality({ patient, facts, utterances: utts, orders: await orders.list(enc.id), at: new Date(enc.scheduledAt), noteLines, intake: intake?.summary ? { phq2: intake.summary.phq2, tobacco: intake.answers?.tobacco, falls: intake.answers?.falls } : null });
   if (opts.save !== false && utts.length) await artifacts.set(enc.id, "quality", results);
   return results;
 }

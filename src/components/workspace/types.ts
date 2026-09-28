@@ -25,6 +25,7 @@ export interface Bundle {
     priorAuth?: import("@/lib/engine/priorauth").PaPacket[];
     signature?: import("@/lib/server/signoff").Signature;
     cosign?: import("@/lib/server/signoff").Cosign;
+    intake?: import("@/lib/server/intake").IntakeRecord;
   };
   orders: StagedOrder[];
   audit: { id: string; action: string; detail: Record<string, unknown>; created_at: string }[];
