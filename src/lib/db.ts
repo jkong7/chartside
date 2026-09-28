@@ -617,6 +617,7 @@ const INDEXES = [
 ];
 
 const LEGACY_COLUMNS: [string, string, string][] = [
+  ["admissions", "cdi", "TEXT NOT NULL DEFAULT '{}'"],
   ["patients", "external_system", "TEXT"],
   ["patients", "external_id", "TEXT"],
   ["patients", "org_id", "TEXT"],
