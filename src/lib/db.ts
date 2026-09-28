@@ -334,6 +334,17 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS device_pairings (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  encounter_id TEXT NOT NULL,
+  token_hash TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  used_at TEXT,
+  user_agent TEXT,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS hl7_messages (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,
