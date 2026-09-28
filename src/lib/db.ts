@@ -334,6 +334,18 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS inbound_faxes (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  from_number TEXT NOT NULL DEFAULT '',
+  pages INTEGER NOT NULL DEFAULT 0,
+  pdf TEXT NOT NULL,
+  text TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'new',
+  patient_id TEXT,
+  record_id TEXT,
+  received_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS device_pairings (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,
