@@ -334,6 +334,27 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS trials (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  sponsor TEXT NOT NULL DEFAULT '',
+  nct TEXT,
+  contact TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'active',
+  criteria TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS trial_referrals (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  trial_id TEXT NOT NULL REFERENCES trials(id) ON DELETE CASCADE,
+  patient_id TEXT NOT NULL,
+  encounter_id TEXT,
+  status TEXT NOT NULL DEFAULT 'referred',
+  referred_by TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS encounter_shares (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,
