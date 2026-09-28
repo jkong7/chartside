@@ -103,10 +103,10 @@ export default function Sidebar({ user, engine }: { user: SidebarUser; engine: s
         {navFor(user.role).map((n, i, list) => {
           const active = path.startsWith(n.href) || (n.href === "/today" && path.startsWith("/encounters"));
           const Icon = n.icon;
-          const heading = i > 0 && list[i - 1].group !== n.group ? <p key={`h-${n.group}`} className="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-wider text-ink-4">{n.group}</p> : null;
+          const heading = i > 0 && list[i - 1].group !== n.group ? <p key={`h-${n.group}`} className="px-3 pb-0.5 pt-3 text-[10px] font-semibold uppercase tracking-wider text-ink-4">{n.group}</p> : null;
           return [heading,
-            <Link key={n.href} href={n.href} className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium ${active ? "bg-brand-50 text-brand" : "text-ink-2 hover:bg-sunken"}`}>
-              <Icon size={17} />
+            <Link key={n.href} href={n.href} className={`flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm font-medium ${active ? "bg-brand-50 text-brand" : "text-ink-2 hover:bg-sunken"}`}>
+              <Icon size={16} />
               {n.label}
               {n.href === "/inbox" && inbox > 0 && <span className="ml-auto rounded-full bg-rec px-1.5 text-[10px] font-semibold text-white" data-testid="inbox-count">{inbox}</span>}
             </Link>,
