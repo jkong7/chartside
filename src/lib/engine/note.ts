@@ -3,6 +3,7 @@ import type { Facts, MedFact, ProblemFact, SymptomFact } from "./extract";
 import { assessRisk, goalSentences, interventionSentences, psychotherapyCode, psychotherapyMinutes, responseSentences, riskSentences } from "./behavioral";
 import { edCourse, edDisposition } from "./ed";
 import { groupTopic } from "./group";
+import { EVALS, extractTherapy, measureSentences, serviceSentences } from "./therapy";
 import { extractOncology, oncologyHistorySentences, toxicitySentences, treatmentSentences } from "./oncology";
 import { NORMAL_EXAM, type RosSystem } from "./lexicon";
 import { ageFrom, durationText, ensurePeriod, joinList, pronounsFor, sentenceCase, toThirdPerson, unique } from "./text";
@@ -519,11 +520,33 @@ export function buildSection(ts: TemplateSection, facts: Facts, ctx: NoteContext
       if (!own.length) sentences = [b.s("Attended the session with minimal verbal participation. ***", [], "system")];
       break;
     }
+    case "therapy_services":
+    case "therapy_measures":
+    case "therapy_eval": {
+      const disc = therapyDiscipline(ctx.template.id) ?? "PT";
+      const f = extractTherapy(ctx.utterances ?? [], { comorbidities: (ctx.patient?.chart.problems ?? []).length, evaluation: therapyEvaluation(ctx.template.id, ctx.utterances ?? []) });
+      if (kind === "therapy_services") sentences = serviceSentences(f, ts.key);
+      else if (kind === "therapy_measures") sentences = measureSentences(f, ts.key);
+      else if (f.evaluation) {
+        const code = f.evaluation.kind === "re" ? EVALS[disc].re : EVALS[disc][f.evaluation.complexity];
+        sentences = [b.s(`${disc} ${f.evaluation.kind === "re" ? "re-evaluation" : `evaluation, ${f.evaluation.complexity} complexity`} (${code}): ${f.evaluation.basis}. Confirm complexity before signing.`, [], "system")];
+      }
+      break;
+    }
     case "custom":
       sentences = [];
       break;
   }
   return { key: ts.key, title: ts.title, format: ts.format, sentences };
+}
+
+export function therapyDiscipline(templateId: string) {
+  return templateId.startsWith("pt_") ? "PT" : templateId.startsWith("ot_") ? "OT" : templateId.startsWith("slp_") ? "SLP" : null;
+}
+
+export function therapyEvaluation(templateId: string, utts: import("../types").Utterance[]): "initial" | "re" | null {
+  if (!/_eval$/.test(templateId)) return null;
+  return utts.some((u) => /\b(?:re-?evaluation|re-?eval|progress report)\b/i.test(u.text)) ? "re" : "initial";
 }
 
 export function buildNote(facts: Facts, ctx: NoteContext): Note {

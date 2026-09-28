@@ -1,3 +1,4 @@
+import { DISCIPLINE_MODIFIER, unitsFor } from "./therapy";
 import type { Chart, CodingResult, StagedOrder } from "../types";
 import type { Facts } from "./extract";
 
@@ -105,6 +106,23 @@ export const SERVICE_SUMMARY: Record<string, string> = {
   "99291": "Critical care, first 30 to 74 minutes",
   "99292": "Critical care, each additional 30 minutes",
   "90791": "Psychiatric diagnostic evaluation",
+  "97161": "PT evaluation, low complexity",
+  "97162": "PT evaluation, moderate complexity",
+  "97163": "PT evaluation, high complexity",
+  "97164": "PT re-evaluation",
+  "97165": "OT evaluation, low complexity",
+  "97166": "OT evaluation, moderate complexity",
+  "97167": "OT evaluation, high complexity",
+  "97168": "OT re-evaluation",
+  "97110": "Therapeutic exercise, each 15 minutes",
+  "97112": "Neuromuscular re-education, each 15 minutes",
+  "97116": "Gait training, each 15 minutes",
+  "97140": "Manual therapy, each 15 minutes",
+  "97530": "Therapeutic activities, each 15 minutes",
+  "97535": "Self-care/home management training, each 15 minutes",
+  "97035": "Ultrasound, each 15 minutes",
+  "97014": "Electrical stimulation, unattended",
+  "97010": "Hot or cold packs (bundled)",
   "90832": "Psychotherapy, 30 minutes (16 to 37)",
   "90834": "Psychotherapy, 45 minutes (38 to 52)",
   "90837": "Psychotherapy, 60 minutes (53 or more)",
@@ -159,6 +177,8 @@ const FALLBACK_CHARGE: Record<string, number> = {
   "36415": 3, "87880": 16, "87804": 16, "87811": 41, "81003": 3, "83036": 13, "93000": 17,
   "90656": 24, "90715": 40, "90750": 196, "90677": 254, "91320": 128, "90471": 25, "90472": 13, "90480": 45, G0008: 34, G0009: 34, G0010: 34,
   "96127": 5, "99406": 15,
+  "97161": 101, "97162": 101, "97163": 101, "97164": 70, "97165": 104, "97166": 104, "97167": 104, "97168": 71,
+  "97110": 29, "97112": 34, "97116": 29, "97140": 26, "97530": 36, "97535": 32, "97035": 12, "97014": 12, "97010": 0,
 };
 
 const POC_TESTS = new Set(["87880", "87804", "87811", "81003"]);
@@ -269,7 +289,18 @@ export function buildClaim(facts: Facts, coding: CodingResult, ctx: BillingConte
   }
   const problemsAddressed = facts.problems.filter((p) => p.key !== "well" && (p.plan.length || p.assessed));
   let emLine: ClaimLine | null = null;
-  if (!wellness || problemsAddressed.length) {
+  const therapy = coding.therapy;
+  if (therapy) {
+    const mod = DISCIPLINE_MODIFIER[therapy.discipline];
+    const ptrs = problemDx.length ? problemDx : ["A"];
+    if (therapy.evalCode) lines.push(line(therapy.evalCode, "procedure", `${therapy.discipline} ${/9716[48]|92524/.test(therapy.evalCode) ? "re-evaluation" : "evaluation"}`, [], ptrs, [mod]));
+    const method = payer === "Medicare" || payer === "Medicare Advantage" ? "cms" : "per_code";
+    const units = unitsFor(therapy.services, method);
+    for (const s of therapy.services) {
+      const n = units.get(s.cpt) ?? 0;
+      if (n > 0) lines.push(line(s.cpt, "procedure", s.timed ? `${s.label}, ${s.minutes} min (${method === "cms" ? "CMS 8-minute rule across all timed services" : "8-minute rule per service"})` : `${s.label} (untimed)`, s.evidence, ptrs, [mod], n));
+    }
+  } else if (!wellness || problemsAddressed.length) {
     emLine = line(coding.em.code, "em", coding.em.code === "90853" ? "Group psychotherapy" : /^908/.test(coding.em.code) ? `Psychotherapy by session time (${ctx.minutes} min)` : `${coding.em.level} MDM (${coding.em.patientType} patient)`, [...coding.em.problems.evidence, ...coding.em.risk.evidence].slice(0, 6), problemDx.length ? problemDx : ["A"], telehealth ? ["95"] : []);
     lines.push(emLine);
   }

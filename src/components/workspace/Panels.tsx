@@ -78,9 +78,29 @@ export function CodesPanel({ coding, encounterId, locked = true, onUpdate, onCit
     }
   }
 
+  const th = coding.therapy;
+  const timedTotal = th ? th.services.filter((x) => x.timed).reduce((n, x) => n + (x.minutes ?? 0), 0) : 0;
   return (
     <div className="space-y-5" data-testid="codes-panel">
-      <div className="card p-5">
+      {th && (
+        <div className="card p-5" data-testid="therapy-codes">
+          <p className="label">{th.discipline} services · modifier {th.discipline === "PT" ? "GP" : th.discipline === "OT" ? "GO" : "GN"} · {timedTotal} timed minutes</p>
+          <table className="mt-2 w-full text-sm">
+            <tbody className="divide-y divide-line">
+              {th.evalCode && <tr><td className="py-1.5 font-mono">{th.evalCode}</td><td>Evaluation</td><td className="text-right text-ink-3">1 unit</td></tr>}
+              {th.services.map((x) => (
+                <tr key={x.cpt}>
+                  <td className="py-1.5 font-mono">{x.cpt}</td>
+                  <td><button className="text-left hover:text-brand" onClick={() => onCite(x.evidence)}>{x.label}</button></td>
+                  <td className="text-right text-ink-3">{x.bundled ? "bundled" : !x.timed ? "untimed" : x.minutes === null ? "minutes missing" : `${x.minutes} min`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-2 text-xs text-ink-3">Units follow the CMS 8-minute rule for Medicare and Medicare Advantage (total timed minutes across services) and the per-service rule for other payers. See Billing for the units on this claim.</p>
+        </div>
+      )}
+      <div className={`card p-5 ${th ? "hidden" : ""}`}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="label">E/M level · {em.patientType} patient · MDM</p>

@@ -95,6 +95,9 @@ export type SectionKind =
   | "goals"
   | "group_topic"
   | "group_participation"
+  | "therapy_services"
+  | "therapy_measures"
+  | "therapy_eval"
   | "onc_history"
   | "onc_treatment"
   | "toxicity"
@@ -285,6 +288,7 @@ export interface CodingResult {
   risk?: RiskSummary;
   reference?: { label: string; version: string }[];
   psychotherapyAddOn?: { code: string; minutes: number; evidence: string[] };
+  therapy?: { discipline: "PT" | "OT" | "SLP"; evalCode: string | null; services: { cpt: string; label: string; minutes: number | null; timed: boolean; bundled: boolean; evidence: string[] }[] };
 }
 
 export interface RuleSource {
