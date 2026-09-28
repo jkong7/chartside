@@ -90,7 +90,7 @@ Chartside covers the work around the note that enterprise scribes compete on. Th
 
 - **Public API** at `/api/v1` with an OpenAPI 3.1 spec at `/api/v1/openapi.json`: create patients and encounters, post a transcript (consent is recorded on first call), generate the note, and read JSON or FHIR. Organization API keys are hashed, scoped, and rate limited.
 - **Webhooks** for `note.generated`, `note.signed`, `claim.status_changed`, `task.created`, and `message.received`, signed with HMAC-SHA256 in `Chartside-Signature: t=…,v1=…`, retried with backoff, and logged in Admin → Developers.
-- **Patient delivery:** summary, intake, and reply-notification links go out by SMS (Twilio) or email (SendGrid) with no clinical content in the message; every attempt is logged in the patient's outbox. Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, `SENDGRID_API_KEY`, `CHARTSIDE_EMAIL_FROM`, and `CHARTSIDE_PUBLIC_URL`; without them Chartside logs the attempt and offers the link to copy.
+- **Patient delivery:** summary, intake, and reply-notification links go out by SMS (Twilio) or email (SendGrid) with no clinical content in the message; every attempt is logged in the patient's outbox. Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, `SENDGRID_API_KEY`, `CHARTSIDE_EMAIL_FROM`, and `CHARTSIDE_PUBLIC_URL`. Signed documents and referral letters can be faxed through a Phaxio-compatible API (`PHAXIO_KEY`, `PHAXIO_SECRET`, optional `PHAXIO_BASE_URL`); without them Chartside logs the attempt and offers the link to copy.
 - **Security:** TOTP two-step verification with recovery codes, an organization-wide requirement, idle sign-out with a warning (15 minutes to 8 hours), active sessions with "sign out everywhere", and SCIM 2.0 user provisioning at `/scim/v2` for Okta and Entra ID.
 
 ## EHR integration (Epic / SMART on FHIR)
@@ -260,7 +260,7 @@ Optional configuration is in `.env.example`: `ANTHROPIC_API_KEY`, `CHARTSIDE_MOD
 ## Tests
 
 ```bash
-npm test               # 246 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
+npm test               # 247 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
                        # org scoping, RBAC, admin rules, OIDC token verification, SSO provisioning, Claude + Deepgram (mock servers),
                        # official code sets (hash verification, DOS release selection, pricing, HCC V28), diagnosis review, Medicare rules,
                        # NCCI/MUE/LCD logic, the claim lifecycle, co-signature and addenda, inbox triage and drafts, dictation grammar,
@@ -272,7 +272,7 @@ npm test               # 246 unit tests: extraction, notes, verification, coding
                        # J-code units, prenatal gestational age and flags, AcroForm filling, order sets, agenda, and access control
                        # e2e also runs an axe WCAG 2.1 AA scan of clinician pages and patient-facing pages (summary, intake, check-in)
 npm run codesets:build # re-download and rebuild the official code sets (verifies pinned hashes)
-npm run test:e2e       # 80 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR, OIDC, SendGrid, and MLLP servers, and a fake microphone
+npm run test:e2e       # 84 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR, OIDC, SendGrid, and MLLP servers, and a fake microphone
 npm run test:pg        # both suites against Postgres (DATABASE_URL must point at a disposable database)
 npm run typecheck
 ```
