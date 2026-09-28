@@ -56,10 +56,18 @@ Chartside covers the work around the note that enterprise scribes compete on. Th
 | **Scheduling** | Import a clinic day pasted from an EHR schedule screen or a CSV, with patient matching by MRN or name and DOB, and book follow-ups from a queue with calendar invites. |
 | **Telehealth** | Share the video visit tab: the clinician's microphone and the patient's side are recorded on separate channels, so speaker attribution is exact in live captions and the final transcript. |
 | **Note QA** (`/qa`) | Trust metrics by clinician (unedited-sign rate, edited lines, most-edited sections), a sampled review queue scored against a rubric, and engine regression cases saved from real visits. |
+| **Visit agenda** | A prioritized checklist in the pre-visit brief built from urgent intake answers, oncology treatment decisions, abnormal results, the last plan, open referrals and tasks, care gaps, and risk-adjustment suspects. Items tick themselves off live as they come up in the conversation. |
+| **Office procedures** | Joint injections and aspirations (with or without ultrasound), shave, punch, and incisional biopsies with add-on lesion counts, cryotherapy of AKs and benign lesions, laceration repairs by length and site, I&D, cerumen removal, and IM injections are captured from what you say, with J-code drug units, RT/LT/50, modifier 25 on the E/M, and a procedure note whose consent and complications lines stay blank until documented. |
+| **Obstetrics** | A prenatal visit template with gestational age from the EDD on the chart, the four warning signs, fundal height and fetal heart rate, preeclampsia symptoms and blood pressure flags, a size/dates check, what is due at this gestational age (GCT, Tdap, Rh immune globulin, GBS), Z34 and Z3A codes, and CPT II 0502F inside the global OB package. |
+| **Order sets** | One-click bundles (diabetes annual, hypertension, fatigue, chest pain, urinary, adult preventive) plus organization and personal sets saved from a visit's orders. Duplicates are skipped and recent results are noted. |
+| **PDF forms** (`/forms`) | Upload any fillable (AcroForm) PDF, map its fields once (Chartside guesses from field names), and fill it from any visit with editable values and a flattened download. |
+| **Referral loop** | Importing a specialist's consult note closes the matching open referral task. |
 | **Rehab therapy** | PT and OT daily notes and evaluations: interventions with minutes, objective measures, evaluation complexity (97161–97168), and units by the CMS 8-minute rule for Medicare or per service for other payers, billed with GP or GO and no E/M. |
 | **Social needs** | Food, housing, transportation, utilities, cost-related medication underuse, unemployment, and isolation heard in the visit become Z-codes (Z59.x, Z91.120, Z56.0, Z60.2), count as "treatment limited by social determinants" in MDM risk when they change the plan, and open a community-resources task. |
 | **Sharing** | Share a visit with a colleague (view or edit) or with an outside clinician by email. External links open only after a one-time code sent to that address, are view only, expire, can be revoked, and log every view. Behavioral health notes can't leave the organization, and admins can turn external sharing off. |
 | **Research** (`/research`) | Admins enter their studies' criteria (age, sex, diagnoses, lab thresholds, exclusions). Each visit is pre-screened, possible matches show what still needs confirming, and a referral opens a task for the study team. |
+| **Restricted notes** | Behavioral health notes open only for the author, their supervisor, or a colleague they shared with. Anyone else must break the glass with a reason, and every view, export, share, and break-the-glass open appears in the patient's access report (`/patients/[id]/access`, CSV export) for HIPAA access and disclosure requests. |
+| **Clinician experience** | An in-app NPS survey after ten signed notes (snoozable), and an Impact panel that flags low ambient use, after-hours charting, and unsigned backlogs with a specific tip for each. |
 | **Long visits** | Recordings stop at a configurable cap (`CHARTSIDE_MAX_RECORDING_MIN`, default 120) with a 30-minute warning, and notes stuck drafting after a crash are recovered automatically. |
 | **Chrome extension** (`extension/`) | Side panel with today's notes beside any web EHR, section copy, and one-click push into EHR fields mapped by pointing at them once. |
 
@@ -237,7 +245,7 @@ Optional configuration is in `.env.example`: `ANTHROPIC_API_KEY`, `CHARTSIDE_MOD
 ## Tests
 
 ```bash
-npm test               # 195 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
+npm test               # 211 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
                        # org scoping, RBAC, admin rules, OIDC token verification, SSO provisioning, Claude + Deepgram (mock servers),
                        # official code sets (hash verification, DOS release selection, pricing, HCC V28), diagnosis review, Medicare rules,
                        # NCCI/MUE/LCD logic, the claim lifecycle, co-signature and addenda, inbox triage and drafts, dictation grammar,
@@ -245,9 +253,10 @@ npm test               # 195 unit tests: extraction, notes, verification, coding
                        # notes and hospital coding, nursing flowsheets, public API and signed webhooks, TOTP (RFC 6238 vectors), SCIM,
                        # behavioral health risk assessment, outside records (C-CDA, PDF), schedule import, note QA, telehealth channels,
                        # ED course and disposition, oncology staging and CTCAE grading, group therapy attribution, psychotherapy add-ons,
-                       # SDOH Z-codes, visit sharing and one-time codes, research pre-screening, and the 8-minute rule
+                       # SDOH Z-codes, visit sharing and one-time codes, research pre-screening, the 8-minute rule, procedures and
+                       # J-code units, prenatal gestational age and flags, AcroForm filling, order sets, agenda, and access control
 npm run codesets:build # re-download and rebuild the official code sets (verifies pinned hashes)
-npm run test:e2e       # 60 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR, OIDC, and SendGrid servers, and a fake microphone
+npm run test:e2e       # 65 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR, OIDC, and SendGrid servers, and a fake microphone
 npm run test:pg        # both suites against Postgres (DATABASE_URL must point at a disposable database)
 npm run typecheck
 ```
@@ -256,7 +265,8 @@ The end-to-end suite covers:
 - co-signature, addenda, inbox and patient messaging, dictation and voice commands, letters, quality gaps, calculators,
   hospital rounds and discharge, nursing, developers API and webhooks, two-step verification, behavioral health,
   outside records, scheduling, note QA, telehealth, the Chrome extension's field filling, the ED track board, an oncology
-  treatment visit, group therapy, external sharing with an emailed code, research pre-screening, and a PT daily note
+  treatment visit, group therapy, external sharing with an emailed code, research pre-screening, a PT daily note, a knee
+  injection, a prenatal visit, PDF form filling, order sets, the visit agenda, and the access report
 - auth
 - a full ambient visit from consent to signed FHIR export
 - transcript redaction with redraft
