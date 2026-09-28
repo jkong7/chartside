@@ -1,5 +1,6 @@
 "use client";
 
+import PatientPicker from "./PatientPicker";
 import ImportSchedule from "./ImportSchedule";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -18,7 +19,7 @@ const TYPE_LABEL: Record<string, string> = { new: "New patient", "follow-up": "F
 
 interface Props {
   rows: TodayRow[];
-  patients: { id: string; name: string }[];
+  patients?: { id: string; name: string }[];
   me?: string;
   orgWide?: boolean;
   clinicians?: { id: string; name: string }[];
@@ -26,7 +27,7 @@ interface Props {
   canCapture?: boolean;
 }
 
-export default function TodayList({ rows: allRows, patients, me, orgWide = false, clinicians = [], canCreate = true, canCapture = true }: Props) {
+export default function TodayList({ rows: allRows, me, orgWide = false, clinicians = [], canCreate = true, canCapture = true }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -122,10 +123,7 @@ export default function TodayList({ rows: allRows, patients, me, orgWide = false
         <form onSubmit={startAdhoc} className="space-y-4">
           <div>
             <label className="label" htmlFor="patientId">Patient</label>
-            <select className="input" id="patientId" name="patientId" defaultValue="">
-              <option value="">Add patient later</option>
-              {patients.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            <PatientPicker id="patientId" name="patientId" />
           </div>
           {(orgWide || !canCreate) && clinicians.length > 0 && (
             <div>

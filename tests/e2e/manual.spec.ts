@@ -4,7 +4,8 @@ import { draftNote, register } from "./helpers";
 test("unscheduled visit from a pasted transcript", async ({ page }) => {
   await register(page);
   await page.getByRole("button", { name: "Unscheduled visit" }).click();
-  await page.getByLabel("Patient").selectOption({ label: "James Carter" });
+  await page.getByLabel("Patient").fill("james");
+  await page.getByTestId("patient-option").filter({ hasText: "James Carter" }).click();
   await page.getByLabel("Reason for visit").fill("Sore throat");
   await page.getByRole("button", { name: "Open visit" }).click();
   await expect(page.getByTestId("consent-card")).toBeVisible();

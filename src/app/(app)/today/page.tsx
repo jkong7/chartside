@@ -17,9 +17,9 @@ export default async function Today() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   const end = new Date(start.getTime() + 86400000);
-  const pats = await patients.list(user);
-  const byId = new Map(pats.map((p) => [p.id, p]));
-  const rows: TodayRow[] = (await encounters.list(user, { from: start.toISOString(), to: end.toISOString(), outpatient: true })).map((e) => {
+  const todays = await encounters.list(user, { from: start.toISOString(), to: end.toISOString(), outpatient: true });
+  const byId = new Map((await Promise.all([...new Set(todays.map((e) => e.patientId).filter((x): x is string => !!x))].map((id) => patients.get(user, id)))).filter((p) => !!p).map((p) => [p!.id, p!]));
+  const rows: TodayRow[] = todays.map((e) => {
     const p = e.patientId ? byId.get(e.patientId) : undefined;
     return { ...e, patient: p ? { id: p.id, name: p.name, dob: p.dob, sex: p.sex, mrn: p.mrn, openLoops: p.chart.priorVisits?.[0]?.plan ?? [] } : null };
   });
@@ -37,7 +37,6 @@ export default async function Today() {
     {steps && <Onboarding items={steps} />}
     <TodayList
       rows={rows}
-      patients={pats.map((p) => ({ id: p.id, name: p.name }))}
       me={user.id}
       orgWide={orgWide}
       clinicians={clinicians}
