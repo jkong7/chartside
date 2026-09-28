@@ -276,7 +276,7 @@ export async function saveNoteEdits(user: User, encId: string, note: Note, reaso
   return { note: scored, omissions };
 }
 
-export async function signEncounter(user: User, encId: string, opts: { force?: boolean } = {}) {
+export async function signEncounter(user: User, encId: string, opts: { force?: boolean; dryRun?: boolean } = {}) {
   const enc = await encounters.get(user, encId);
   if (!enc) throw new Error("Encounter not found");
   if (enc.status === "signed") return { signed: true, blockers: [] as string[] };
@@ -309,6 +309,7 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   const plan = await cosignPlan(user);
   if (plan.required && !plan.supervisor) return { signed: false, blockers: [`Your notes need a co-signature, but no supervising physician is assigned to you. Ask an admin to set one in Admin → Members.`] };
   if (blockers.length && (blocked.length || !opts.force)) return { signed: false, blockers };
+  if (opts.dryRun) return { signed: false, blockers: [] as string[] };
 
   const consent = await consents.latest(enc.id);
   const final: Note = {
