@@ -270,9 +270,11 @@ export function buildClaim(facts: Facts, coding: CodingResult, ctx: BillingConte
   const problemsAddressed = facts.problems.filter((p) => p.key !== "well" && (p.plan.length || p.assessed));
   let emLine: ClaimLine | null = null;
   if (!wellness || problemsAddressed.length) {
-    emLine = line(coding.em.code, "em", /^908/.test(coding.em.code) ? `Psychotherapy by session time (${ctx.minutes} min)` : `${coding.em.level} MDM (${coding.em.patientType} patient)`, [...coding.em.problems.evidence, ...coding.em.risk.evidence].slice(0, 6), problemDx.length ? problemDx : ["A"], telehealth ? ["95"] : []);
+    emLine = line(coding.em.code, "em", coding.em.code === "90853" ? "Group psychotherapy" : /^908/.test(coding.em.code) ? `Psychotherapy by session time (${ctx.minutes} min)` : `${coding.em.level} MDM (${coding.em.patientType} patient)`, [...coding.em.problems.evidence, ...coding.em.risk.evidence].slice(0, 6), problemDx.length ? problemDx : ["A"], telehealth ? ["95"] : []);
     lines.push(emLine);
   }
+
+  if (emLine && coding.psychotherapyAddOn) lines.push(line(coding.psychotherapyAddOn.code, "addon", `Psychotherapy ${coding.psychotherapyAddOn.minutes} min with E/M, time separate from E/M`, coding.psychotherapyAddOn.evidence, emLine.pointers.slice(0, 1)));
 
   const cc = ctx.criticalCareMinutes ?? 0;
   if (ed && emLine && cc >= 30) {

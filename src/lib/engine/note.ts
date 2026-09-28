@@ -1,6 +1,6 @@
 import type { Encounter, Note, NoteSection, NoteSentence, Patient, SectionKind, Template, TemplateSection } from "../types";
 import type { Facts, MedFact, ProblemFact, SymptomFact } from "./extract";
-import { assessRisk, interventionSentences, psychotherapyCode, responseSentences, riskSentences } from "./behavioral";
+import { assessRisk, goalSentences, interventionSentences, psychotherapyCode, psychotherapyMinutes, responseSentences, riskSentences } from "./behavioral";
 import { edCourse, edDisposition } from "./ed";
 import { extractOncology, oncologyHistorySentences, toxicitySentences, treatmentSentences } from "./oncology";
 import { NORMAL_EXAM, type RosSystem } from "./lexicon";
@@ -470,7 +470,21 @@ export function buildSection(ts: TemplateSection, facts: Facts, ctx: NoteContext
     case "response":
       sentences = responseSentences(ctx.utterances ?? [], ts.key);
       break;
+    case "goals":
+      sentences = goalSentences(ctx.utterances ?? [], ctx.patient?.chart.priorVisits?.[0]?.plan ?? [], ts.key);
+      break;
     case "therapy_time": {
+      if (ctx.template.id === "psych_med_mgmt") {
+        const pt = psychotherapyMinutes(ctx.utterances ?? []);
+        const addon = pt ? psychotherapyCode(pt.minutes, true) : null;
+        sentences = [pt ? b.s(`Psychotherapy time: ${pt.minutes} minutes, separate from time spent on E/M services${addon ? ` (supports ${addon})` : " (under 16 minutes; add-on not billable)"}.`, pt.evidence) : b.s("Psychotherapy time: *** minutes, separate from time spent on E/M services.", [], "system")];
+        break;
+      }
+      if (ctx.template.id === "bh_group") {
+        const min = Math.round(ctx.minutes ?? 0);
+        sentences = [b.s(min ? `Group psychotherapy session: ${min} minutes (90853).` : "Group session time: *** minutes.", [], "system")];
+        break;
+      }
       const min = Math.round((ctx.minutes ?? 0));
       const code = psychotherapyCode(min);
       sentences = [b.s(min ? `Psychotherapy time: ${min} minutes face to face${code ? ` (supports ${code})` : " (under 16 minutes; not separately billable)"}.` : "Session time: *** minutes.", [], "system")];
@@ -501,7 +515,7 @@ export function buildSection(ts: TemplateSection, facts: Facts, ctx: NoteContext
 export function buildNote(facts: Facts, ctx: NoteContext): Note {
   return {
     sections: ctx.template.sections.map((ts) => buildSection(ts, facts, ctx)),
-    meta: { engine: "local", templateId: ctx.template.id, generatedAt: new Date().toISOString(), sensitive: /^(?:bh_|behavioral)/.test(ctx.template.id) || undefined },
+    meta: { engine: "local", templateId: ctx.template.id, generatedAt: new Date().toISOString(), sensitive: /^(?:bh_|behavioral|psych_)/.test(ctx.template.id) || undefined },
   };
 }
 

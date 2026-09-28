@@ -169,10 +169,36 @@ export function responseSentences(utts: Utterance[], key: string): NoteSentence[
   return out.slice(0, 5);
 }
 
+export function psychotherapyMinutes(utts: Utterance[]): { minutes: number; evidence: string[] } | null {
+  for (const u of [...utts].reverse()) {
+    const m = /\b(\d{1,2}|ten|fifteen|twenty|twenty[- ]five|thirty|forty|forty[- ]five|fifty)\s+minutes?\s+(?:of|on|doing|in)\s+(?:supportive\s+|cognitive\s+)?(?:psycho)?therapy\b|\bpsychotherapy(?: time)?\s+(?:was|for|of)\s+(\d{1,2})\s+minutes?\b/i.exec(u.text);
+    if (!m) continue;
+    const raw = (m[1] ?? m[2]).toLowerCase().replace(/[- ]/g, "");
+    const words: Record<string, number> = { ten: 10, fifteen: 15, twenty: 20, twentyfive: 25, thirty: 30, forty: 40, fortyfive: 45, fifty: 50 };
+    const minutes = words[raw] ?? Number(raw);
+    if (minutes) return { minutes, evidence: [u.id] };
+  }
+  return null;
+}
+
+const GOAL = /\b(?:goal|goals|work(?:ing)? on|focus(?:ing)? on|target(?:ing)?|practice|homework)\b/i;
+
+export function goalSentences(utts: Utterance[], prior: string[], key: string): NoteSentence[] {
+  const out: NoteSentence[] = [];
+  for (const g of prior) out.push({ id: `${key}_${out.length + 1}`, text: `Goal carried from last session: ${g}.`, evidence: [], kind: "carried", support: "strong" });
+  for (const u of utts) {
+    if (u.speaker !== "clinician" || !GOAL.test(u.text) || /\?\s*$/.test(u.text)) continue;
+    const t = u.text.trim().replace(/^(?:okay|so|alright),?\s+/i, "").replace(/\byou('re| are)\b/gi, "client is").replace(/\byour\b/gi, "the client's").replace(/\byou\b/gi, "client");
+    out.push({ id: `${key}_${out.length + 1}`, text: `${t.charAt(0).toUpperCase()}${t.slice(1).replace(/[.]?$/, ".")}`, evidence: [u.id], kind: "fact", support: "strong" });
+  }
+  if (!out.length) out.push({ id: `${key}_1`, text: "Treatment goal addressed this session: ***", evidence: [], kind: "system", support: "none" });
+  return out;
+}
+
 export function psychotherapyCode(minutes: number, withEm = false) {
   if (minutes < 16) return null;
   if (withEm) return minutes >= 53 ? "90838" : minutes >= 38 ? "90836" : "90833";
   return minutes >= 53 ? "90837" : minutes >= 38 ? "90834" : "90832";
 }
 
-export const SENSITIVE_TEMPLATES = /^(?:bh_|behavioral)/;
+export const SENSITIVE_TEMPLATES = /^(?:bh_|behavioral|psych_)/;

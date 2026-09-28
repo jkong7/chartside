@@ -92,6 +92,7 @@ export type SectionKind =
   | "therapy_time"
   | "ed_course"
   | "disposition"
+  | "goals"
   | "onc_history"
   | "onc_treatment"
   | "toxicity"
@@ -281,6 +282,7 @@ export interface CodingResult {
   dxDetail?: DxDetail[];
   risk?: RiskSummary;
   reference?: { label: string; version: string }[];
+  psychotherapyAddOn?: { code: string; minutes: number; evidence: string[] };
 }
 
 export interface RuleSource {

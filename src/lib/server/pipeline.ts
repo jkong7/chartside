@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { assistWithClaude, generateNoteWithClaude, llmEnabled, llmModel, translateSummaryWithClaude } from "../llm";
 import { localAssist } from "../engine/assist";
 import { computeCoding, type CodingContext } from "../engine/coding";
+import { psychotherapyMinutes } from "../engine/behavioral";
 import { extractOncology, needsToxicityMonitoring, updateProfile } from "../engine/oncology";
 import { computeCoverage } from "../engine/coverage";
 import { extractFacts, type Facts } from "../engine/extract";
@@ -122,11 +123,11 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   const sessionMinutes = Math.round((enc.durationS || (utts.at(-1)?.tEnd ?? 0)) / 60);
   if (!note) note = buildNote(facts, { patient, encounter: enc, template, utterances: utts, minutes: sessionMinutes, startedAt: enc.startedAt });
   else {
-    const special = template.sections.filter((ts) => ["risk", "interventions", "response", "therapy_time", "ed_course", "disposition"].includes(ts.kind));
+    const special = template.sections.filter((ts) => ["risk", "interventions", "response", "therapy_time", "ed_course", "disposition", "goals", "onc_history", "onc_treatment", "toxicity"].includes(ts.kind));
     if (special.length) {
       const { buildSection } = await import("../engine/note");
       const ctx = { patient, encounter: enc, template, utterances: utts, minutes: sessionMinutes, startedAt: enc.startedAt };
-      note = { ...note, sections: template.sections.map((ts) => (special.includes(ts) ? buildSection(ts, facts, ctx) : note!.sections.find((x) => x.key === ts.key) ?? buildSection(ts, facts, ctx))), meta: { ...note.meta, sensitive: /^(?:bh_|behavioral)/.test(template.id) || undefined } };
+      note = { ...note, sections: template.sections.map((ts) => (special.includes(ts) ? buildSection(ts, facts, ctx) : note!.sections.find((x) => x.key === ts.key) ?? buildSection(ts, facts, ctx))), meta: { ...note.meta, sensitive: /^(?:bh_|behavioral|psych_)/.test(template.id) || undefined } };
     }
   }
   if (enc.admissionId) {
@@ -144,7 +145,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   const pediatric = patient ? ageFrom(patient.dob) < 18 : false;
   const priorVisits = (await encounters.list(user, { patientId: enc.patientId ?? "__none__" })).filter((e) => e.id !== enc!.id && e.status === "signed").length;
   const patientType = enc.visitType === "new" || (!patient?.chart.priorVisits?.length && !priorVisits) ? "new" : "established";
-  const coding = await enrichCoding(user, enc, patient, computeCoding(facts, { oncology: oncologyContext(template.id, utts, patient), patientType, minutes, chart: patient?.chart, pediatric, hccFor: hccMapper(patient, enc.scheduledAt), psychotherapy: template.id.startsWith("bh_") ? "standalone" : template.id === "behavioral" ? "intake" : undefined, encounterClass: enc.visitType === "ed" || enc.setting === "ed" ? "ed" : enc.visitType === "inpatient" ? "initial_inpatient" : enc.visitType === "progress" ? "subsequent_inpatient" : enc.visitType === "discharge" ? "discharge" : "office" }), facts);
+  const coding = await enrichCoding(user, enc, patient, computeCoding(facts, { oncology: oncologyContext(template.id, utts, patient), patientType, minutes, chart: patient?.chart, pediatric, hccFor: hccMapper(patient, enc.scheduledAt), psychotherapy: template.id === "bh_group" ? "group" : template.id === "psych_med_mgmt" ? "addon" : template.id.startsWith("bh_") ? "standalone" : template.id === "behavioral" ? "intake" : undefined, psychotherapyMinutes: template.id === "psych_med_mgmt" ? psychotherapyMinutes(utts) : undefined, encounterClass: enc.visitType === "ed" || enc.setting === "ed" ? "ed" : enc.visitType === "inpatient" ? "initial_inpatient" : enc.visitType === "progress" ? "subsequent_inpatient" : enc.visitType === "discharge" ? "discharge" : "office" }), facts);
   const staged = stageOrders(facts, { chart: patient?.chart, ageYears: patient ? ageFrom(patient.dob) : undefined, now: new Date(enc.scheduledAt) });
   const coverage = computeCoverage(facts, { visitType: enc.visitType });
 

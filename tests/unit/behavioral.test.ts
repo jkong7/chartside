@@ -75,3 +75,31 @@ describe("risk assessment sign blocker", () => {
     expect(out.blockers[0]).toContain("does not document: plan, intent, access to lethal means, prior attempts, safety plan");
   });
 });
+
+describe("psychiatry add-on, GIRP, and group templates", () => {
+  it("bills E/M by MDM plus a psychotherapy add-on from separately documented time", async () => {
+    const { computeCoding } = await import("@/lib/engine/coding");
+    const { extractFacts } = await import("@/lib/engine/extract");
+    const { psychotherapyMinutes } = await import("@/lib/engine/behavioral");
+    const u = [
+      { id: "a", seq: 0, speaker: "clinician" as const, text: "How has the sertraline been at 100 milligrams?", tStart: 0, tEnd: 3 },
+      { id: "b", seq: 1, speaker: "patient" as const, text: "My mood is a little better but I still feel anxious most days.", tStart: 4, tEnd: 8 },
+      { id: "c", seq: 2, speaker: "clinician" as const, text: "Let's increase the sertraline to 150 milligrams daily for your depression.", tStart: 9, tEnd: 12 },
+      { id: "d", seq: 3, speaker: "clinician" as const, text: "We spent 25 minutes on psychotherapy today working on cognitive restructuring.", tStart: 13, tEnd: 16 },
+    ];
+    const pt = psychotherapyMinutes(u)!;
+    expect(pt).toEqual({ minutes: 25, evidence: ["d"] });
+    const c = computeCoding(extractFacts(u), { patientType: "established", minutes: 45, psychotherapy: "addon", psychotherapyMinutes: pt });
+    expect(c.em.code).toMatch(/^992/);
+    expect(c.em.timeBased).toBeUndefined();
+    expect(c.psychotherapyAddOn).toEqual({ code: "90833", minutes: 25, evidence: ["d"] });
+    expect(computeCoding(extractFacts(u), { patientType: "established", minutes: 60, psychotherapy: "group" }).em.code).toBe("90853");
+  });
+
+  it("builds GIRP goals from the prior plan and the session", async () => {
+    const { goalSentences } = await import("@/lib/engine/behavioral");
+    const g = goalSentences([{ id: "x", seq: 0, speaker: "clinician", text: "This week let's focus on getting outside once a day.", tStart: 0, tEnd: 2 }], ["Thought record practice"], "goals");
+    expect(g.map((s) => s.text)).toEqual(["Goal carried from last session: Thought record practice.", "This week let's focus on getting outside once a day."]);
+    expect(goalSentences([], [], "goals")[0].text).toContain("***");
+  });
+});
