@@ -13,7 +13,8 @@ export type Permission =
   | "billing.review"
   | "templates.share"
   | "org.manage"
-  | "org.analytics";
+  | "org.analytics"
+  | "nursing.document";
 
 const MATRIX: Record<Permission, Role[]> = {
   "clinical.capture": ["owner", "admin", "clinician", "scribe"],
@@ -25,6 +26,7 @@ const MATRIX: Record<Permission, Role[]> = {
   "templates.share": ["owner", "admin"],
   "org.manage": ["owner", "admin"],
   "org.analytics": ["owner", "admin", "viewer"],
+  "nursing.document": ["owner", "admin", "clinician", "nurse"],
 };
 
 

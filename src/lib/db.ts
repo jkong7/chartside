@@ -348,6 +348,32 @@ CREATE TABLE IF NOT EXISTS admissions (
   handoff TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS nursing_notes (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  admission_id TEXT NOT NULL REFERENCES admissions(id) ON DELETE CASCADE,
+  author_id TEXT NOT NULL,
+  text TEXT NOT NULL,
+  rows TEXT NOT NULL DEFAULT '[]',
+  care TEXT NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'draft',
+  recorded_at TEXT NOT NULL,
+  filed_at TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS flowsheet (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  admission_id TEXT NOT NULL REFERENCES admissions(id) ON DELETE CASCADE,
+  note_id TEXT,
+  group_name TEXT NOT NULL,
+  row_name TEXT NOT NULL,
+  value TEXT NOT NULL,
+  abnormal INTEGER NOT NULL DEFAULT 0,
+  recorded_at TEXT NOT NULL,
+  filed_by TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ehr_connections (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -376,6 +402,7 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS addenda_enc ON addenda(encounter_id, ord)",
   "CREATE INDEX IF NOT EXISTS tasks_assignee ON tasks(org_id, assignee_id, status)",
   "CREATE UNIQUE INDEX IF NOT EXISTS tasks_enc_key ON tasks(encounter_id, key)",
+  "CREATE INDEX IF NOT EXISTS flowsheet_adm ON flowsheet(admission_id, recorded_at)",
   "CREATE INDEX IF NOT EXISTS admissions_org ON admissions(org_id, status)",
   "CREATE INDEX IF NOT EXISTS documents_enc ON documents(encounter_id, ord)",
   "CREATE INDEX IF NOT EXISTS snippets_org ON snippets(org_id, user_id)",
@@ -402,6 +429,7 @@ const LEGACY_COLUMNS: [string, string, string][] = [
   ["auth_sessions", "org_id", "TEXT"],
   ["memberships", "credential", "TEXT NOT NULL DEFAULT ''"],
   ["encounters", "admission_id", "TEXT"],
+  ["admissions", "care", "TEXT NOT NULL DEFAULT '[]'"],
   ["memberships", "supervisor_id", "TEXT"],
 ];
 

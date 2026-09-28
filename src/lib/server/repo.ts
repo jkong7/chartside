@@ -6,7 +6,7 @@ import type { Chart, ConsentRecord, Encounter, Note, Patient, StagedOrder, Style
 import type { Role } from "../roles";
 
 export type { Role };
-export const ROLES: Role[] = ["owner", "admin", "clinician", "scribe", "coder", "viewer"];
+export const ROLES: Role[] = ["owner", "admin", "clinician", "nurse", "scribe", "coder", "viewer"];
 
 export interface UserRow {
   id: string;
@@ -61,7 +61,7 @@ export function toUser(r: UserRow): BaseUser {
   return { id: r.id, email: r.email, name: r.name, specialty: r.specialty, prefs: j(r.prefs, {}), createdAt: r.created_at, hasPassword: !!r.password_hash };
 }
 
-export const SEES_ORG = new Set<Role>(["owner", "admin", "scribe", "coder", "viewer"]);
+export const SEES_ORG = new Set<Role>(["owner", "admin", "nurse", "scribe", "coder", "viewer"]);
 
 export const users = {
   byEmail: (email: string) => get<UserRow>("SELECT * FROM users WHERE email = ?", email.toLowerCase().trim()),
