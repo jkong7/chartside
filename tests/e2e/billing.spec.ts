@@ -91,7 +91,7 @@ test("seeded lifecycle: denials worklist, appeal, A/R aging, and missed revenue"
   await register(page);
   await page.goto("/revenue");
   const queue = page.getByTestId("claims-queue");
-  await expect(page.getByTestId("claim-row")).toHaveCount(9);
+  await expect(page.getByTestId("claim-row")).toHaveCount(11);
   await expect(queue).toContainText("Paid");
   await expect(queue).toContainText("Denied");
   await expect(queue).toContainText("On hold");

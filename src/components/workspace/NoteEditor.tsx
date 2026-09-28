@@ -413,8 +413,8 @@ export default function NoteEditor({
                 <div className="mt-3 space-y-1.5" data-testid="pending-defaults">
                   {sec.sentences.filter((s) => s.pending).map((s) => (
                     <div key={s.id} className="flex items-start gap-2 rounded-lg border-l-2 border-default-ins-line bg-default-ins px-3 py-1.5 text-sm">
-                      <span className="flex-1"><span className="mr-1.5 text-[10px] font-semibold uppercase text-default-ins-line">Not examined · template</span>{s.text}</span>
-                      <button className="text-ok hover:opacity-70" aria-label="Accept normal finding" title="I examined this and it was normal" onClick={() => save(patchSection(sec.key, (xs) => xs.map((x) => (x.id === s.id ? { ...x, pending: false, kind: "clinician", support: "strong" } : x))), "default.accepted")} data-testid="accept-default"><Check size={16} /></button>
+                      <span className="flex-1"><span className="mr-1.5 text-[10px] font-semibold uppercase text-default-ins-line" data-testid={s.kind === "carried" ? "carried-label" : undefined}>{s.kind === "carried" ? "Carried forward · verify" : "Not examined · template"}</span>{s.text}</span>
+                      <button className="text-ok hover:opacity-70" aria-label="Accept normal finding" title={s.kind === "carried" ? "Still accurate today" : "I examined this and it was normal"} onClick={() => save(patchSection(sec.key, (xs) => xs.map((x) => (x.id === s.id ? { ...x, pending: false, kind: "clinician", support: "strong" } : x))), "default.accepted")} data-testid="accept-default"><Check size={16} /></button>
                       <button className="text-ink-4 hover:text-rec" aria-label="Remove suggestion" onClick={() => save(patchSection(sec.key, (xs) => xs.filter((x) => x.id !== s.id)), "default.removed")}><X size={16} /></button>
                     </div>
                   ))}

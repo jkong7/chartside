@@ -103,7 +103,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
 
   const header = (
     <header className="z-20 flex min-h-[73px] flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface/95 px-4 py-2 backdrop-blur md:sticky md:top-0 md:px-6">
-      <Link href="/today" className="whitespace-nowrap text-sm text-ink-3 hover:text-ink">← Today</Link>
+      <Link href={b.admission ? `/hospital/${b.admission.id}` : "/today"} className="whitespace-nowrap text-sm text-ink-3 hover:text-ink">← {b.admission ? "Admission" : "Today"}</Link>
       <div className="hidden h-8 w-px bg-line sm:block" />
       <div className="min-w-0 flex-1 md:flex-none">
         <div className="flex items-center gap-2">
@@ -114,6 +114,9 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
         <p className="truncate text-xs text-ink-3">{enc.reason || "No reason given"} · {fmtDate(enc.scheduledAt)} {fmtTime(enc.scheduledAt)}{b.clinician.id !== b.access.userId ? <span data-testid="visit-clinician"> · {b.clinician.name}</span> : null}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+        {b.admission && (
+          <Link href={`/hospital/${b.admission.id}`} className="pill whitespace-nowrap bg-brand-50 text-brand" data-testid="admission-chip">{[b.admission.unit, b.admission.room].filter(Boolean).join(" ")} · Hospital day {b.admission.day}</Link>
+        )}
         {b.artifacts.ehr_link && (
           <span className="pill whitespace-nowrap bg-info-50 text-info" data-testid="ehr-chip" title={`${b.artifacts.ehr_link.iss}\nPatient/${b.artifacts.ehr_link.patient}${b.artifacts.ehr_link.encounter ? `\nEncounter/${b.artifacts.ehr_link.encounter}` : ""}`}>
             {b.artifacts.ehr_link.system} · {b.artifacts.ehr_link.encounter ? "encounter linked" : "patient linked"}

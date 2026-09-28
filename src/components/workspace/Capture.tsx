@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useMemo, useEffect, useRef, useState } from "react";
 import { AudioCapture, type CaptureStatus } from "@/lib/audio/capture";
 import type { QueueState } from "@/lib/audio/queue";
 import { api, fmtClock } from "@/lib/client";
-import { DEMO_PATIENTS } from "@/lib/demo/scripts";
+import { DEMO_PATIENTS, INPATIENT_DEMO } from "@/lib/demo/scripts";
 import type { Coverage, Speaker, Utterance, VoiceFeatures } from "@/lib/types";
 import { Alert, Check, Keyboard, Mic, Pause, Play, Sparkle, Stop } from "../icons";
 import { Spinner } from "../ui";
@@ -81,7 +81,13 @@ export default function Capture({ b, initialMode, onFinished }: { b: Bundle; ini
   const covTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const quiet = useRef(0);
   const recording = status === "recording";
-  const demo = DEMO_PATIENTS.find((d) => d.mrn === b.patient?.mrn);
+  const demo = useMemo(() => {
+    const outpatient = DEMO_PATIENTS.find((d) => d.mrn === b.patient?.mrn);
+    if (outpatient) return outpatient;
+    if (b.patient?.mrn !== INPATIENT_DEMO.mrn) return undefined;
+    const v = b.encounter.visitType;
+    return { script: v === "inpatient" ? INPATIENT_DEMO.scripts.hp : v === "discharge" ? INPATIENT_DEMO.scripts.discharge : (b.admission?.day ?? 3) <= 2 ? INPATIENT_DEMO.scripts.day2 : INPATIENT_DEMO.scripts.day3 };
+  }, [b.patient?.mrn, b.encounter.visitType, b.admission?.day]);
 
   elapsedRef.current = elapsed;
   speakerModeRef.current = speakerMode;

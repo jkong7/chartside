@@ -5,11 +5,12 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import { roleLabel, type Role } from "@/lib/roles";
-import { Calendar, Chart, Check, Gear, Inbox, Layout, Logo, Logout, Receipt, Shield, Users } from "./icons";
+import { Bed, Calendar, Chart, Check, Gear, Inbox, Layout, Logo, Logout, Receipt, Shield, Users } from "./icons";
 import { Avatar } from "./ui";
 
 const NAV: { href: string; label: string; icon: typeof Calendar; roles?: Role[] }[] = [
   { href: "/today", label: "Today", icon: Calendar },
+  { href: "/hospital", label: "Hospital", icon: Bed, roles: ["owner", "admin", "clinician", "scribe", "viewer"] },
   { href: "/inbox", label: "Inbox", icon: Inbox, roles: ["owner", "admin", "clinician", "scribe"] },
   { href: "/patients", label: "Patients", icon: Users },
   { href: "/templates", label: "Templates", icon: Layout, roles: ["owner", "admin", "clinician", "scribe"] },
