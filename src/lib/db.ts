@@ -334,6 +334,29 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS ccm_enrollments (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  patient_id TEXT NOT NULL,
+  billing_clinician_id TEXT NOT NULL,
+  consent_at TEXT NOT NULL,
+  consent_method TEXT NOT NULL,
+  care_plan TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS ccm_time (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  enrollment_id TEXT NOT NULL REFERENCES ccm_enrollments(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  minutes INTEGER NOT NULL,
+  activity TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  month TEXT NOT NULL,
+  at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS tcm_episodes (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,
