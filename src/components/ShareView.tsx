@@ -13,6 +13,7 @@ interface Data {
   summaries: Record<string, PatientSummary>;
   transcript: { id: string; speaker: string; text: string }[];
   flags: { item: string; comment: string; resolved: boolean }[];
+  documents?: { id: string; title: string; label: string }[];
 }
 
 const UI = {
@@ -93,6 +94,14 @@ export default function ShareView({ token }: { token: string }) {
           ))}
           {sent.size > 0 && <p className="rounded-lg bg-ok-50 px-3 py-2 text-sm text-ok" role="status">{t.sent}</p>}
         </div>
+      )}
+      {!!d.documents?.length && (
+        <section className="card mt-6 p-5" data-testid="patient-documents">
+          <h2 className="font-semibold">{lang === "es" ? "Documentos" : "Your documents"}</h2>
+          <ul className="mt-2 space-y-1.5">
+            {d.documents.map((x) => <li key={x.id}><a className="text-brand underline" href={`/api/share/${token}/documents/${x.id}`} target="_blank" rel="noreferrer">{x.label}</a> <span className="text-sm text-ink-3">(PDF)</span></li>)}
+          </ul>
+        </section>
       )}
       <Ask token={token} t={t} clinician={d.clinician} lang={lang} />
       <details className="mt-6">

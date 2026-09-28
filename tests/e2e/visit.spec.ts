@@ -57,7 +57,7 @@ test("full ambient visit: consent, live coverage, traceable note, codes, orders,
   await page.getByTestId("accept-safe").click();
   await expect(page.locator("[data-testid=order-row][data-status=staged]")).toHaveCount(0);
 
-  await page.getByRole("tab", { name: "Letters" }).click();
+  await page.getByRole("tab", { name: /Documents/ }).click();
   await expect(page.getByTestId("letters-panel")).toContainText("Referral to: Diabetes education");
 
   await page.getByRole("tab", { name: "Note" }).click();

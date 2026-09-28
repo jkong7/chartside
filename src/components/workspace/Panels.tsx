@@ -356,24 +356,6 @@ export function SummaryPanel({ b, onFlags }: { b: Bundle; onFlags: () => void })
   );
 }
 
-export function LettersPanel({ letters }: { letters?: { specialty: string; text: string }[] }) {
-  const [copied, setCopied] = useState<string | null>(null);
-  if (!letters?.length) return <Empty title="No referrals were made in this visit.">Referral letters are drafted automatically when you refer a patient.</Empty>;
-  return (
-    <div className="space-y-4" data-testid="letters-panel">
-      {letters.map((l) => (
-        <div key={l.specialty} className="card">
-          <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
-            <p className="text-[13px] font-semibold uppercase tracking-wide text-ink-2">Referral · {l.specialty}</p>
-            <button className="btn-ghost px-2 py-1 text-xs" onClick={async () => { await copyText(l.text); setCopied(l.specialty); setTimeout(() => setCopied(null), 1500); }}>{copied === l.specialty ? <Check size={14} className="text-ok" /> : <Copy size={14} />} Copy</button>
-          </div>
-          <pre className="whitespace-pre-wrap px-5 py-4 font-serif text-[15px] leading-7">{l.text}</pre>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 const ACTION_LABEL: Record<string, string> = {
   "consent.granted": "Consent recorded",
   "consent.declined": "Patient declined recording",

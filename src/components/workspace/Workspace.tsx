@@ -12,7 +12,8 @@ import Assistant from "./Assistant";
 import BillingPanel from "./BillingPanel";
 import Capture from "./Capture";
 import NoteEditor from "./NoteEditor";
-import { AuditPanel, CodesPanel, LettersPanel, OrdersPanel, SummaryPanel } from "./Panels";
+import { AuditPanel, CodesPanel, OrdersPanel, SummaryPanel } from "./Panels";
+import DocumentsPanel from "./DocumentsPanel";
 import PreVisit from "./PreVisit";
 import TasksPanel from "./TasksPanel";
 import { Addenda, CosignBanner } from "./Signoff";
@@ -199,7 +200,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
               { id: "tasks", label: "Tasks", badge: b.tasks.filter((t) => t.status === "open").length ? <span className="pill bg-sunken text-[10px]" data-testid="tasks-badge">{b.tasks.filter((t) => t.status === "open").length}</span> : null },
               { id: "billing", label: "Billing", badge: b.claim ? <span className={`h-2 w-2 rounded-full ${b.claim.status === "needs_review" ? "bg-warn" : b.claim.status === "on_hold" ? "bg-rec" : "bg-ok"}`} /> : (b.artifacts.priorAuth?.length ? <span className="pill bg-sunken text-[10px]">PA</span> : null) },
               { id: "summary", label: "Patient summary", badge: b.patientFlags.some((f) => !f.resolved) ? <span className="h-2 w-2 rounded-full bg-warn" /> : null },
-              { id: "letters", label: "Letters", badge: b.artifacts.letters?.length ? <span className="pill bg-sunken text-[10px]">{b.artifacts.letters.length}</span> : null },
+              { id: "letters", label: "Documents", badge: b.documents.length + (b.artifacts.letters?.length ?? 0) ? <span className="pill bg-sunken text-[10px]" data-testid="documents-badge">{b.documents.length + (b.artifacts.letters?.length ?? 0)}</span> : null },
               { id: "audit", label: "Audit" },
             ]}
           />
@@ -244,7 +245,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
             {tab === "tasks" && <TasksPanel encounterId={id} tasks={b.tasks} editable={b.access.edit || b.access.sign} onChange={load} onCite={(ids) => cite(ids)} />}
             {tab === "billing" && <BillingPanel key={b.claim?.updatedAt ?? "draft"} encounterId={id} record={b.claim} draft={b.artifacts.claim} priorAuth={b.artifacts.priorAuth ?? []} signed={signed} canReview={b.access.billingReview} onCite={(ids) => cite(ids)} />}
             {tab === "summary" && <SummaryPanel b={b} onFlags={load} />}
-            {tab === "letters" && <LettersPanel letters={b.artifacts.letters} />}
+            {tab === "letters" && <DocumentsPanel encounterId={id} canEdit={b.access.edit} canSign={b.access.sign || b.access.addendum} onCite={(ids) => cite(ids)} />}
             {tab === "audit" && <AuditPanel b={b} />}
           </div>
         </main>
