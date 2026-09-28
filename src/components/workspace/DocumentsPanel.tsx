@@ -1,5 +1,6 @@
 "use client";
 
+import PdfForms from "./PdfForms";
 import { useCallback, useEffect, useState } from "react";
 import { api, copyText } from "@/lib/client";
 import type { DocField } from "@/lib/engine/documents";
@@ -55,6 +56,7 @@ export default function DocumentsPanel({ encounterId, canEdit, canSign, onCite }
   return (
     <div className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)]" data-testid="documents-panel">
       <div className="space-y-3">
+        <PdfForms encounterId={encounterId} canEdit={canEdit} />
         <ul className="card divide-y divide-line">
           {d.referrals.map((r) => (
             <li key={r.id}><button className={`block w-full px-3 py-2.5 text-left text-sm hover:bg-sunken ${sel === r.id ? "bg-brand-50/60" : ""}`} onClick={() => setSel(r.id)}><span className="font-medium">{r.title}</span><span className="mt-0.5 block text-[11px] text-ink-4">Referral letter · drafted from the visit</span></button></li>
