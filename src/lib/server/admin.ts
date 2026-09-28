@@ -10,7 +10,7 @@ export async function adminSnapshot(user: User) {
   const pending = (await Promise.all(pendingTokens.map((t) => invites.get(t)))).filter((x) => !!x);
   const sso = org.settings.sso;
   return {
-    org: { id: org.id, name: org.name, slug: org.slug, createdAt: org.createdAt, appsRequireCosign: !!org.settings.appsRequireCosign },
+    org: { id: org.id, name: org.name, slug: org.slug, createdAt: org.createdAt, appsRequireCosign: !!org.settings.appsRequireCosign, aiDisclosure: org.settings.aiDisclosure !== false },
     members,
     invites: pending.map((i) => ({ token: i.token, email: i.email, role: i.role, expiresAt: i.expiresAt, createdAt: i.createdAt })),
     sso: sso ? { ...sso, clientSecret: undefined, hasSecret: !!sso.clientSecret } : null,

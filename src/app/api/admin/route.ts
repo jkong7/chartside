@@ -12,7 +12,13 @@ export const GET = authed(async (_req, user) => {
 
 export const PATCH = authed(async (req, user) => {
   assertCan(user, "org.manage");
-  const b = await body<{ name?: string; appsRequireCosign?: boolean }>(req);
+  const b = await body<{ name?: string; appsRequireCosign?: boolean; aiDisclosure?: boolean }>(req);
+  if (b.aiDisclosure !== undefined) {
+    const cur = (await orgs.get(user.orgId))!;
+    const org = await orgs.update(user.orgId, { settings: { ...cur.settings, aiDisclosure: !!b.aiDisclosure } });
+    await audit.log(user, null, "org.ai_disclosure", { aiDisclosure: !!b.aiDisclosure });
+    return json({ org });
+  }
   if (b.appsRequireCosign !== undefined) {
     const cur = (await orgs.get(user.orgId))!;
     const org = await orgs.update(user.orgId, { settings: { ...cur.settings, appsRequireCosign: !!b.appsRequireCosign } });

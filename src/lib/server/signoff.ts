@@ -214,6 +214,9 @@ export async function documentText(encId: string, note: Note) {
   if (sig) parts.push(`Signed electronically by ${sig.byName}${sig.credential ? `, ${sig.credential}` : ""} on ${new Date(sig.at).toLocaleString("en-US")}.${cosign?.status === "pending" ? ` Awaiting co-signature by ${cosign.supervisorName}.` : ""}`);
   for (const a of list) parts.push(addendumBlock(a));
   if (cosign?.status === "cosigned" && cosign.cosignedAt) parts.push(`Co-signed electronically by ${cosign.supervisorName} on ${new Date(cosign.cosignedAt).toLocaleString("en-US")}.`);
+  const enc = await encounters.byIdUnscoped(encId);
+  const org = enc?.orgId ? await orgs.get(enc.orgId) : undefined;
+  if ((org?.settings as { aiDisclosure?: boolean } | undefined)?.aiDisclosure !== false) parts.push("Portions of this note were drafted by Chartside, an AI documentation tool, from the recorded visit and reviewed and edited by the signing clinician.");
   return parts.join("\n\n");
 }
 

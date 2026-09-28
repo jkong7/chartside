@@ -162,7 +162,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   }
   const letters = buildReferralLetters(facts, note, patient, { name: clinician.name, specialty: clinician.specialty }, new Date(enc.scheduledAt));
 
-  await notes.create(enc.id, note);
+  await notes.create(enc.id, note, user.id);
   await artifacts.set(enc.id, "coding", coding);
   await artifacts.set(enc.id, "coverage", coverage);
   await artifacts.set(enc.id, "omissions", omissions);
@@ -216,14 +216,15 @@ export async function finalizeClaim(user: User, enc: Encounter) {
   return claims.save(enc.userId, enc.id, status, claim, [...(existing?.history ?? []), { at: new Date().toISOString(), action: "created", note: status === "ready" ? "No edits; ready to submit" : `${claim.edits.filter((e) => e.severity !== "info").length} edit(s) need review` }]);
 }
 
-export async function saveNoteEdits(user: User, encId: string, note: Note) {
+export async function saveNoteEdits(user: User, encId: string, note: Note, reason = "edit") {
   const enc = await encounters.get(user, encId);
   if (!enc) throw new Error("Encounter not found");
   if (enc.status === "signed") throw new Error("Signed notes are locked. Create an addendum instead.");
   const { facts, patient } = await factsFor(user, enc);
   const template = await templateFor(user, enc);
   const scored = scoreSupport(note, await utterances.list(enc.id), patient?.chart);
-  await notes.saveContent(enc.id, scored);
+  const source = /dictat/.test(reason) ? "dictation" : /assist/.test(reason) ? "assistant" : /quality|calculator|omission|default|cdi/.test(reason) ? "suggestion" : /restore/.test(reason) ? "restore" : "edit";
+  await notes.saveContent(enc.id, scored, { authorId: user.id, source, reason });
   const omissions: OmissionFlag[] = detectOmissions(scored, facts, template);
   await artifacts.set(enc.id, "omissions", omissions);
   const { qualityFor } = await import("./quality");
@@ -269,7 +270,7 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   if (consent?.decision === "granted" && !final.sections.some((s) => s.key === "__consent")) {
     final.sections.push({ key: "__consent", title: "Documentation Consent", format: "paragraph", sentences: [{ id: "consent_1", text: consent.statement, evidence: [], kind: "system", support: "strong" }] });
   }
-  await notes.saveContent(enc.id, final);
+  await notes.saveContent(enc.id, final, { authorId: user.id, source: "signature", reason: "signed" });
   await notes.setStatus(enc.id, "signed");
   const signedAt = new Date().toISOString();
   await encounters.update(user, enc.id, { status: "signed", signedAt });
@@ -344,7 +345,7 @@ export async function assist(user: User, encId: string, message: string) {
   if (result.note && enc.status === "signed") {
     result = { ...result, note: undefined, rule: undefined, action: "none", reply: "This note is signed, so I didn't change it. Add an addendum instead." };
   } else if (result.note) {
-    const saved = await saveNoteEdits(user, enc.id, result.note);
+    const saved = await saveNoteEdits(user, enc.id, result.note, "assistant");
     result = { ...result, note: saved.note };
   }
   if (result.rule && enc.userId === user.id) {

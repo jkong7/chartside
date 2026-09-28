@@ -106,6 +106,7 @@ export interface OrgSettings {
   sso?: SsoConfig;
   shareTemplates?: boolean;
   appsRequireCosign?: boolean;
+  aiDisclosure?: boolean;
   billing?: Partial<import("../rcm/reference").BillingSettings>;
 }
 
@@ -528,16 +529,18 @@ export const notes = {
     return r ? toNote(r) : undefined;
   },
   versions: async (encId: string) => (await all<NoteRow>("SELECT * FROM notes WHERE encounter_id = ? ORDER BY version DESC", encId)).map(toNote),
-  create: async (encId: string, note: Note) => {
+  create: async (encId: string, note: Note, authorId: string | null = null) => {
     const v = Number((await get<{ m: number | null }>("SELECT MAX(version) AS m FROM notes WHERE encounter_id = ?", encId))?.m ?? 0) + 1;
     const t = now();
     await run("INSERT INTO notes (id, encounter_id, version, template_id, engine, content, generated, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)", uid("note_"), encId, v, note.meta.templateId, note.meta.engine, JSON.stringify(note), JSON.stringify(note), t, t);
+    await revisions.add(encId, v, authorId, note.meta.engine === "claude" ? "ai:claude" : "ai:local", "drafted", note);
     return (await notes.latest(encId))!;
   },
-  saveContent: async (encId: string, note: Note) => {
+  saveContent: async (encId: string, note: Note, meta?: { authorId: string | null; source: string; reason?: string }) => {
     const cur = await notes.latest(encId);
     if (!cur) return undefined;
     await run("UPDATE notes SET content = ?, updated_at = ? WHERE id = ?", JSON.stringify(note), now(), cur.id);
+    if (meta && JSON.stringify(cur.content.sections) !== JSON.stringify(note.sections)) await revisions.add(encId, cur.version, meta.authorId, meta.source, meta.reason ?? "", note);
     return notes.latest(encId);
   },
   setStatus: async (encId: string, status: "draft" | "signed") => {
@@ -795,4 +798,21 @@ export const addenda = {
     return (await addenda.list(a.encounterId)).find((x) => x.id === id)!;
   },
   setFiling: (id: string, filing: Addendum["filing"]) => run("UPDATE addenda SET filing = ? WHERE id = ?", JSON.stringify(filing), id),
+};
+
+export interface Revision {
+  id: string;
+  noteVersion: number;
+  author: string | null;
+  source: string;
+  reason: string;
+  content: Note;
+  createdAt: string;
+}
+
+export const revisions = {
+  add: (encId: string, version: number, authorId: string | null, source: string, reason: string, content: Note) =>
+    run("INSERT INTO note_revisions (id, encounter_id, note_version, author_id, source, reason, content, ord, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", uid("rev_"), encId, version, authorId, source, reason, JSON.stringify(content), nextOrd(), now()),
+  list: async (encId: string): Promise<Revision[]> =>
+    (await all<{ id: string; note_version: number; author: string | null; source: string; reason: string; content: string; created_at: string }>("SELECT r.id, r.note_version, us.name AS author, r.source, r.reason, r.content, r.created_at FROM note_revisions r LEFT JOIN users us ON us.id = r.author_id WHERE r.encounter_id = ? ORDER BY r.ord", encId)).map((r) => ({ id: r.id, noteVersion: r.note_version, author: r.author, source: r.source, reason: r.reason, content: j(r.content, emptyNote), createdAt: r.created_at })),
 };

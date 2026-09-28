@@ -416,6 +416,17 @@ CREATE TABLE IF NOT EXISTS mfa_challenges (
   attempts INTEGER NOT NULL DEFAULT 0,
   expires_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS note_revisions (
+  id TEXT PRIMARY KEY,
+  encounter_id TEXT NOT NULL REFERENCES encounters(id) ON DELETE CASCADE,
+  note_version INTEGER NOT NULL,
+  author_id TEXT,
+  source TEXT NOT NULL,
+  reason TEXT NOT NULL DEFAULT '',
+  content TEXT NOT NULL,
+  ord BIGINT NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ehr_connections (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -444,6 +455,7 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS addenda_enc ON addenda(encounter_id, ord)",
   "CREATE INDEX IF NOT EXISTS tasks_assignee ON tasks(org_id, assignee_id, status)",
   "CREATE UNIQUE INDEX IF NOT EXISTS tasks_enc_key ON tasks(encounter_id, key)",
+  "CREATE INDEX IF NOT EXISTS revisions_enc ON note_revisions(encounter_id, ord)",
   "CREATE INDEX IF NOT EXISTS deliveries_due ON webhook_deliveries(status, next_attempt_at)",
   "CREATE INDEX IF NOT EXISTS flowsheet_adm ON flowsheet(admission_id, recorded_at)",
   "CREATE INDEX IF NOT EXISTS admissions_org ON admissions(org_id, status)",
