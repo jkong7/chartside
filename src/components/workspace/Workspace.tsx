@@ -107,13 +107,16 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
       <div className="hidden h-8 w-px bg-line sm:block" />
       <div className="min-w-0 flex-1 md:flex-none">
         <div className="flex items-center gap-2">
-          <h1 className="truncate font-serif text-xl" data-testid="patient-name">{p?.name ?? "Unassigned patient"}</h1>
+          <h1 className="truncate font-serif text-xl" data-testid="patient-name">{p?.name ?? (b.group?.role === "recording" ? b.group.title : "Unassigned patient")}</h1>
           {p && <span className="whitespace-nowrap text-sm text-ink-3">{age(p.dob)}{p.sex} · MRN {p.mrn}</span>}
           {p?.chart.allergies.map((a) => <span key={a.substance} className="pill bg-rec-50 text-[10px] text-rec">{a.substance}</span>)}
         </div>
         <p className="truncate text-xs text-ink-3">{enc.reason || "No reason given"} · {fmtDate(enc.scheduledAt)} {fmtTime(enc.scheduledAt)}{b.clinician.id !== b.access.userId ? <span data-testid="visit-clinician"> · {b.clinician.name}</span> : null}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+        {b.group && (
+          <Link href={`/groups/${b.group.id}`} className="pill whitespace-nowrap bg-brand-50 text-brand" data-testid="group-chip">{b.group.role === "recording" ? `Group recording · ${b.group.members} members · assign speakers and create member notes` : `Group: ${b.group.title}`}</Link>
+        )}
         {b.admission && (
           <Link href={`/hospital/${b.admission.id}`} className="pill whitespace-nowrap bg-brand-50 text-brand" data-testid="admission-chip">{[b.admission.unit, b.admission.room].filter(Boolean).join(" ")} · Hospital day {b.admission.day}</Link>
         )}

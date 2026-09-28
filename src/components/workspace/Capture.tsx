@@ -4,7 +4,7 @@ import { useCallback, useMemo, useEffect, useRef, useState } from "react";
 import { AudioCapture, type CaptureStatus } from "@/lib/audio/capture";
 import type { QueueState } from "@/lib/audio/queue";
 import { api, fmtClock } from "@/lib/client";
-import { DEMO_PATIENTS, ED_DEMO, INPATIENT_DEMO, type DemoLine } from "@/lib/demo/scripts";
+import { DEMO_PATIENTS, ED_DEMO, GROUP_DEMO, INPATIENT_DEMO, type DemoLine } from "@/lib/demo/scripts";
 import type { Coverage, Speaker, Utterance, VoiceFeatures } from "@/lib/types";
 import { Alert, Check, Keyboard, Mic, Pause, Play, Sparkle, Stop } from "../icons";
 import { Spinner } from "../ui";
@@ -84,6 +84,7 @@ export default function Capture({ b, initialMode, onFinished }: { b: Bundle; ini
   const demo = useMemo(() => {
     const outpatient = DEMO_PATIENTS.find((d) => d.mrn === b.patient?.mrn);
     if (outpatient) return outpatient;
+    if (b.encounter.visitType === "group" && !b.patient) return { script: GROUP_DEMO.script as DemoLine[] };
     if (b.patient?.mrn === ED_DEMO.mrn) return { script: ED_DEMO.script as DemoLine[] };
     if (b.patient?.mrn !== INPATIENT_DEMO.mrn) return undefined;
     const v = b.encounter.visitType;

@@ -38,6 +38,7 @@ export interface Bundle {
   tasks: import("@/lib/server/inbox").Task[];
   documents: { id: string; status: string }[];
   quality: import("@/lib/engine/quality").MeasureResult[];
+  group: { id: string; title: string; members: number; role: "recording" | "member" } | null;
   admission: { id: string; unit: string; room: string; day: number; status: string; reason: string } | null;
   chain: { intact: boolean | null; checked: number; brokenAt: string | null };
   attestations: { key: string; label: string; modifier: string | null; source: string; preview: string }[];

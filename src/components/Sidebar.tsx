@@ -12,6 +12,7 @@ const NAV: { href: string; label: string; icon: typeof Calendar; group: string; 
   { href: "/today", label: "Today", icon: Calendar, group: "Care" },
   { href: "/ed", label: "Emergency", icon: Alert, group: "Care", roles: ["owner", "admin", "clinician", "nurse", "scribe", "viewer"] },
   { href: "/hospital", label: "Hospital", icon: Bed, group: "Care", roles: ["owner", "admin", "clinician", "nurse", "scribe", "viewer"] },
+  { href: "/groups", label: "Groups", icon: Users, group: "Care", roles: ["owner", "admin", "clinician"] },
   { href: "/inbox", label: "Inbox", icon: Inbox, group: "Care", roles: ["owner", "admin", "clinician", "scribe"] },
   { href: "/patients", label: "Patients", icon: Users, group: "Care" },
   { href: "/scheduling", label: "Scheduling", icon: Calendar, group: "Care", roles: ["owner", "admin", "clinician", "scribe"] },

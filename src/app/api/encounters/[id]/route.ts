@@ -62,6 +62,7 @@ export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
     tasks: encTasks,
     quality,
     admission: enc.admissionId ? await (async () => { const { admissions, hospitalDay } = await import("@/lib/server/inpatient"); const a = await admissions.get(user, enc.admissionId!); return a ? { id: a.id, unit: a.unit, room: a.room, day: hospitalDay(a, enc.scheduledAt), status: a.status, reason: a.reason } : null; })() : null,
+    group: enc.visitType === "group" ? await (async () => { const { groups } = await import("@/lib/server/group"); const rec = await groups.byEncounter(user, enc.id); const g = rec ?? (await groups.forMember(user, enc.id)); return g ? { id: g.id, title: g.title, members: g.members.length, role: rec ? "recording" as const : "member" as const } : null; })() : null,
     documents: (await documents.list(enc.id)).map((d) => ({ id: d.id, status: d.status })),
     chain,
     attestations: cosign ? attestationsFor(cosign.authorCredential).map((a) => ({ key: a.key, label: a.label, modifier: a.modifier, source: a.source, preview: a.text({ supervisor: user.name, author: cosign.authorName }) })) : [],
