@@ -224,6 +224,17 @@ export const DEMO_PATIENTS: DemoPatient[] = [
     pronouns: "she/her",
     language: "es",
     chart: {
+      immunizations: [
+        { name: "Hepatitis B", date: "2020-05-31" }, { name: "Hepatitis B", date: "2020-07-02" }, { name: "Hepatitis B", date: "2020-12-01" },
+        { name: "Rotavirus", date: "2020-07-30" }, { name: "Rotavirus", date: "2020-09-30" },
+        { name: "DTaP", date: "2020-07-30" }, { name: "DTaP", date: "2020-09-30" }, { name: "DTaP", date: "2020-12-01" }, { name: "DTaP", date: "2021-09-01" },
+        { name: "Hib", date: "2020-07-30" }, { name: "Hib", date: "2020-09-30" }, { name: "Hib", date: "2021-06-01" },
+        { name: "PCV15", date: "2020-07-30" }, { name: "PCV15", date: "2020-09-30" }, { name: "PCV15", date: "2020-12-01" }, { name: "PCV15", date: "2021-06-01" },
+        { name: "IPV", date: "2020-07-30" }, { name: "IPV", date: "2020-09-30" }, { name: "IPV", date: "2021-06-01" },
+        { name: "MMR", date: "2021-06-01" }, { name: "Varicella", date: "2021-06-01" },
+        { name: "Hepatitis A", date: "2021-06-01" }, { name: "Hepatitis A", date: "2022-01-10" },
+        { name: "Influenza vaccine", date: "2025-10-20" },
+      ],
       problems: [],
       medications: [],
       allergies: [{ substance: "penicillin", reaction: "rash" }],

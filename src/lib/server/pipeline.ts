@@ -289,6 +289,11 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   await audit.log(user, enc.id, "note.signed", { edited, editRatio, learned: candidates.length, forced: !!opts.force, overrides: blockers });
   await finalizeClaim(user, (await encounters.get(user, enc.id))!);
   await holdClaimForCosign(user, enc.id, cosign);
+  const given = orderList.filter((o) => o.kind === "vaccine" && o.status === "accepted");
+  if (given.length && enc.patientId) {
+    const pat = await patients.get(user, enc.patientId);
+    if (pat) await patients.updateChart(user, pat.id, { ...pat.chart, immunizations: [...(pat.chart.immunizations ?? []), ...given.map((o) => ({ name: o.name, date: enc.scheduledAt.slice(0, 10) }))] });
+  }
   await syncTasks(user, enc);
   if (enc.admissionId) {
     const { onInpatientSigned } = await import("./inpatient");

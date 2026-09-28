@@ -1,6 +1,7 @@
 import type { Chart, Patient, StagedOrder, Utterance } from "../types";
 import type { Facts } from "./extract";
 import { ageFrom } from "./text";
+import { cms117, dueLabel, immunizationGaps } from "./immunizations";
 
 export type MeasureStatus = "met" | "gap" | "addressed" | "excluded";
 
@@ -41,6 +42,8 @@ export const MEASURES: MeasureDef[] = [
   { id: "flu", ecqm: "CMS147", title: "Influenza immunization", population: "Ages 6 months and older, October to March" },
   { id: "statin", ecqm: "CMS347", title: "Statin therapy for cardiovascular disease prevention", population: "Ages 40 to 75 with diabetes" },
   { id: "kidney", ecqm: "CMS951", title: "Kidney health evaluation", population: "Ages 18 to 85 with diabetes" },
+  { id: "child_imm", ecqm: "CMS117", title: "Childhood immunization status", population: "Children turning 2" },
+  { id: "peds_catchup", ecqm: "CDC", title: "Immunizations due on the CDC schedule", population: "Ages 0 to 18" },
   { id: "falls", ecqm: "CMS139", title: "Falls: screening for future fall risk", population: "Ages 65 and older" },
 ];
 
@@ -192,6 +195,15 @@ export function evaluateQuality(input: QualityInput): MeasureResult[] {
     const asked = said(utts, /\b(?:any falls|have you (?:had a )?fall(?:en)?|fallen|trouble with (?:your )?balance|unsteady)\b/i, "clinician");
     const onFile = screened(/fall/i, 365);
     push("falls", asked.length || onFile || noted(/falls screening: \d/i) ? { status: "met", reason: asked.length ? "Fall risk was asked about during the visit." : `Falls screen on file (${onFile!.date}).`, evidence: asked, actions: [] } : { status: "gap", reason: "No falls screening in the last 12 months.", evidence: [], actions: [{ kind: "insert", label: "Document falls screen", text: "Falls screening: *** falls in the past 12 months; balance and gait ***." }] });
+  }
+
+  if (age < 19) {
+    const history = [...(chart.immunizations ?? []), ...orders.filter((o) => o.kind === "vaccine" && o.status !== "rejected").map((o) => ({ name: o.name, date: at.toISOString().slice(0, 10) }))];
+    const c = cms117(patient.dob, chart.immunizations ?? [], at);
+    if (c) push("child_imm", c.met ? { status: "met", reason: "All CMS117 vaccine series were complete by the second birthday.", evidence: [], actions: [] } : { status: "gap", reason: `Incomplete by the second birthday: ${c.missing.join(", ")}.`, evidence: [], actions: [] });
+    const gaps = immunizationGaps(patient.dob, history, at);
+    const ordered = orders.filter((o) => o.kind === "vaccine" && o.status !== "rejected");
+    push("peds_catchup", gaps.length ? { status: "gap", reason: `Due or overdue: ${gaps.map(dueLabel).join("; ")}.`, evidence: [], actions: [{ kind: "insert", label: "Document catch-up plan", text: `Immunizations reviewed against the CDC schedule; due today: ${gaps.map((g) => `${g.label} #${g.dose}`).join(", ")}. Vaccine information statements provided; ***.` }] } : ordered.length ? { status: "addressed", reason: `Up to date after today's ${ordered.map((o) => o.name).join(", ")}.`, evidence: ordered.flatMap((o) => o.evidence), actions: [] } : { status: "met", reason: "Up to date on the CDC childhood schedule.", evidence: [], actions: [] });
   }
 
   return out;

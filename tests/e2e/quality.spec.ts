@@ -47,3 +47,12 @@ test("shows care gaps before the visit, closes them with one click, blocks signi
   await expect(bp).toContainText("CMS165");
   await expect(page.getByTestId("gap-list")).toBeVisible();
 });
+
+test("pediatric brief lists vaccines due on the CDC schedule", async ({ page }) => {
+  await register(page);
+  await page.goto("/today");
+  await page.getByTestId("visit-row").filter({ hasText: "Sofia Ramirez" }).click();
+  await expect(page.getByTestId("care-gaps")).toContainText("Immunizations due on the CDC schedule");
+  await expect(page.getByTestId("care-gaps")).toContainText("DTaP dose 5");
+  await expect(page.getByTestId("care-gaps")).toContainText("MMR dose 2");
+});
