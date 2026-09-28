@@ -34,6 +34,7 @@ export interface Bundle {
   audio: { chunks: number; bytes: number; durationMs: number; retentionDays: number };
   claim: import("@/lib/server/repo").ClaimRecord | null;
   addenda: import("@/lib/server/repo").Addendum[];
+  tasks: import("@/lib/server/inbox").Task[];
   chain: { intact: boolean | null; checked: number; brokenAt: string | null };
   attestations: { key: string; label: string; modifier: string | null; source: string; preview: string }[];
   clinician: { id: string; name: string };

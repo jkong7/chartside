@@ -14,17 +14,18 @@ import Capture from "./Capture";
 import NoteEditor from "./NoteEditor";
 import { AuditPanel, CodesPanel, LettersPanel, OrdersPanel, SummaryPanel } from "./Panels";
 import PreVisit from "./PreVisit";
+import TasksPanel from "./TasksPanel";
 import { Addenda, CosignBanner } from "./Signoff";
 import Transcript from "./Transcript";
 import type { Bundle, Highlight } from "./types";
 
-type Tab = "note" | "codes" | "orders" | "billing" | "summary" | "letters" | "audit";
+type Tab = "note" | "codes" | "orders" | "tasks" | "billing" | "summary" | "letters" | "audit";
 
 export default function Workspace({ id, initialTab }: { id: string; initialTab?: string }) {
   const [b, setB] = useState<Bundle | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [mode, setMode] = useState<"mic" | "simulate" | "type" | null>(null);
-  const [tab, setTab] = useState<Tab>((["note", "codes", "orders", "billing", "summary", "letters", "audit"].includes(initialTab ?? "") ? initialTab : "note") as Tab);
+  const [tab, setTab] = useState<Tab>((["note", "codes", "orders", "tasks", "billing", "summary", "letters", "audit"].includes(initialTab ?? "") ? initialTab : "note") as Tab);
   const [hl, setHl] = useState<Highlight | null>(null);
   const [active, setActive] = useState<string | null>(null);
   const [signOpen, setSignOpen] = useState(false);
@@ -188,6 +189,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
               { id: "note", label: "Note" },
               { id: "codes", label: "Codes", badge: b.artifacts.coding ? <span className="pill bg-sunken text-[10px]">{b.artifacts.coding.em.code}</span> : null },
               { id: "orders", label: "Orders", badge: staged ? <span className="pill bg-warn-50 text-[10px] text-warn">{staged}</span> : null },
+              { id: "tasks", label: "Tasks", badge: b.tasks.filter((t) => t.status === "open").length ? <span className="pill bg-sunken text-[10px]" data-testid="tasks-badge">{b.tasks.filter((t) => t.status === "open").length}</span> : null },
               { id: "billing", label: "Billing", badge: b.claim ? <span className={`h-2 w-2 rounded-full ${b.claim.status === "needs_review" ? "bg-warn" : b.claim.status === "on_hold" ? "bg-rec" : "bg-ok"}`} /> : (b.artifacts.priorAuth?.length ? <span className="pill bg-sunken text-[10px]">PA</span> : null) },
               { id: "summary", label: "Patient summary", badge: b.patientFlags.some((f) => !f.resolved) ? <span className="h-2 w-2 rounded-full bg-warn" /> : null },
               { id: "letters", label: "Letters", badge: b.artifacts.letters?.length ? <span className="pill bg-sunken text-[10px]">{b.artifacts.letters.length}</span> : null },
@@ -230,6 +232,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
             {tab === "note" && <Addenda b={b} onChange={load} onToast={setToast} />}
             {tab === "codes" && <CodesPanel coding={b.artifacts.coding} encounterId={id} locked={locked} onUpdate={() => load()} onCite={(ids) => cite(ids)} />}
             {tab === "orders" && <OrdersPanel encounterId={id} orders={b.orders} locked={locked} onChange={(fn: (o: StagedOrder[]) => StagedOrder[]) => setB((x) => (x ? { ...x, orders: fn(x.orders) } : x))} onCite={(ids) => cite(ids)} />}
+            {tab === "tasks" && <TasksPanel encounterId={id} tasks={b.tasks} editable={b.access.edit || b.access.sign} onChange={load} onCite={(ids) => cite(ids)} />}
             {tab === "billing" && <BillingPanel key={b.claim?.updatedAt ?? "draft"} encounterId={id} record={b.claim} draft={b.artifacts.claim} priorAuth={b.artifacts.priorAuth ?? []} signed={signed} canReview={b.access.billingReview} onCite={(ids) => cite(ids)} />}
             {tab === "summary" && <SummaryPanel b={b} onFlags={load} />}
             {tab === "letters" && <LettersPanel letters={b.artifacts.letters} />}

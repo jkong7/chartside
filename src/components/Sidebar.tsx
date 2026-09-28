@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import { roleLabel, type Role } from "@/lib/roles";
-import { Calendar, Chart, Gear, Layout, Logo, Logout, Receipt, Shield, Users } from "./icons";
+import { Calendar, Chart, Gear, Inbox, Layout, Logo, Logout, Receipt, Shield, Users } from "./icons";
 import { Avatar } from "./ui";
 
 const NAV: { href: string; label: string; icon: typeof Calendar; roles?: Role[] }[] = [
   { href: "/today", label: "Today", icon: Calendar },
+  { href: "/inbox", label: "Inbox", icon: Inbox, roles: ["owner", "admin", "clinician", "scribe"] },
   { href: "/patients", label: "Patients", icon: Users },
   { href: "/templates", label: "Templates", icon: Layout, roles: ["owner", "admin", "clinician", "scribe"] },
   { href: "/revenue", label: "Revenue", icon: Receipt, roles: ["owner", "admin", "clinician", "coder", "viewer"] },
@@ -27,6 +29,23 @@ export interface SidebarUser {
 }
 
 const navFor = (role: Role) => NAV.filter((n) => !n.roles || n.roles.includes(role));
+
+function useInboxCount(enabled: boolean) {
+  const path = usePathname();
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    const load = () => api<{ count: number }>("/inbox/count").then((r) => alive && setN(r.count)).catch(() => {});
+    load();
+    const t = setInterval(load, 60000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [enabled, path]);
+  return n;
+}
 
 function OrgSwitcher({ user }: { user: SidebarUser }) {
   const router = useRouter();
@@ -61,6 +80,7 @@ function OrgSwitcher({ user }: { user: SidebarUser }) {
 export default function Sidebar({ user, engine }: { user: SidebarUser; engine: string }) {
   const path = usePathname();
   const router = useRouter();
+  const inbox = useInboxCount(["owner", "admin", "clinician", "scribe"].includes(user.role));
   return (
     <aside className="sticky top-0 hidden h-screen w-[220px] shrink-0 flex-col border-r border-line bg-surface md:flex">
       <Link href="/today" className="flex items-center gap-2.5 px-5 py-5">
@@ -76,6 +96,7 @@ export default function Sidebar({ user, engine }: { user: SidebarUser; engine: s
             <Link key={n.href} href={n.href} className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium ${active ? "bg-brand-50 text-brand" : "text-ink-2 hover:bg-sunken"}`}>
               <Icon size={17} />
               {n.label}
+              {n.href === "/inbox" && inbox > 0 && <span className="ml-auto rounded-full bg-rec px-1.5 text-[10px] font-semibold text-white" data-testid="inbox-count">{inbox}</span>}
             </Link>
           );
         })}
