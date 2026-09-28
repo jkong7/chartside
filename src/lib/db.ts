@@ -374,6 +374,41 @@ CREATE TABLE IF NOT EXISTS flowsheet (
   filed_by TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS api_keys (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  prefix TEXT NOT NULL UNIQUE,
+  hash TEXT NOT NULL,
+  scopes TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  last_used_at TEXT,
+  revoked_at TEXT
+);
+CREATE TABLE IF NOT EXISTS webhooks (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  url TEXT NOT NULL,
+  secret TEXT NOT NULL,
+  events TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_by TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id TEXT PRIMARY KEY,
+  webhook_id TEXT NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
+  event TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  status TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  response_code INTEGER,
+  error TEXT,
+  next_attempt_at TEXT NOT NULL,
+  delivered_at TEXT,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ehr_connections (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -402,6 +437,7 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS addenda_enc ON addenda(encounter_id, ord)",
   "CREATE INDEX IF NOT EXISTS tasks_assignee ON tasks(org_id, assignee_id, status)",
   "CREATE UNIQUE INDEX IF NOT EXISTS tasks_enc_key ON tasks(encounter_id, key)",
+  "CREATE INDEX IF NOT EXISTS deliveries_due ON webhook_deliveries(status, next_attempt_at)",
   "CREATE INDEX IF NOT EXISTS flowsheet_adm ON flowsheet(admission_id, recorded_at)",
   "CREATE INDEX IF NOT EXISTS admissions_org ON admissions(org_id, status)",
   "CREATE INDEX IF NOT EXISTS documents_enc ON documents(encounter_id, ord)",
