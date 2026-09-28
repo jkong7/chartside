@@ -334,6 +334,16 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS form_templates (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  pdf TEXT NOT NULL,
+  fields TEXT NOT NULL DEFAULT '[]',
+  mapping TEXT NOT NULL DEFAULT '{}',
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS surveys (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,
