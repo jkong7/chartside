@@ -7,6 +7,7 @@ import { Alert, Mic, Shield } from "../icons";
 import { Spinner } from "../ui";
 import { CareGaps } from "./QualityPanel";
 import IntakeCard from "./IntakeCard";
+import Agenda from "./Agenda";
 import type { Bundle } from "./types";
 
 const STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
@@ -87,6 +88,7 @@ export default function PreVisit({ b, onChange, onStart }: { b: Bundle; onChange
   return (
     <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 md:px-8 lg:grid-cols-[1fr_380px]">
       <div className="space-y-6">
+        <Agenda encounterId={b.encounter.id} items={b.agenda} />
         <PatientBrief b={b} />
         <IntakeCard encounterId={b.encounter.id} intake={b.artifacts.intake} onChange={onChange} />
         <CareGaps quality={b.quality} />

@@ -1,5 +1,7 @@
 "use client";
 
+import Agenda from "./Agenda";
+import type { AgendaItem } from "@/lib/engine/agenda";
 import { recordingLimit } from "@/lib/engine/limits";
 import { useCallback, useMemo, useEffect, useRef, useState } from "react";
 import { AudioCapture, type CaptureStatus } from "@/lib/audio/capture";
@@ -61,6 +63,7 @@ export default function Capture({ b, initialMode, onFinished }: { b: Bundle; ini
   const [interim, setInterim] = useState("");
   const [speakerMode, setSpeakerMode] = useState<Speaker | "auto">("auto");
   const [coverage, setCoverage] = useState<Coverage | null>(null);
+  const [agenda, setAgenda] = useState<AgendaItem[]>(b.agenda);
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,8 +108,9 @@ export default function Capture({ b, initialMode, onFinished }: { b: Bundle; ini
       const r = await api<{ coverage: Coverage; snapshot: Snapshot }>(`/encounters/${enc.id}/coverage`);
       setCoverage(r.coverage);
       setSnap(r.snapshot);
+      if (b.agenda.length) setAgenda((await api<{ agenda: AgendaItem[] }>(`/encounters/${enc.id}/agenda`)).agenda);
     }, 250);
-  }, [enc.id]);
+  }, [enc.id, b.agenda.length]);
 
   useEffect(() => {
     refreshCoverage();
@@ -475,6 +479,7 @@ export default function Capture({ b, initialMode, onFinished }: { b: Bundle; ini
       </div>
 
       <aside className="min-h-0 overflow-y-auto border-t border-line bg-paper p-4 lg:border-t-0" data-testid="coverage">
+        {agenda.length > 0 && <div className="mb-4 border-b border-line pb-4"><Agenda key={agenda.map((i) => (i.addressed ? 1 : 0)).join("")} encounterId={enc.id} items={agenda} compact onChange={setAgenda} /></div>}
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-3">Live coverage</h3>
           <span className="font-serif text-xl text-brand" data-testid="coverage-score">{coverage?.score ?? 0}%</span>

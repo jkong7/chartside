@@ -4,6 +4,7 @@ import { speechConfig } from "@/lib/server/audio";
 import { consentScript, processEncounter } from "@/lib/server/pipeline";
 import { isStuck, recordingMinutesFromEnv } from "@/lib/engine/limits";
 import { assertNoteAccess, logView } from "@/lib/server/access";
+import { agendaFor } from "@/lib/server/agenda";
 import { assertCan, can, canSign } from "@/lib/server/policy";
 import { addenda, artifacts, audioChunks, audit, claims, consents, encounters, feedback, notes, orders, orgs, patientFlags, patients, SEES_ORG, templates, users, utterances } from "@/lib/server/repo";
 import type { Encounter } from "@/lib/types";
@@ -75,6 +76,7 @@ export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
     addenda: adds,
     tasks: encTasks,
     quality,
+    agenda: await agendaFor(user, enc, quality),
     admission: enc.admissionId ? await (async () => { const { admissions, hospitalDay } = await import("@/lib/server/inpatient"); const a = await admissions.get(user, enc.admissionId!); return a ? { id: a.id, unit: a.unit, room: a.room, day: hospitalDay(a, enc.scheduledAt), status: a.status, reason: a.reason } : null; })() : null,
     group: enc.visitType === "group" ? await (async () => { const { groups } = await import("@/lib/server/group"); const rec = await groups.byEncounter(user, enc.id); const g = rec ?? (await groups.forMember(user, enc.id)); return g ? { id: g.id, title: g.title, members: g.members.length, role: rec ? "recording" as const : "member" as const } : null; })() : null,
     documents: (await documents.list(enc.id)).map((d) => ({ id: d.id, status: d.status })),
