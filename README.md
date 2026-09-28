@@ -34,6 +34,34 @@ Chartside is built on a study of the ten leading ambient scribes: Abridge, Micro
 8. **Billing.** Signing turns the note and accepted orders into a professional claim, validated and priced from official code sets (see [Coding & revenue cycle](#coding--revenue-cycle)). Prior-authorization packets score payer criteria against transcript evidence and draft a medical-necessity letter. The **Revenue** page tracks every claim from pre-bill review through clearinghouse acceptance, payment, denial, and appeal.
 9. **Insights.** Median time to sign, unedited-sign rate, after-hours signing, evidence coverage, omissions caught, capture rate by visit type, coaching, and learned rules.
 
+## Beyond the visit
+
+Chartside covers the work around the note that enterprise scribes compete on. The feature research behind this list is in [docs/research/feature-gaps-2026.md](docs/research/feature-gaps-2026.md).
+
+| Area | What it does |
+|---|---|
+| **Inbox** (`/inbox`) | Patient messages triaged as emergency, same day, or routine, with chart-grounded reply drafts in English or Spanish; `***` blanks block Send. Follow-ups, results to review, referrals, paperwork, and callbacks detected in each visit become tasks. Co-sign requests, unsigned notes, coding queries, and patient corrections in one queue. Patients can message from their visit link. |
+| **Dictation and voice** | Dictate into any section (Deepgram live with personal keyterms, or the browser's speech engine). Voice commands: punctuation, "new line", "bullet", "scratch that", "go to plan", "insert normal exam", "stop dictation". Snippets with `{{patient.first}}`, `{{meds}}`, `{{allergies}}` placeholders via `/shortcut`, Epic SmartPhrase CSV import, and vocabulary replacements. |
+| **Note control** | Brief / Standard / Detailed drafts, assistant rewrites (bullets or prose, abbreviations, word caps) that become style rules when you say "always…", and a full revision history with sentence diffs, restore, and AI-provenance counts. An optional AI-assistance disclosure is added to signed notes. |
+| **Co-signature and addenda** | Residents, fellows, students, and optionally NPs and PAs sign into the supervising physician's queue. CMS teaching attestations add GC or GE, and the claim is held until co-signed. Signed notes accept hash-chained addenda, late entries, and corrections, filed to Epic as `DocumentReference` with `relatesTo: appends`. |
+| **Letters and forms** | Work and school notes, return to sports, medical necessity, FMLA, jury duty, caregiver, and patient letters, prefilled from the visit with missing fields flagged, signed, exported as PDF, and shared on the patient page. Letters requested during the visit are drafted automatically. |
+| **Quality** (`/quality`) | CMS eCQMs (CMS122, 165, 2, 138, 69, 125, 130, 147, 347, 951, 139) evaluated from the chart, conversation, orders, and note. Care gaps appear in the pre-visit brief with one-click orders or documentation, and a dashboard reports performance by clinician. |
+| **Calculators and evidence** | eGFR (CKD-EPI 2021), CHA₂DS₂-VASc, HAS-BLED, CURB-65, Centor, Wells PE, PHQ-9, PHQ-2, GAD-7, BMI, and pediatric dosing, prefilled from the chart and inserted with citations. Guideline questions are answered from an offline USPSTF, ADA, CDC/ACIP, ACC/AHA, KDIGO, GINA, AAP, and IDSA library with sources. |
+| **Hospital** (`/hospital`) | Census, admission H&P, daily progress notes that open with what changed since yesterday and carry forward unaddressed problems for verification, an auto-built hospital course, a discharge summary with medication reconciliation and pending results, I-PASS handoff, and hospital E/M codes (99221–99239, POS 21). |
+| **Nursing** | A nurse role, spoken assessments turned into flowsheet rows for review and filing, a rolling pending-care list, a shift summary, and questions over the shift's documentation. |
+| **Behavioral health** | Psychotherapy, DAP, and BIRP templates, interventions and response from the session, a C-SSRS-style risk assessment that blocks signing when suicidal ideation is disclosed without plan, intent, means, history, and a safety plan, psychotherapy time codes (90832–90838, 90791), and restricted handling (FHIR `R` confidentiality, no transcript on the patient page, no retained audio). |
+| **Outside records** | Upload a C-CDA, text PDF, or pasted note. Problems, medications, allergies, results, vitals, and plans are shown as new, changed, or already charted, and only what you accept is added, labeled as outside data. |
+| **Scheduling** | Import a clinic day pasted from an EHR schedule screen or a CSV, with patient matching by MRN or name and DOB, and book follow-ups from a queue with calendar invites. |
+| **Telehealth** | Share the video visit tab: the clinician's microphone and the patient's side are recorded on separate channels, so speaker attribution is exact in live captions and the final transcript. |
+| **Note QA** (`/qa`) | Trust metrics by clinician (unedited-sign rate, edited lines, most-edited sections), a sampled review queue scored against a rubric, and engine regression cases saved from real visits. |
+| **Chrome extension** (`extension/`) | Side panel with today's notes beside any web EHR, section copy, and one-click push into EHR fields mapped by pointing at them once. |
+
+## Platform and security
+
+- **Public API** at `/api/v1` with an OpenAPI 3.1 spec at `/api/v1/openapi.json`: create patients and encounters, post a transcript (consent is recorded on first call), generate the note, and read JSON or FHIR. Organization API keys are hashed, scoped, and rate limited.
+- **Webhooks** for `note.generated`, `note.signed`, `claim.status_changed`, `task.created`, and `message.received`, signed with HMAC-SHA256 in `Chartside-Signature: t=…,v1=…`, retried with backoff, and logged in Admin → Developers.
+- **Security:** TOTP two-step verification with recovery codes, an organization-wide requirement, idle sign-out with a warning (15 minutes to 8 hours), active sessions with "sign out everywhere", and SCIM 2.0 user provisioning at `/scim/v2` for Okta and Entra ID.
+
 ## EHR integration (Epic / SMART on FHIR)
 
 Chartside is a SMART on FHIR R4 app. It works with Epic's sandbox and with any SMART-compliant EHR.
@@ -201,17 +229,23 @@ Optional configuration is in `.env.example`: `ANTHROPIC_API_KEY`, `CHARTSIDE_MOD
 ## Tests
 
 ```bash
-npm test               # 103 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
+npm test               # 161 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
                        # org scoping, RBAC, admin rules, OIDC token verification, SSO provisioning, Claude + Deepgram (mock servers),
                        # official code sets (hash verification, DOS release selection, pricing, HCC V28), diagnosis review, Medicare rules,
-                       # NCCI/MUE/LCD logic, and the claim lifecycle
+                       # NCCI/MUE/LCD logic, the claim lifecycle, co-signature and addenda, inbox triage and drafts, dictation grammar,
+                       # snippets, letters and PDF output, eCQMs, calculators (published reference values), evidence retrieval, inpatient
+                       # notes and hospital coding, nursing flowsheets, public API and signed webhooks, TOTP (RFC 6238 vectors), SCIM,
+                       # behavioral health risk assessment, outside records (C-CDA, PDF), schedule import, note QA, and telehealth channels
 npm run codesets:build # re-download and rebuild the official code sets (verifies pinned hashes)
-npm run test:e2e       # 26 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR and OIDC servers, and a fake microphone
+npm run test:e2e       # 48 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR and OIDC servers, and a fake microphone
 npm run test:pg        # both suites against Postgres (DATABASE_URL must point at a disposable database)
 npm run typecheck
 ```
 
 The end-to-end suite covers:
+- co-signature, addenda, inbox and patient messaging, dictation and voice commands, letters, quality gaps, calculators,
+  hospital rounds and discharge, nursing, developers API and webhooks, two-step verification, behavioral health,
+  outside records, scheduling, note QA, telehealth, and the Chrome extension's field filling
 - auth
 - a full ambient visit from consent to signed FHIR export
 - transcript redaction with redraft
