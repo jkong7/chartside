@@ -113,17 +113,20 @@ export interface ChartProblem {
   icd10?: string;
   since?: string;
   status?: string;
+  source?: string;
 }
 
 export interface ChartMedication {
   name: string;
   dose?: string;
   frequency?: string;
+  source?: string;
 }
 
 export interface ChartAllergy {
   substance: string;
   reaction?: string;
+  source?: string;
 }
 
 export interface PriorVisit {
@@ -137,7 +140,7 @@ export interface Chart {
   medications: ChartMedication[];
   allergies: ChartAllergy[];
   vitals?: Record<string, string>;
-  labs?: { name: string; value: string; date: string; flag?: "high" | "low" | "normal" }[];
+  labs?: { name: string; value: string; date: string; flag?: "high" | "low" | "normal"; source?: string }[];
   social?: string[];
   family?: string[];
   priorVisits?: PriorVisit[];

@@ -22,11 +22,11 @@ export function PatientBrief({ b }: { b: Bundle }) {
         <div className="mt-3 grid gap-5 sm:grid-cols-2">
           <div>
             <p className="label">Problems</p>
-            {p.chart.problems.length ? <ul className="space-y-1 text-sm">{p.chart.problems.map((x) => <li key={x.name}>{x.name} {x.icd10 && <span className="font-mono text-xs text-ink-3">{x.icd10}</span>}</li>)}</ul> : <p className="text-sm text-ink-3">None on file</p>}
+            {p.chart.problems.length ? <ul className="space-y-1 text-sm">{p.chart.problems.map((x) => <li key={x.name}>{x.name} {x.icd10 && <span className="font-mono text-xs text-ink-3">{x.icd10}</span>}{x.source?.startsWith("outside") && <span className="pill ml-1 bg-info-50 text-[10px] text-info" title={x.source.slice(8)}>outside</span>}</li>)}</ul> : <p className="text-sm text-ink-3">None on file</p>}
           </div>
           <div>
             <p className="label">Medications</p>
-            {p.chart.medications.length ? <ul className="space-y-1 text-sm">{p.chart.medications.map((m) => <li key={m.name}>{m.name} <span className="text-ink-3">{[m.dose, m.frequency].filter(Boolean).join(" ")}</span></li>)}</ul> : <p className="text-sm text-ink-3">None on file</p>}
+            {p.chart.medications.length ? <ul className="space-y-1 text-sm">{p.chart.medications.map((m) => <li key={m.name}>{m.name} <span className="text-ink-3">{[m.dose, m.frequency].filter(Boolean).join(" ")}</span>{m.source?.startsWith("outside") && <span className="pill ml-1 bg-info-50 text-[10px] text-info" title={m.source.slice(8)}>outside</span>}</li>)}</ul> : <p className="text-sm text-ink-3">None on file</p>}
           </div>
           <div>
             <p className="label">Allergies</p>

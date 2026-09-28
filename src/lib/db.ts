@@ -450,6 +450,17 @@ CREATE TABLE IF NOT EXISTS golden_cases (
   last_run TEXT,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS outside_records (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  patient_id TEXT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  format TEXT NOT NULL,
+  text TEXT NOT NULL,
+  findings TEXT NOT NULL,
+  uploaded_by TEXT,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ehr_connections (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
