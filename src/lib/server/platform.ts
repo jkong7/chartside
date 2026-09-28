@@ -157,10 +157,16 @@ export async function emit(orgId: string | null | undefined, event: WebhookEvent
 
 let flushing: Promise<void> | null = null;
 
-export function flushWebhooks() {
-  flushing ??= (async () => {
+export async function flushWebhooks(): Promise<void> {
+  if (flushing) {
+    await flushing;
+    return flushWebhooks();
+  }
+  flushing = (async () => {
     try {
+      for (let pass = 0; pass < 20; pass++) {
       const due = await all<{ id: string; webhook_id: string; payload: string; attempts: number; url: string; secret: string }>("SELECT d.id, d.webhook_id, d.payload, d.attempts, w.url, w.secret FROM webhook_deliveries d JOIN webhooks w ON w.id = d.webhook_id WHERE d.status IN ('pending', 'retrying') AND d.next_attempt_at <= ? ORDER BY d.created_at LIMIT 50", now());
+      if (!due.length) break;
       for (const d of due) {
         const attempts = d.attempts + 1;
         let code: number | null = null;
@@ -175,6 +181,7 @@ export function flushWebhooks() {
         if (!error) await run("UPDATE webhook_deliveries SET status = 'delivered', attempts = ?, response_code = ?, error = NULL, delivered_at = ? WHERE id = ?", attempts, code, now(), d.id);
         else if (attempts >= BACKOFF_S.length) await run("UPDATE webhook_deliveries SET status = 'failed', attempts = ?, response_code = ?, error = ? WHERE id = ?", attempts, code, error, d.id);
         else await run("UPDATE webhook_deliveries SET status = 'retrying', attempts = ?, response_code = ?, error = ?, next_attempt_at = ? WHERE id = ?", attempts, code, error, new Date(Date.now() + BACKOFF_S[attempts] * 1000).toISOString(), d.id);
+      }
       }
     } finally {
       flushing = null;
