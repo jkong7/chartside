@@ -81,7 +81,7 @@ Chartside covers the work around the note that enterprise scribes compete on. Th
 | **Care management** (`/care-management`) | Chronic care management for patients with two or more chronic conditions: recorded consent, a care plan drafted from the chart, monthly time by staff or practitioner, and month-end 99490, 99439, 99491, and 99437 with a billing CSV. |
 | **HL7 v2 interface** | Signed notes go to your interface engine as MDM^T02 over MLLP, wait for the ACK, and are logged with resend. Restricted notes are withheld unless you opt in. |
 | **Record on phone** | "Record on phone" shows a QR code. A signed-in phone opens the same visit with a single-use, 5-minute link, and the draft opens on the desktop when the phone ends the visit. |
-| **Compliance center** (`/compliance`) | Checks MFA coverage, SSO, idle sign-out, recorded visits without consent, audio retention, break-the-glass volume, external disclosures, AI disclosure, and interface settings, plus a 30-day audit log CSV. |
+| **Compliance center** (`/compliance`) | Checks MFA coverage, SSO, idle sign-out, recorded visits without consent, audio and transcript retention, break-the-glass volume, external disclosures, AI disclosure, and interface settings. Exports a 30-day audit log CSV and a full FHIR NDJSON export of patients and visits. An organization transcript retention policy (at signing, or 7 to 365 days) removes transcripts while keeping signed notes. |
 | **Plans and onboarding** | A 14-day trial with 3 clinician seats, Pro seats, or Enterprise. Seat limits apply to invites, role changes, SSO, and SCIM. Usage metering, a trial-ending banner, and a getting-started checklist driven by real activity. |
 | **Long visits** | Recordings stop at a configurable cap (`CHARTSIDE_MAX_RECORDING_MIN`, default 120) with a 30-minute warning, and notes stuck drafting after a crash are recovered automatically. |
 | **Chrome extension** (`extension/`) | Side panel with today's notes beside any web EHR, section copy, and one-click push into EHR fields mapped by pointing at them once. |
@@ -260,7 +260,7 @@ Optional configuration is in `.env.example`: `ANTHROPIC_API_KEY`, `CHARTSIDE_MOD
 ## Tests
 
 ```bash
-npm test               # 248 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
+npm test               # 250 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
                        # org scoping, RBAC, admin rules, OIDC token verification, SSO provisioning, Claude + Deepgram (mock servers),
                        # official code sets (hash verification, DOS release selection, pricing, HCC V28), diagnosis review, Medicare rules,
                        # NCCI/MUE/LCD logic, the claim lifecycle, co-signature and addenda, inbox triage and drafts, dictation grammar,
@@ -272,7 +272,7 @@ npm test               # 248 unit tests: extraction, notes, verification, coding
                        # J-code units, prenatal gestational age and flags, AcroForm filling, order sets, agenda, and access control
                        # e2e also runs an axe WCAG 2.1 AA scan of clinician pages and patient-facing pages (summary, intake, check-in)
 npm run codesets:build # re-download and rebuild the official code sets (verifies pinned hashes)
-npm run test:e2e       # 85 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR, OIDC, SendGrid, and MLLP servers, and a fake microphone
+npm run test:e2e       # 86 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR, OIDC, SendGrid, and MLLP servers, and a fake microphone
 npm run test:pg        # both suites against Postgres (DATABASE_URL must point at a disposable database)
 npm run typecheck
 ```
