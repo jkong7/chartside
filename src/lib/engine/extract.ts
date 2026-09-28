@@ -176,7 +176,7 @@ const CONTEXT = /\b((?:ever )?since I was \w+ing[^,.;]*|after (?:lifting|a fall|
 const DOSE = /(\d+(?:\.\d+)?)\s*(mg|milligrams?|mcg|micrograms?|units?|grams?|g|ml|puffs?)\b/i;
 const FREQ = /\b(once (?:a|per) day|twice (?:a|per) day|three times (?:a|per) day|four times (?:a|per) day|once daily|twice daily|daily|every (?:morning|night|evening|day|other day|\d+ (?:to \d+ )?hours)|at bedtime|before bed|as needed|with meals|with breakfast|BID|TID|QID|QHS|PRN|once a week|weekly)\b/i;
 
-const START = /\b(start(?:ing)?|begin|prescrib\w*|put (?:you|her|him|them) on|try (?:you on|taking)?|going to give (?:you|her|him)|send (?:in )?(?:a )?prescription for|add(?:ing)?|switch (?:you )?(?:over )?to|recommend (?:taking|trying)?|take)\b/i;
+const START = /\b(start(?:ing)?|begin|prescrib\w*|put (?:you|her|him|them) on|try (?:you on|taking)?|going to give (?:you|her|him)|give|giving|restart(?:ing)?|resum(?:e|ing)|send (?:in )?(?:a )?prescription for|add(?:ing)?|switch (?:you )?(?:over )?to|recommend (?:taking|trying)?|take)\b/i;
 const INCREASE = /\b(increas\w*|bump\w*(?: up)?|go(?:ing)? up (?:on|to)|double|raise|titrate up|up the dose)\b/i;
 const DECREASE = /\b(decreas\w*|lower\w*|cut (?:back|down)|reduc\w*|go(?:ing)? down (?:on|to)|halve)\b/i;
 const STOP = /\b(stop\w*|skip(?:ping)?|cancel\w*|discontinu\w*|come off|coming off|hold(?:ing)? (?:off )?(?:on )?|get (?:you )?off|switch (?:you )?(?:off|from))\b/i;
@@ -484,6 +484,7 @@ const VITALS: { name: VitalFact["name"]; re: RegExp; fmt: (m: RegExpExecArray) =
   { name: "Temp", re: /\b(?:temp(?:erature)?)\b[^\d?]{0,20}?(\d{2,3}(?:\.\d)?)\b/i, fmt: (m) => `${m[1]} °F`, abnormal: (m) => +m[1] >= 100.4 },
   { name: "SpO2", re: /\b(?:oxygen(?: level| saturation)?|O2 sat|sats?|pulse ox)\b[^\d?]{0,20}?(\d{2,3})\s*(?:%|percent)?/i, fmt: (m) => `${m[1]}%`, abnormal: (m) => +m[1] < 94 },
   { name: "Weight", re: /\b(?:weigh(?:t|s|ing|ed)?)\b[^\d?]{0,20}?(\d{2,3}(?:\.\d)?)\s*(?:pounds|lbs?)/i, fmt: (m) => `${m[1]} lb`, abnormal: () => false },
+  { name: "Weight", re: /\b(?:weigh(?:t|s|ing|ed)?)\b[^\d?]{0,20}?(\d{2,3}(?:\.\d)?)\s*(?:kilograms?|kg)\b/i, fmt: (m) => `${m[1]} kg`, abnormal: () => false },
   { name: "RR", re: /\b(?:respiratory rate|breathing rate)\b[^\d?]{0,20}?(\d{1,2})\b/i, fmt: (m) => `${m[1]} /min`, abnormal: (m) => +m[1] > 20 },
   { name: "BMI", re: /\bBMI\b[^\d?]{0,15}?(\d{2}(?:\.\d)?)/i, fmt: (m) => m[1], abnormal: (m) => +m[1] >= 30 },
 ];
@@ -496,7 +497,11 @@ const RESULTS: { name: string; re: RegExp; abnormal: (v: number) => boolean; uni
   { name: "Total cholesterol", re: /\b(?:total )?cholesterol\b[^\d?]{0,25}?(\d{3})\b/i, abnormal: (v) => v >= 200, unit: "mg/dL" },
   { name: "Creatinine", re: /\bcreatinine\b[^\d?]{0,25}?(\d(?:\.\d+)?)\b/i, abnormal: (v) => v > 1.3, unit: "mg/dL" },
   { name: "eGFR", re: /\b(?:eGFR|GFR|kidney function)\b[^\d?]{0,25}?(\d{2,3})\b/i, abnormal: (v) => v < 60, unit: "mL/min/1.73m²" },
-  { name: "Potassium", re: /\bpotassium\b[^\d?]{0,25}?(\d(?:\.\d)?)\b/i, abnormal: (v) => v > 5.1 || v < 3.5, unit: "mmol/L" },
+  { name: "BNP", re: /\b(?:BNP|B-type natriuretic peptide)\b[^\d?]{0,20}?(\d{2,5})\b/i, abnormal: (v) => v > 100, unit: "pg/mL" },
+  { name: "Troponin", re: /\btroponin\b[^\d?]{0,25}?(\d+(?:\.\d+)?)\b/i, abnormal: (v) => v > 0.04, unit: "ng/mL" },
+  { name: "Sodium", re: /\bsodium\b(?! (?:restriction|intake|diet))[^\d?]{0,25}?(1[0-6]\d)\b/i, abnormal: (v) => v < 135 || v > 145, unit: "mmol/L" },
+  { name: "WBC", re: /\b(?:white (?:blood )?count|WBC)\b[^\d?]{0,25}?(\d{1,2}(?:\.\d)?)\b/i, abnormal: (v) => v > 11 || v < 4, unit: "K/uL" },
+  { name: "Potassium", re: /\bpotassium\b(?! chloride)[^\d?]{0,25}?(\d(?:\.\d)?)\b/i, abnormal: (v) => v > 5.1 || v < 3.5, unit: "mmol/L" },
   { name: "TSH", re: /\bTSH\b[^\d?]{0,25}?(\d{1,2}(?:\.\d+)?)\b/i, abnormal: (v) => v > 4.5 || v < 0.4, unit: "mIU/L" },
   { name: "Vitamin D", re: /\bvitamin D\b[^\d?]{0,25}?(\d{1,3})\b/i, abnormal: (v) => v < 30, unit: "ng/mL" },
   { name: "Hemoglobin", re: /\bhemoglobin\b(?! a1c)[^\d?]{0,25}?(\d{1,2}(?:\.\d)?)\b/i, abnormal: (v) => v < 12, unit: "g/dL" },
@@ -515,6 +520,7 @@ function toExamText(clause: string) {
   let t = clause.trim();
   t = t.replace(/^(okay|alright|all right|so|and|um|uh|good|great|hmm|now),?\s+/i, "");
   t = t.replace(/^(?:I (?:can )?(?:hear|see|feel)|it (?:looks|sounds|feels) like|I don't (?:hear|see|feel))\s+/i, (m) => (/don't/i.test(m) ? "No " : ""));
+  t = t.replace(/^(?:you have|you've got|she has|he has|they have|there (?:is|are|'s))\s+/i, "").replace(/\b(\d) plus\b/gi, "$1+");
   t = t.replace(/^(?:you're|you are|she's|he's|she is|he is)\s+/i, "").replace(/\b(?:you're|you are)\b/gi, "patient is").replace(/\byour\b/gi, "").replace(/\byou\b/gi, "patient").replace(/^(?:her|his)\s+/i, "").replace(/\s{2,}/g, " ").trim();
   const specific: [RegExp, string][] = [
     [/^lungs? (?:sound|are|is) (?:nice and )?clear(?: on both sides)?/i, "Lungs clear to auscultation bilaterally"],
@@ -795,7 +801,12 @@ export function extractFacts(utterances: Utterance[], chart?: Chart, who?: { pro
           else if (START.test(pre)) action = "start";
           else if (bareJoin && prevAction) action = prevAction;
           else if (/\b(on|taking|using)\b/i.test(pre)) action = "taking";
-          if (action === "start" && chart?.medications.some((m) => m.name.toLowerCase().includes(def.name.split(" ")[0]))) action = /\b(start|prescrib|begin)\b/i.test(pre) ? "start" : "continue";
+          if (action === "start" && chart?.medications.some((m) => m.name.toLowerCase().includes(def.name.split(" ")[0]))) {
+            const cm = chart.medications.find((m) => m.name.toLowerCase().includes(def.name.split(" ")[0]))!;
+            const d = normDose(doseM);
+            const differs = (d && cm.dose && d.replace(/\s/g, "") !== cm.dose.replace(/\s/g, "")) || (freq && cm.frequency && freq !== cm.frequency);
+            action = /\b(start|prescrib|begin|restart|resum)/i.test(pre) ? "start" : differs ? "change" : "continue";
+          }
           if (/\bswitch(?:ing)? (?:you )?(?:over )?to\b/i.test(pre)) {
             const onIt = chart?.medications.some((m) => m.name.toLowerCase().includes(def.name.split(" ")[0])) || meds.some((m) => m.name === def.name && m.action === "taking");
             action = onIt ? "change" : "start";
@@ -871,8 +882,9 @@ export function extractFacts(utterances: Utterance[], chart?: Chart, who?: { pro
         const directive = /^(?:if|when|once|in case)\b/i.test(clause) || /^(?:let me|let's|I'm going to|I am going to|I will|I'll|I want to|go ahead)\b/i.test(clause) || /\b(I want you to|you should|we'll|we will|going to (?:order|start|send)|tell me if)\b/i.test(clause);
         const vitalTalk = VITALS.some((v) => v.re.test(clause));
         const looksObservational = EXAM_OBS.test(clause) && !isQuestion({ ...u, text: clause }) && !directive && !vitalTalk;
-        const observeVerb = /\b(sounds?|looks?|feels?|appears?|seems?|is|are)\b/i.test(clause);
-        if (sys && looksObservational && (inExam || observeVerb) && !REASONING.test(clause)) {
+        const observeVerb = /\b(sounds?|looks?|feels?|appears?|seems?|is|are|hear|see|noticed?)\b/i.test(clause);
+        const dataTalk = /\b(?:x-?rays?|imaging|ct scan|mri|ultrasound|echocardiogram|echo|shows?|showed|BNP|creatinine|potassium|labs?|results?)\b/i.test(clause);
+        if (sys && looksObservational && (inExam || observeVerb) && !REASONING.test(clause) && !dataTalk) {
           const parts = clause.split(/,\s*(?:and\s+)?|\s+and\s+(?=(?:the |her |his |your )?(?:lungs?|heart|throat|ears?|left|right|abdomen|belly|pulses|reflexes|strength|sensation|skin|mood|thought|neck|feet|eyes|nose))/i).map((x) => x.trim()).filter(Boolean);
           const groups: { system: string; text: string[] }[] = [];
           for (const part of parts) {
