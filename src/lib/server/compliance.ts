@@ -33,6 +33,7 @@ export async function complianceReport(u: User, days = 30) {
   const external = await n("SELECT COUNT(*) AS n FROM encounter_shares WHERE org_id = ? AND kind = 'external' AND created_at >= ?", u.orgId, since);
   const failedLogins = await n("SELECT COUNT(*) AS n FROM audit WHERE org_id = ? AND action IN ('share.code_failed', 'auth.mfa_failed') AND created_at >= ?", u.orgId, since);
   const hl7 = await hl7Config(u.orgId);
+  const { transcriptDays } = await (await import("./retention")).orgRetention(u.orgId);
   const pct = members.length ? Math.round((mfa / members.length) * 100) : 0;
   const checks: Check[] = [
     { key: "mfa", label: "Two-step verification", status: sec.requireMfa ? "pass" : pct === 100 ? "pass" : pct >= 50 ? "warn" : "fail", detail: `${mfa} of ${members.length} active members enrolled${sec.requireMfa ? "; required for everyone" : "; not required by policy"}`, href: "/admin" },
@@ -40,6 +41,7 @@ export async function complianceReport(u: User, days = 30) {
     { key: "idle", label: "Idle sign-out", status: (sec.idleMinutes ?? 30) <= 30 ? "pass" : "warn", detail: `After ${sec.idleMinutes ?? 30} minutes of inactivity`, href: "/admin" },
     { key: "consent", label: "Recording consent", status: audioNoConsent ? "fail" : "pass", detail: audioNoConsent ? `${audioNoConsent} recorded visit${audioNoConsent === 1 ? "" : "s"} in ${days} days without granted consent` : `Every recorded visit in the last ${days} days has a consent record`, href: "/admin" },
     { key: "audio", label: "Audio retention", status: retention.every((d) => d <= 30) ? "pass" : "warn", detail: `${retention.filter((d) => d === 0).length} of ${retention.length} clinicians delete audio at signing; longest retention ${Math.max(0, ...retention)} days${withAudio ? ` · ${withAudio} visits with audio in ${days} days` : ""}` },
+    { key: "transcripts", label: "Transcript retention", status: transcriptDays === null ? "warn" : "pass", detail: transcriptDays === null ? "Transcripts are kept indefinitely after signing; set a retention period if your policy requires it" : transcriptDays === 0 ? "Transcripts are removed when the note is signed; the signed note is kept" : `Transcripts are removed ${transcriptDays} days after signing; the signed note is kept`, href: "/admin" },
     { key: "breakglass", label: "Restricted note access", status: breakGlass > 5 ? "warn" : "pass", detail: `${breakGlass} break-the-glass open${breakGlass === 1 ? "" : "s"} in ${days} days; each is in the patient's access report`, href: "/admin" },
     { key: "external", label: "External disclosures", status: "pass", detail: org.settings.sharing?.external === false ? "External sharing is off" : `${external} emailed link${external === 1 ? "" : "s"} in ${days} days, each gated by a one-time code${failedLogins ? `; ${failedLogins} failed code attempts` : ""}` },
     { key: "ai", label: "AI disclosure on signed notes", status: org.settings.aiDisclosure === false ? "warn" : "pass", detail: org.settings.aiDisclosure === false ? "Off; some states and payers expect it" : "On", href: "/admin" },
