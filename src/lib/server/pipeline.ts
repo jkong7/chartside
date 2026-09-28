@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { assistWithClaude, generateNoteWithClaude, llmEnabled, llmModel, translateSummaryWithClaude } from "../llm";
 import { localAssist } from "../engine/assist";
-import { computeCoding } from "../engine/coding";
+import { computeCoding, type CodingContext } from "../engine/coding";
+import { extractOncology, needsToxicityMonitoring, updateProfile } from "../engine/oncology";
 import { computeCoverage } from "../engine/coverage";
 import { extractFacts, type Facts } from "../engine/extract";
 import { buildReferralLetters } from "../engine/letter";
@@ -143,7 +144,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   const pediatric = patient ? ageFrom(patient.dob) < 18 : false;
   const priorVisits = (await encounters.list(user, { patientId: enc.patientId ?? "__none__" })).filter((e) => e.id !== enc!.id && e.status === "signed").length;
   const patientType = enc.visitType === "new" || (!patient?.chart.priorVisits?.length && !priorVisits) ? "new" : "established";
-  const coding = await enrichCoding(user, enc, patient, computeCoding(facts, { patientType, minutes, chart: patient?.chart, pediatric, hccFor: hccMapper(patient, enc.scheduledAt), psychotherapy: template.id.startsWith("bh_") ? "standalone" : template.id === "behavioral" ? "intake" : undefined, encounterClass: enc.visitType === "ed" || enc.setting === "ed" ? "ed" : enc.visitType === "inpatient" ? "initial_inpatient" : enc.visitType === "progress" ? "subsequent_inpatient" : enc.visitType === "discharge" ? "discharge" : "office" }), facts);
+  const coding = await enrichCoding(user, enc, patient, computeCoding(facts, { oncology: oncologyContext(template.id, utts, patient), patientType, minutes, chart: patient?.chart, pediatric, hccFor: hccMapper(patient, enc.scheduledAt), psychotherapy: template.id.startsWith("bh_") ? "standalone" : template.id === "behavioral" ? "intake" : undefined, encounterClass: enc.visitType === "ed" || enc.setting === "ed" ? "ed" : enc.visitType === "inpatient" ? "initial_inpatient" : enc.visitType === "progress" ? "subsequent_inpatient" : enc.visitType === "discharge" ? "discharge" : "office" }), facts);
   const staged = stageOrders(facts, { chart: patient?.chart, ageYears: patient ? ageFrom(patient.dob) : undefined, now: new Date(enc.scheduledAt) });
   const coverage = computeCoverage(facts, { visitType: enc.visitType });
 
@@ -193,6 +194,19 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   await emit(enc.orgId, "note.generated", { encounterId: enc.id, patientId: enc.patientId, engine: note.meta.engine, template: template.id });
   await audit.log(user, enc.id, "note.generated", { engine: note.meta.engine, model: note.meta.model ?? null, template: template.id, ms: Date.now() - started, sentences: stats.total, supportedPct: stats.pct, omissions: omissions.length });
   return { note, warnings };
+}
+
+function oncologyContext(templateId: string, utts: import("../types").Utterance[], patient: Patient | null): CodingContext["oncology"] {
+  if (!templateId.startsWith("onc_") && !patient?.chart.oncology) return undefined;
+  const f = extractOncology(utts, patient?.chart.oncology);
+  if (!f.cancer && !f.regimen) return undefined;
+  const labs = f.toxicities.filter((t) => /count decreased|Anemia/.test(t.term)).flatMap((t) => t.evidence);
+  return {
+    cancer: f.cancer ? { code: f.cancer.icd10, label: f.cancer.label, evidence: f.cancer.evidence.filter((e) => e !== "chart") } : null,
+    monitoring: needsToxicityMonitoring(f) ? [...(f.regimen?.evidence ?? []), ...labs].filter((e) => e !== "chart") : [],
+    sideEffects: f.toxicities.map((t) => ({ label: t.term, code: t.icd10, grade: t.grade, evidence: t.evidence })),
+    progression: f.response?.text === "progressive disease" ? f.response.evidence : null,
+  };
 }
 
 function billingContext(enc: Encounter, patient: Patient | null, patientType: "new" | "established", minutes: number, list: import("../types").StagedOrder[], final = false, criticalCareMinutes = 0) {
@@ -297,6 +311,14 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
     if (pat) await patients.updateChart(user, pat.id, { ...pat.chart, immunizations: [...(pat.chart.immunizations ?? []), ...given.map((o) => ({ name: o.name, date: enc.scheduledAt.slice(0, 10) }))] });
   }
   await syncTasks(user, enc);
+  if (enc.patientId) {
+    const pat = await patients.get(user, enc.patientId);
+    const tpl = enc.templateId ?? "";
+    if (pat && (pat.chart.oncology || tpl.startsWith("onc_"))) {
+      const profile = updateProfile(pat.chart.oncology, extractOncology(await utterances.list(enc.id), pat.chart.oncology), enc.scheduledAt);
+      if (profile) await patients.updateChart(user, pat.id, { ...pat.chart, oncology: profile });
+    }
+  }
   if (enc.admissionId) {
     const { onInpatientSigned } = await import("./inpatient");
     await onInpatientSigned(user, (await encounters.get(user, enc.id))!);

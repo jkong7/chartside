@@ -15,6 +15,11 @@ export interface CodingContext {
   hccFor?: (icd10: string) => { hcc: string; label: string }[];
   encounterClass?: "office" | "initial_inpatient" | "subsequent_inpatient" | "discharge" | "ed";
   psychotherapy?: "standalone" | "intake";
+  oncology?: { cancer: { code: string; label: string; evidence: string[] } | null; monitoring: string[]; sideEffects: { label: string; code?: string; grade: number; evidence: string[] }[]; progression: string[] | null };
+}
+
+function lift(el: MdmElement, l: MdmElement["level"], why: string, ev: string[]): MdmElement {
+  return rank(l) > rank(el.level) ? { level: l, reasons: [why, ...el.reasons], evidence: [...ev.slice(0, 2), ...el.evidence] } : { ...el, reasons: [...el.reasons, why] };
 }
 
 function problemsElement(facts: Facts, ctx?: CodingContext): MdmElement {
@@ -138,9 +143,21 @@ export function computeCoding(facts: Facts, ctx: CodingContext): CodingResult {
     problem: p.key,
   }));
 
-  const problems = problemsElement(facts, ctx);
+  let problems = problemsElement(facts, ctx);
   const data = dataElement(facts, ctx);
-  const risk = riskElement(facts);
+  let risk = riskElement(facts);
+  const onc = ctx.oncology;
+  if (onc) {
+    const severe = onc.sideEffects.filter((x) => x.grade >= 2);
+    if (onc.cancer && (severe.length || onc.progression)) problems = lift(problems, "high", `Chronic illness with ${onc.progression ? "progression" : "side effects of treatment"}: ${onc.cancer.label}${severe.length ? ` (${severe.map((x) => `grade ${x.grade} ${x.label.toLowerCase()}`).join(", ")})` : ""}`, [...onc.cancer.evidence, ...(onc.progression ?? []), ...severe.flatMap((x) => x.evidence)]);
+    else if (onc.cancer) problems = lift(problems, "moderate", `Chronic illness under active treatment: ${onc.cancer.label}`, onc.cancer.evidence);
+    if (onc.monitoring.length) risk = lift(risk, "high", "Drug therapy requiring intensive monitoring for toxicity (antineoplastic therapy with laboratory monitoring)", onc.monitoring);
+    const sameSite = onc.cancer ? diagnoses.find((d) => d.code.slice(0, 3) === onc.cancer!.code.slice(0, 3)) : undefined;
+    if (sameSite && onc.cancer && onc.cancer.code !== sameSite.code && (onc.cancer.code.length > sameSite.code.length || /9$/.test(sameSite.code))) Object.assign(sameSite, { code: onc.cancer.code, label: onc.cancer.label });
+    if (onc.cancer && !sameSite) diagnoses.unshift({ code: onc.cancer.code, system: "ICD-10-CM", label: onc.cancer.label, rationale: "Malignancy under active treatment", evidence: onc.cancer.evidence.slice(0, 4), confidence: 0.95, problem: "cancer" });
+    for (const x of severe.length ? onc.sideEffects : []) if (x.code && !diagnoses.some((d) => d.code === x.code)) diagnoses.push({ code: x.code, system: "ICD-10-CM", label: x.label, rationale: `Grade ${x.grade} treatment toxicity (CTCAE v5.0)`, evidence: x.evidence.slice(0, 4), confidence: 0.85, problem: "toxicity" });
+    if (severe.length && !diagnoses.some((d) => d.code === "T45.1X5A")) diagnoses.push({ code: "T45.1X5A", system: "ICD-10-CM", label: "Adverse effect of antineoplastic and immunosuppressive drugs, initial encounter", rationale: "Sequenced after the manifestation codes for chemotherapy toxicity", evidence: severe.flatMap((x) => x.evidence).slice(0, 4), confidence: 0.85, problem: "toxicity" });
+  }
   const levels = [problems.level, data.level, risk.level].sort((a, b) => rank(b) - rank(a));
   const level = levels[1];
   const cls = ctx.encounterClass ?? "office";
