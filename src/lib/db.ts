@@ -334,6 +334,17 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS group_sessions (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  encounter_id TEXT NOT NULL REFERENCES encounters(id) ON DELETE CASCADE,
+  facilitator_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  members TEXT NOT NULL DEFAULT '[]',
+  assignments TEXT NOT NULL DEFAULT '{}',
+  member_encounters TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ed_visits (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,

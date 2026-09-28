@@ -93,6 +93,8 @@ export type SectionKind =
   | "ed_course"
   | "disposition"
   | "goals"
+  | "group_topic"
+  | "group_participation"
   | "onc_history"
   | "onc_treatment"
   | "toxicity"
@@ -200,7 +202,7 @@ export interface Encounter {
   userId: string;
   patientId: string | null;
   scheduledAt: string;
-  visitType: "new" | "follow-up" | "acute" | "annual" | "telehealth" | "inpatient" | "progress" | "discharge" | "ed";
+  visitType: "new" | "follow-up" | "acute" | "annual" | "telehealth" | "inpatient" | "progress" | "discharge" | "ed" | "group";
   reason: string;
   status: EncounterStatus;
   templateId: string | null;

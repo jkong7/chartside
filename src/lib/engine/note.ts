@@ -2,9 +2,10 @@ import type { Encounter, Note, NoteSection, NoteSentence, Patient, SectionKind, 
 import type { Facts, MedFact, ProblemFact, SymptomFact } from "./extract";
 import { assessRisk, goalSentences, interventionSentences, psychotherapyCode, psychotherapyMinutes, responseSentences, riskSentences } from "./behavioral";
 import { edCourse, edDisposition } from "./ed";
+import { groupTopic } from "./group";
 import { extractOncology, oncologyHistorySentences, toxicitySentences, treatmentSentences } from "./oncology";
 import { NORMAL_EXAM, type RosSystem } from "./lexicon";
-import { ageFrom, durationText, ensurePeriod, joinList, pronounsFor, sentenceCase, unique } from "./text";
+import { ageFrom, durationText, ensurePeriod, joinList, pronounsFor, sentenceCase, toThirdPerson, unique } from "./text";
 
 export interface NoteContext {
   patient: Patient | null;
@@ -482,7 +483,7 @@ export function buildSection(ts: TemplateSection, facts: Facts, ctx: NoteContext
       }
       if (ctx.template.id === "bh_group") {
         const min = Math.round(ctx.minutes ?? 0);
-        sentences = [b.s(min ? `Group psychotherapy session: ${min} minutes (90853).` : "Group session time: *** minutes.", [], "system")];
+        sentences = [b.s(min ? `Group psychotherapy session: ${min} minute${min === 1 ? "" : "s"} (90853).` : "Group session time: *** minutes.", [], "system")];
         break;
       }
       const min = Math.round((ctx.minutes ?? 0));
@@ -505,6 +506,19 @@ export function buildSection(ts: TemplateSection, facts: Facts, ctx: NoteContext
     case "toxicity":
       sentences = toxicitySentences(extractOncology(ctx.utterances ?? [], ctx.patient?.chart.oncology), ts.key);
       break;
+    case "group_topic": {
+      const topic = groupTopic(ctx.utterances ?? []);
+      sentences = [b.s(`${ctx.encounter.reason.replace(/^Group psychotherapy: /, "Group psychotherapy session: ")}.`, [], "system")];
+      if (topic) sentences.push(b.s(`Topic: ${topic.text}.`, topic.evidence));
+      break;
+    }
+    case "group_participation": {
+      const pr = pronounsFor(ctx.patient?.pronouns ?? "", ctx.patient?.sex ?? "X");
+      const own = (ctx.utterances ?? []).filter((u) => u.speaker === "patient" && u.text.split(/\s+/).length >= 4);
+      sentences = own.map((u) => b.s(`Shared: ${ensurePeriod(toThirdPerson(u.text.replace(/^(?:yeah|yes|well|so|um|honestly),?\s+/i, ""), pr))}`, [u.id]));
+      if (!own.length) sentences = [b.s("Attended the session with minimal verbal participation. ***", [], "system")];
+      break;
+    }
     case "custom":
       sentences = [];
       break;

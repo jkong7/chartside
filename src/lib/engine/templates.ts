@@ -245,8 +245,8 @@ export const SYSTEM_TEMPLATES: Template[] = [
     description: "One member's note from a group session: group topic, this member's participation only, risk, response, plan. Other members are never named.",
     style: { verbosity: "standard" },
     sections: [
-      { key: "topic", title: "Group Session", kind: "custom", format: "paragraph" },
-      { key: "participation", title: "Member Participation", kind: "hpi", format: "paragraph" },
+      { key: "topic", title: "Group Session", kind: "group_topic", format: "paragraph" },
+      { key: "participation", title: "Member Participation", kind: "group_participation", format: "bullets" },
       { key: "risk", title: "Risk Assessment", kind: "risk", format: "bullets" },
       { key: "interventions", title: "Interventions", kind: "interventions", format: "bullets" },
       { key: "response", title: "Response", kind: "response", format: "bullets" },

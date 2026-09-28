@@ -514,3 +514,24 @@ export const ED_DEMO = {
     { s: "clinician" as const, t: "Your HEART score is 4, which is moderate risk, so I'm going to admit you to the observation unit for a stress test in the morning." },
   ],
 };
+
+export const GROUP_DEMO = {
+  title: "Coping skills group",
+  members: ["Jordan Reyes", "Daniel Kim", "Priya Shah"],
+  script: [
+    { s: "clinician" as const, t: "Welcome everyone. Today's topic is managing stress with coping skills." },
+    { s: "clinician" as const, t: "Jordan, how did the week go with your coping plan?" },
+    { s: "patient" as const, t: "I used the breathing exercise twice when work got overwhelming, and it helped a little." },
+    { s: "clinician" as const, t: "That's real progress. What got in the way on the other days?" },
+    { s: "patient" as const, t: "Mostly I forgot. I was staying in bed a lot again on the weekend." },
+    { s: "clinician" as const, t: "Daniel, what about you?" },
+    { s: "patient" as const, t: "I've been sleeping better, and I went to the gym three times." },
+    { s: "patient" as const, t: "I got into an argument with my brother, but I walked away instead of yelling." },
+    { s: "clinician" as const, t: "Priya, you've been quiet. How are you doing today?" },
+    { s: "patient" as const, t: "I'm okay. I've been anxious about my new job, but the thought record helped me see it differently." },
+    { s: "clinician" as const, t: "Let's practice a five minute grounding exercise together as a group." },
+    { s: "clinician" as const, t: "Jordan, any thoughts of hurting yourself since last group?" },
+    { s: "patient" as const, t: "No, nothing like that this week." },
+    { s: "clinician" as const, t: "For everyone, the homework this week is to use one coping skill each day and write it down." },
+  ],
+};
