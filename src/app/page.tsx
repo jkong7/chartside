@@ -3,6 +3,15 @@ import { redirect } from "next/navigation";
 import { Logo } from "@/components/icons";
 import { currentUser } from "@/lib/server/auth";
 
+const AREAS = [
+  { title: "Clinic", items: ["Ambient notes, dictation, and voice commands", "Visit agenda, ask-the-chart, and outside records", "Orders, order sets, letters, and PDF forms", "Inbox drafts, tasks, and patient messaging"] },
+  { title: "Hospital and ED", items: ["Daily progress notes that show what changed", "Discharge summary, I-PASS, and nursing flowsheets", "ED track board, timed course, and disposition", "Pre-bill CDI queries and POA indicators"] },
+  { title: "Specialties", items: ["Behavioral health, group therapy, and add-on codes", "Oncology staging, CTCAE grading, and lines of therapy", "Prenatal, well-child, AWV, and HFrEF GDMT", "Office procedures and PT/OT 8-minute rule"] },
+  { title: "Revenue", items: ["E/M, HCC, and ICD-10 on official code sets", "Claims, edits, denials, appeals, and ERA posting", "TCM, CCM, AWV, and SDOH capture", "Quality measures and risk adjustment"] },
+  { title: "Enterprise", items: ["SSO, SCIM, two-step verification, and idle sign-out", "Roles, co-signature, break-the-glass, and access reports", "Consent ledger and compliance center", "Public API, webhooks, and audit export"] },
+  { title: "Works where you work", items: ["Epic launch and write-back with SMART on FHIR", "HL7 v2 document interface for any EHR", "Chrome extension for web EHRs", "Phone recording paired by QR, and an installable app"] },
+];
+
 const FEATURES = [
   { title: "Every sentence has a source", body: "Click any line of the note to hear where it came from. Sentences without support are flagged before you sign, not after an audit." },
   { title: "What did I miss?", body: "A second pass compares the conversation with the note and surfaces dropped medications, orders, negatives, and follow-ups as one-click fixes." },
@@ -50,10 +59,10 @@ export default async function Home() {
           <div className="grid grid-cols-[1.3fr_1fr] text-[13px]">
             <div className="space-y-3 p-4">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">Assessment &amp; Plan</p>
-              <p className="font-medium">1. Type 2 diabetes mellitus with hyperglycemia (E11.65) — not at goal.</p>
+              <p className="font-medium">1. Type 2 diabetes mellitus with hyperglycemia (E11.65), not at goal.</p>
               <p className="ml-3 rounded bg-evidence px-1">– Change metformin to extended-release 1000 mg daily with dinner.</p>
               <p className="ml-3">– Start empagliflozin 10 mg daily.</p>
-              <p className="font-medium">2. Essential hypertension (I10) — not at goal.</p>
+              <p className="font-medium">2. Essential hypertension (I10), not at goal.</p>
               <p className="ml-3">– Increase lisinopril to 20 mg daily.</p>
               <div className="rounded-lg border border-warn/30 bg-warn-50 px-3 py-2 text-xs text-warn">Possible omission: sulfa allergy stated during the visit.</div>
             </div>
@@ -78,6 +87,20 @@ export default async function Home() {
               <div key={f.title} className="rounded-xl border border-line p-5">
                 <h3 className="font-semibold">{f.title}</h3>
                 <p className="mt-2 text-sm text-ink-2">{f.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+      <section className="border-t border-line">
+        <div className="mx-auto max-w-6xl px-6 py-16">
+          <h2 className="font-serif text-3xl">Built for the whole care team.</h2>
+          <p className="mt-2 max-w-3xl text-ink-2">One assistant for the visit, the hospital stay, the specialty workflow, and the claim, with the controls an enterprise needs.</p>
+          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3" data-testid="landing-areas">
+            {AREAS.map((a) => (
+              <div key={a.title} className="rounded-xl border border-line bg-surface p-5">
+                <h3 className="font-semibold">{a.title}</h3>
+                <ul className="mt-3 space-y-1.5 text-sm text-ink-2">{a.items.map((i) => <li key={i} className="flex gap-2"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-brand" />{i}</li>)}</ul>
               </div>
             ))}
           </div>
