@@ -180,3 +180,16 @@ export async function answerFromEvidenceWithClaude(question: string, passages: {
   if (!text || !cited.length || cited.some((n) => n < 1 || n > passages.length)) throw new Error("Unverified citations");
   return text;
 }
+
+export async function answerChartWithClaude(question: string, passages: { title: string; date: string | null; text: string }[]) {
+  const response = await anthropic().messages.create({
+    model: llmModel(),
+    max_tokens: 600,
+    system: "Answer a clinician's question about one patient using only the numbered chart excerpts. Cite every statement with [n]. Give dates when they appear. If the excerpts don't answer the question, say it isn't in the chart. Never infer results, doses, or diagnoses that are not written. Keep it under 80 words.",
+    messages: [{ role: "user", content: `Question: ${question}\n\n${passages.map((p, i) => `[${i + 1}] ${p.title}${p.date ? ` (${p.date})` : ""}: ${p.text}`).join("\n")}` }],
+  });
+  const text = response.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("").trim();
+  const cited = [...text.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1]));
+  if (!text || (!cited.length && !/isn't in the chart|not in the chart/i.test(text)) || cited.some((n) => n < 1 || n > passages.length)) throw new Error("Unverified citations");
+  return text;
+}
