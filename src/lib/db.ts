@@ -334,6 +334,14 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS order_sets (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  owner_id TEXT,
+  name TEXT NOT NULL,
+  items TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS form_templates (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,
