@@ -18,6 +18,7 @@ const NAV: { href: string; label: string; icon: typeof Calendar; roles?: Role[] 
   { href: "/revenue", label: "Revenue", icon: Receipt, roles: ["owner", "admin", "clinician", "coder", "viewer"] },
   { href: "/quality", label: "Quality", icon: Check, roles: ["owner", "admin", "clinician", "coder", "viewer"] },
   { href: "/qa", label: "Note QA", icon: Shield, roles: ["owner", "admin", "viewer"] },
+  { href: "/impact", label: "Impact", icon: Chart, roles: ["owner", "admin", "viewer"] },
   { href: "/insights", label: "Insights", icon: Chart, roles: ["owner", "admin", "clinician", "viewer"] },
   { href: "/admin", label: "Admin", icon: Shield, roles: ["owner", "admin"] },
   { href: "/settings", label: "Settings", icon: Gear },
