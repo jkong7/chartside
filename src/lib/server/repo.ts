@@ -109,6 +109,7 @@ export interface OrgSettings {
   appsRequireCosign?: boolean;
   aiDisclosure?: boolean;
   sharing?: { external?: boolean };
+  hl7?: import("./hl7").Hl7Config;
   billing?: Partial<import("../rcm/reference").BillingSettings>;
 }
 

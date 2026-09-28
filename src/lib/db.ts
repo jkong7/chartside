@@ -334,6 +334,17 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS hl7_messages (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  encounter_id TEXT,
+  control_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  status TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT '',
+  message TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ccm_enrollments (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,

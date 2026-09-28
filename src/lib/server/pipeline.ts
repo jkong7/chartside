@@ -333,6 +333,8 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   await emit(user.orgId, "note.signed", { encounterId: enc.id, patientId: enc.patientId, signedAt, cosignPending: !!cosign });
   await audit.log(user, enc.id, "note.signed", { edited, editRatio, learned: candidates.length, forced: !!opts.force, overrides: blockers });
   await finalizeClaim(user, (await encounters.get(user, enc.id))!);
+  const { sendNoteHl7 } = await import("./hl7");
+  await sendNoteHl7(user, enc.id).catch(() => null);
   const { onTcmSigned } = await import("./tcm");
   await onTcmSigned(user, enc.id, (await artifacts.get<CodingResult>(enc.id, "coding"))?.tcm);
   await holdClaimForCosign(user, enc.id, cosign);
