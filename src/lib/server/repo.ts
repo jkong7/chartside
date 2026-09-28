@@ -44,6 +44,7 @@ export interface UserPrefs {
   audioRetentionDays?: number;
   autoFileEhr?: boolean;
   finalPass?: boolean;
+  noteDetail?: "concise" | "standard" | "detailed";
 }
 
 export const j = <T>(s: string | null | undefined, fallback: T): T => {

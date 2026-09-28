@@ -7,6 +7,51 @@ export interface AssistResult {
   note?: Note;
   citations: string[];
   action: "answer" | "edit" | "none";
+  rule?: { kind: "format" | "abbreviate" | "max_words"; section: string; value: string; label: string };
+}
+
+const EXPAND: [RegExp, string][] = [
+  [/\bHTN\b/g, "hypertension"],
+  [/\bT2DM\b/g, "type 2 diabetes"],
+  [/\bHLD\b/g, "hyperlipidemia"],
+  [/\bSOB\b/g, "shortness of breath"],
+  [/\bf\/u\b/gi, "follow-up"],
+  [/\bBID\b/g, "twice daily"],
+  [/\bTID\b/g, "three times daily"],
+  [/\bQD\b/g, "daily"],
+  [/\bPRN\b/g, "as needed"],
+  [/\bNKDA\b/g, "no known drug allergies"],
+  [/\bURI\b/g, "upper respiratory infection"],
+  [/\bGAD\b/g, "generalized anxiety disorder"],
+  [/\bc\/o\b/gi, "complains of"],
+  [/\bh\/o\b/gi, "history of"],
+];
+
+const ABBREV: [RegExp, string][] = [
+  [/\bessential hypertension\b/gi, "HTN"],
+  [/\bhypertension\b/gi, "HTN"],
+  [/\btype 2 diabetes(?: mellitus)?\b/gi, "T2DM"],
+  [/\bhyperlipidemia\b/gi, "HLD"],
+  [/\bshortness of breath\b/gi, "SOB"],
+  [/\btwice daily\b/gi, "BID"],
+  [/\bthree times daily\b/gi, "TID"],
+  [/\bas needed\b/gi, "PRN"],
+  [/\bno known drug allergies\b/gi, "NKDA"],
+];
+
+function rewriteAll(note: Note, subs: [RegExp, string][]) {
+  let n = 0;
+  const sections = note.sections.map((s) => ({
+    ...s,
+    sentences: s.sentences.map((x) => {
+      let t = x.text;
+      for (const [re, to] of subs) t = t.replace(re, to);
+      if (t === x.text) return x;
+      n++;
+      return { ...x, text: t, edited: true };
+    }),
+  }));
+  return { note: { ...note, sections }, n };
 }
 
 function findSection(note: Note, name: string) {
@@ -36,7 +81,61 @@ export function localAssist(message: string, note: Note | null, utterances: Utte
   const msg = message.trim();
 
   if (note) {
-    const add = /^(?:please )?add (?:that |a (?:line|note) (?:that )?)?(.+?) to (?:the )?([a-z&/ ]+?)(?: section)?\.?$/i.exec(msg);
+    const always = /^(?:always|from now on|going forward)[,:]?\s+/i.test(msg);
+    const body = msg.replace(/^(?:always|from now on|going forward)[,:]?\s+/i, "");
+    const fmt = /^(?:use|write|make|put|format)\s+(?:the\s+)?(?:(.+?)\s+(?:as|in|into)\s+(?:a\s+)?(bullets?|bullet points|a list|paragraphs?|prose)|(bullets?|bullet points|paragraphs?|prose)\s+(?:for|in)\s+(?:the\s+)?(.+?))(?:\s+section)?\.?$/i.exec(body);
+    if (fmt) {
+      const secName = fmt[1] ?? fmt[4];
+      const kind = /bullet|list/i.test(fmt[2] ?? fmt[3]) ? "bullets" : "paragraph";
+      const sec = findSection(note, secName);
+      if (!sec) return { reply: `I couldn't find a section called "${secName}".`, citations: [], action: "none" };
+      const next = { ...note, sections: note.sections.map((s) => (s.key === sec.key ? { ...s, format: kind as "bullets" | "paragraph" } : s)) };
+      return {
+        reply: `${sec.title} now uses ${kind === "bullets" ? "bullet points" : "a paragraph"}.${always ? " I'll do this in future notes too; you can change it in Settings → Style rules." : ""}`,
+        note: next,
+        citations: [],
+        action: "edit",
+        rule: always ? { kind: "format", section: sec.key, value: kind, label: `Write ${sec.title} as ${kind === "bullets" ? "bullet points" : "a paragraph"}` } : undefined,
+      };
+    }
+    if (/^(?:expand|spell out|no|don't use|avoid)\s+(?:the\s+|all\s+)?abbreviations?\.?$/i.test(body)) {
+      const r = rewriteAll(note, EXPAND);
+      return { reply: r.n ? `Spelled out abbreviations in ${r.n} line${r.n > 1 ? "s" : ""}.` : "There were no abbreviations to spell out.", note: r.n ? r.note : undefined, citations: [], action: r.n ? "edit" : "none" };
+    }
+    if (/^(?:use|abbreviate|add)\s+(?:standard\s+|common\s+|clinical\s+)?abbreviations?\.?$/i.test(body)) {
+      const r = rewriteAll(note, ABBREV);
+      return {
+        reply: `Abbreviated ${r.n} line${r.n === 1 ? "" : "s"}.${always ? " Future notes will use standard abbreviations too." : ""}`,
+        note: r.n ? r.note : undefined,
+        citations: [],
+        action: r.n ? "edit" : "none",
+        rule: always ? { kind: "abbreviate", section: "*", value: "standard", label: "Use standard clinical abbreviations (HTN, T2DM, BID, PRN…)" } : undefined,
+      };
+    }
+    const cap = /^(?:keep|limit)\s+(?:the\s+)?(.+?)\s+(?:under|to|below|at most)\s+(\d{2,3})\s+words\.?$/i.exec(body);
+    if (cap) {
+      const sec = findSection(note, cap[1]);
+      if (!sec) return { reply: `I couldn't find a section called "${cap[1]}".`, citations: [], action: "none" };
+      const limit = Number(cap[2]);
+      let words = 0;
+      const kept = sec.sentences.filter((s, i) => {
+        if (s.pending || s.heading) return true;
+        const wc = wordCount(s.text);
+        if (i === 0 || words + wc <= limit) {
+          words += wc;
+          return true;
+        }
+        return false;
+      });
+      return {
+        reply: `${sec.title} is now ${words} words.${always ? ` Future ${sec.title} sections will stay under ${limit} words.` : ""}`,
+        note: updateSection(note, sec.key, () => kept),
+        citations: [],
+        action: "edit",
+        rule: always ? { kind: "max_words", section: sec.key, value: String(limit), label: `Keep ${sec.title} under ${limit} words` } : undefined,
+      };
+    }
+    const add =/^(?:please )?add (?:that |a (?:line|note) (?:that )?)?(.+?) to (?:the )?([a-z&/ ]+?)(?: section)?\.?$/i.exec(msg);
     if (add) {
       const sec = findSection(note, add[2]);
       if (!sec) return { reply: `I couldn't find a section called "${add[2]}".`, citations: [], action: "none" };

@@ -80,6 +80,8 @@ export function applyStyle(note: Note, rules: StyleRule[]): Note {
         });
       }
     }
+    const fmt = active.find((r) => r.kind === "format" && (r.section === sec.key || r.section === "*"));
+    const format = fmt && (fmt.value === "bullets" || fmt.value === "paragraph") ? fmt.value : sec.format;
     const cap = active.find((r) => r.kind === "max_words" && r.section === sec.key);
     if (cap) {
       const limit = Number(cap.value);
@@ -98,7 +100,7 @@ export function applyStyle(note: Note, rules: StyleRule[]): Note {
       for (const s of sentences) if (chosen.has(s.id)) keep.push(s);
       sentences = keep;
     }
-    return { ...sec, sentences };
+    return { ...sec, format, sentences };
   });
   return { ...note, sections };
 }

@@ -54,6 +54,33 @@ describe("assistant", () => {
     expect(removed.reply).toMatch(/Removed 1 line/);
   });
 
+  it("rewrites format, abbreviations, and length, and remembers 'always' instructions as style rules", () => {
+    const { note, utterances } = gen();
+    const bullets = localAssist("use bullets in the subjective", note, utterances);
+    expect(bullets.note!.sections.find((s) => s.key === "subjective")!.format).toBe("bullets");
+    expect(bullets.rule).toBeUndefined();
+    const remembered = localAssist("Always write the subjective as a paragraph", note, utterances);
+    expect(remembered.rule).toMatchObject({ kind: "format", section: "subjective", value: "paragraph" });
+    const abbr = localAssist("use abbreviations", note, utterances);
+    expect(JSON.stringify(abbr.note)).toContain("HTN");
+    const expanded = localAssist("expand abbreviations", abbr.note!, utterances);
+    expect(JSON.stringify(expanded.note)).not.toMatch(/\bHTN\b/);
+    const capped = localAssist("always keep the subjective under 40 words", note, utterances);
+    const words = capped.note!.sections.find((s) => s.key === "subjective")!.sentences.filter((s) => !s.pending).slice(1).reduce((n, s) => n + s.text.split(/\s+/).length, 0);
+    expect(words).toBeLessThanOrEqual(40);
+    expect(capped.rule).toMatchObject({ kind: "max_words", value: "40" });
+    const styled = applyStyle(note, [{ id: "f", kind: "format", section: "assessment_plan", value: "paragraph", label: "", source: "manual", support: 1, active: true }]);
+    expect(styled.sections.find((s) => s.key === "assessment_plan")!.format).toBe("paragraph");
+  });
+
+  it("drafts brief, standard, and detailed notes from the same visit", () => {
+    const { d, facts, patient } = demo("gonzalez");
+    const t = systemTemplate("soap")!;
+    const words = (v: "concise" | "standard" | "detailed") => buildNote(facts, { patient, encounter: { reason: d.visit.reason, visitType: d.visit.type, scheduledAt: SCHEDULED }, template: { ...t, style: { ...t.style, verbosity: v } } }).sections.flatMap((s) => s.sentences.filter((x) => !x.pending)).reduce((n, s) => n + s.text.split(/\s+/).length, 0);
+    expect(words("concise")).toBeLessThan(words("standard"));
+    expect(words("standard")).toBeLessThan(words("detailed"));
+  });
+
   it("answers questions with transcript citations", () => {
     const { utterances, patient } = gen();
     const r = localAssist("what did she say about the metformin?", null, utterances, patient.chart);

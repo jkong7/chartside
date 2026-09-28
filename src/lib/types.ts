@@ -52,6 +52,7 @@ export interface Note {
     templateId: string;
     generatedAt: string;
     warnings?: string[];
+    detail?: "concise" | "standard" | "detailed";
   };
 }
 
