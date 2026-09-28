@@ -74,8 +74,12 @@ export async function factsFor(user: User, enc: Encounter): Promise<{ facts: Fac
 }
 
 export async function liveCoverage(user: User, enc: Encounter) {
-  const { facts } = await factsFor(user, enc);
+  const { facts, patient } = await factsFor(user, enc);
+  const template = await templateFor(user, enc);
+  const utts = await utterances.list(enc.id);
+  const draft = utts.length >= 2 ? buildNote(facts, { patient, encounter: enc, template, utterances: utts, minutes: Math.round((utts.at(-1)?.tEnd ?? 0) / 60), startedAt: enc.startedAt }).sections.filter((s) => /^(?:hpi|subjective|interval|history|assessment_plan|ap|assessment|plan)$/.test(s.key) || /history|assessment|plan|subjective/i.test(s.title)).map((s) => ({ title: s.title, lines: s.sentences.filter((x) => !x.pending && x.kind !== "default").map((x) => x.text).slice(0, 8) })).filter((s) => s.lines.length) : [];
   return {
+    draft,
     coverage: computeCoverage(facts, { visitType: enc.visitType }),
     snapshot: {
       chiefComplaint: facts.chiefComplaint?.label ?? null,

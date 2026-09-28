@@ -65,6 +65,8 @@ export default function Capture({ b, initialMode, onFinished }: { b: Bundle; ini
   const [coverage, setCoverage] = useState<Coverage | null>(null);
   const [agenda, setAgenda] = useState<AgendaItem[]>(b.agenda);
   const [snap, setSnap] = useState<Snapshot | null>(null);
+  const [draft, setDraft] = useState<{ title: string; lines: string[] }[]>([]);
+  const [showDraft, setShowDraft] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [level, setLevel] = useState(0);
@@ -105,7 +107,8 @@ export default function Capture({ b, initialMode, onFinished }: { b: Bundle; ini
   const refreshCoverage = useCallback(() => {
     if (covTimer.current) clearTimeout(covTimer.current);
     covTimer.current = setTimeout(async () => {
-      const r = await api<{ coverage: Coverage; snapshot: Snapshot }>(`/encounters/${enc.id}/coverage`);
+      const r = await api<{ coverage: Coverage; snapshot: Snapshot; draft: { title: string; lines: string[] }[] }>(`/encounters/${enc.id}/coverage`);
+      setDraft(r.draft ?? []);
       setCoverage(r.coverage);
       setSnap(r.snapshot);
       if (b.agenda.length) setAgenda((await api<{ agenda: AgendaItem[] }>(`/encounters/${enc.id}/agenda`)).agenda);
@@ -513,6 +516,17 @@ export default function Capture({ b, initialMode, onFinished }: { b: Bundle; ini
             {snap.meds.map((m) => <p key={m} className="text-ink-2"><span className="pill mr-1.5 bg-sunken text-[10px]">Rx</span>{m}</p>)}
             {snap.orders.map((o) => <p key={o} className="text-ink-2"><span className="pill mr-1.5 bg-sunken text-[10px]">Order</span>{o}</p>)}
             {snap.allergies.length > 0 && <p className="text-rec">Allergy: {snap.allergies.join(", ")}</p>}
+          </div>
+        )}
+        {draft.length > 0 && (
+          <div className="mt-6 border-t border-line pt-4" data-testid="live-draft">
+            <button className="flex w-full items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-ink-4" onClick={() => setShowDraft(!showDraft)} data-testid="live-draft-toggle">Live draft <span className="normal-case tracking-normal text-brand">{showDraft ? "Hide" : "Show"}</span></button>
+            {showDraft && draft.map((s) => (
+              <div key={s.title} className="mt-2 text-sm">
+                <p className="text-xs font-semibold text-ink-2">{s.title}</p>
+                {s.lines.map((l, i) => <p key={i} className="text-ink-2">{l}</p>)}
+              </div>
+            ))}
           </div>
         )}
         {!recording && (
