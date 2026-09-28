@@ -129,7 +129,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   const sessionMinutes = Math.round((enc.durationS || (utts.at(-1)?.tEnd ?? 0)) / 60);
   if (!note) note = buildNote(facts, { patient, encounter: enc, template, utterances: utts, minutes: sessionMinutes, startedAt: enc.startedAt });
   else {
-    const special = template.sections.filter((ts) => ["risk", "interventions", "response", "therapy_time", "ed_course", "disposition", "goals", "group_topic", "group_participation", "therapy_services", "therapy_measures", "therapy_eval", "procedure_note", "ob_summary", "ob_warning", "ob_exam", "ob_due", "gdmt", "well_screens", "guidance", "imm_due", "awv", "screening_schedule", "acp", "onc_history", "onc_treatment", "toxicity"].includes(ts.kind));
+    const special = template.sections.filter((ts) => ["risk", "interventions", "response", "therapy_time", "ed_course", "disposition", "goals", "group_topic", "group_participation", "therapy_services", "therapy_measures", "therapy_eval", "procedure_note", "ob_summary", "ob_warning", "ob_exam", "ob_due", "gdmt", "well_screens", "guidance", "imm_due", "awv", "screening_schedule", "acp", "msk_exam", "skin_exam", "onc_history", "onc_treatment", "toxicity"].includes(ts.kind));
     if (special.length) {
       const { buildSection } = await import("../engine/note");
       const ctx = { patient, encounter: enc, template, utterances: utts, minutes: sessionMinutes, startedAt: enc.startedAt };

@@ -110,6 +110,8 @@ export type SectionKind =
   | "awv"
   | "screening_schedule"
   | "acp"
+  | "msk_exam"
+  | "skin_exam"
   | "onc_history"
   | "onc_treatment"
   | "toxicity"

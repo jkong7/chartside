@@ -369,6 +369,33 @@ export const SYSTEM_TEMPLATES: Template[] = [
     ],
   },
   {
+    id: "ortho_visit",
+    userId: null,
+    name: "Orthopedic / sports medicine visit",
+    specialty: "Orthopedics",
+    description: "Mechanism and history, range of motion and strength, special tests with results and side, neurovascular status, imaging, and any injection.",
+    style: { verbosity: "standard" },
+    sections: [
+      { key: "hpi", title: "History of Present Illness", kind: "hpi", format: "paragraph" },
+      { key: "msk", title: "Musculoskeletal Exam", kind: "msk_exam", format: "bullets" },
+      { key: "results", title: "Imaging", kind: "results", format: "bullets" },
+      { key: "ap", title: "Assessment & Plan", kind: "assessment_plan", format: "bullets" },
+    ],
+  },
+  {
+    id: "derm_visit",
+    userId: null,
+    name: "Dermatology visit",
+    specialty: "Dermatology",
+    description: "Lesion descriptions with size, color, morphology, and location, ABCDE flags for pigmented lesions, and biopsies or destruction with counts.",
+    style: { verbosity: "standard" },
+    sections: [
+      { key: "hpi", title: "History of Present Illness", kind: "hpi", format: "paragraph" },
+      { key: "skin", title: "Skin Exam", kind: "skin_exam", format: "bullets" },
+      { key: "ap", title: "Assessment & Plan", kind: "assessment_plan", format: "bullets" },
+    ],
+  },
+  {
     id: "peds_acute",
     userId: null,
     name: "Pediatric sick visit",

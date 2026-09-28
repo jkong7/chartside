@@ -3,6 +3,7 @@ import type { Facts, MedFact, ProblemFact, SymptomFact } from "./extract";
 import { assessRisk, goalSentences, interventionSentences, psychotherapyCode, psychotherapyMinutes, responseSentences, riskSentences } from "./behavioral";
 import { edCourse, edDisposition } from "./ed";
 import { groupTopic } from "./group";
+import { extractLesions, extractMsk, lesionSentences, mskSentences } from "./exam";
 import { acpSentences, awvReview, awvSentences, scheduleSentences, screeningSchedule } from "./awv";
 import { guidanceSentences, screenSentences, wellChild } from "./wellchild";
 import { ageInMonths, dueLabel, immunizationGaps } from "./immunizations";
@@ -580,6 +581,12 @@ export function buildSection(ts: TemplateSection, facts: Facts, ctx: NoteContext
       else sentences = ctx.patient ? scheduleSentences(screeningSchedule(ageFrom(ctx.patient.dob, new Date(ctx.encounter.scheduledAt)), ctx.patient.sex, ctx.patient.chart, new Date(ctx.encounter.scheduledAt)), ts.key) : [];
       break;
     }
+    case "msk_exam":
+      sentences = mskSentences(extractMsk(ctx.utterances ?? []), ts.key);
+      break;
+    case "skin_exam":
+      sentences = lesionSentences(extractLesions(ctx.utterances ?? []), ts.key);
+      break;
     case "procedure_note":
       sentences = procedureSentences(extractProcedures(ctx.utterances ?? []), ts.key);
       break;
