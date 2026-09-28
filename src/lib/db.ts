@@ -334,6 +334,27 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS encounter_shares (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  encounter_id TEXT NOT NULL REFERENCES encounters(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  user_id TEXT,
+  email TEXT,
+  access TEXT NOT NULL DEFAULT 'view',
+  token_hash TEXT,
+  code_hash TEXT,
+  code_expires_at TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  verified_at TEXT,
+  expires_at TEXT,
+  revoked_at TEXT,
+  views INTEGER NOT NULL DEFAULT 0,
+  last_viewed_at TEXT,
+  message TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS group_sessions (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,
@@ -526,6 +547,7 @@ CREATE TABLE IF NOT EXISTS ehr_connections (
 `;
 
 const INDEXES = [
+  "CREATE INDEX IF NOT EXISTS encounter_shares_enc ON encounter_shares(encounter_id)",
   "CREATE INDEX IF NOT EXISTS ed_visits_org ON ed_visits(org_id, status, arrived_at)",
   "CREATE INDEX IF NOT EXISTS utterances_enc ON utterances(encounter_id, seq)",
   "CREATE INDEX IF NOT EXISTS notes_enc ON notes(encounter_id, version)",

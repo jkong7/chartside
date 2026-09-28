@@ -84,6 +84,25 @@ export async function notifyPatient(u: User | null, input: { orgId: string; pati
   return { id, status, channel, to: channel === "sms" ? to.replace(/\d(?=\d{4})/g, "•") : to.replace(/^(.).*(@.*)$/, "$1•••$2"), error };
 }
 
+export async function sendOrgEmail(input: { orgId: string; to: string; subject: string; body: string; kind: string; encounterId?: string | null; actorId?: string | null }) {
+  const org = (await orgs.get(input.orgId))?.name ?? "Chartside";
+  const provider = providers().email;
+  let status: "sent" | "failed" | "unconfigured" = "unconfigured";
+  let providerId: string | null = null;
+  let error: string | null = null;
+  if (provider) {
+    try {
+      providerId = await sendEmail(input.to, input.subject, input.body, org);
+      status = "sent";
+    } catch (err) {
+      status = "failed";
+      error = err instanceof Error ? err.message : "Delivery failed";
+    }
+  } else error = "No email provider is configured";
+  await run("INSERT INTO outbox (id, org_id, patient_id, encounter_id, kind, channel, recipient, subject, body, status, provider, provider_id, error, created_by, created_at) VALUES (?, ?, NULL, ?, ?, 'email', ?, ?, ?, ?, ?, ?, ?, ?, ?)", uid("out_"), input.orgId, input.encounterId ?? null, input.kind, input.to, input.subject, input.kind === "share_code" ? input.body.replace(/\b\d{6}\b/g, "••••••") : input.body, status, provider, providerId, error, input.actorId ?? null, now());
+  return { status, error };
+}
+
 export async function outboxFor(u: User, patientId?: string) {
   return all<{ id: string; kind: string; channel: string; recipient: string; status: string; error: string | null; created_at: string; encounter_id: string | null }>(`SELECT id, kind, channel, recipient, status, error, created_at, encounter_id FROM outbox WHERE org_id = ? ${patientId ? "AND patient_id = ?" : ""} ORDER BY created_at DESC LIMIT 100`, ...(patientId ? [u.orgId, patientId] : [u.orgId]));
 }

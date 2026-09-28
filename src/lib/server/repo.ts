@@ -107,6 +107,7 @@ export interface OrgSettings {
   shareTemplates?: boolean;
   appsRequireCosign?: boolean;
   aiDisclosure?: boolean;
+  sharing?: { external?: boolean };
   billing?: Partial<import("../rcm/reference").BillingSettings>;
 }
 
@@ -348,7 +349,7 @@ const toEncounter = (r: EncounterRow): EncounterWithClinician => ({
 });
 
 function encounterScope(u: User) {
-  return SEES_ORG.has(u.role) ? { sql: "e.org_id = ?", params: [u.orgId] } : { sql: "e.org_id = ? AND (e.user_id = ? OR e.user_id IN (SELECT sm.user_id FROM memberships sm WHERE sm.org_id = ? AND sm.supervisor_id = ?))", params: [u.orgId, u.id, u.orgId, u.id] };
+  return SEES_ORG.has(u.role) ? { sql: "e.org_id = ?", params: [u.orgId] } : { sql: "e.org_id = ? AND (e.user_id = ? OR e.user_id IN (SELECT sm.user_id FROM memberships sm WHERE sm.org_id = ? AND sm.supervisor_id = ?) OR e.id IN (SELECT es.encounter_id FROM encounter_shares es WHERE es.kind = 'member' AND es.access = 'edit' AND es.user_id = ? AND es.revoked_at IS NULL))", params: [u.orgId, u.id, u.orgId, u.id, u.id] };
 }
 
 export const encounters = {
