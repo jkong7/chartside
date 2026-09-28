@@ -49,11 +49,18 @@ Chartside covers the work around the note that enterprise scribes compete on. Th
 | **Calculators and evidence** | eGFR (CKD-EPI 2021), CHA₂DS₂-VASc, HAS-BLED, CURB-65, Centor, Wells PE, PHQ-9, PHQ-2, GAD-7, BMI, and pediatric dosing, prefilled from the chart and inserted with citations. Guideline questions are answered from an offline USPSTF, ADA, CDC/ACIP, ACC/AHA, KDIGO, GINA, AAP, and IDSA library with sources. |
 | **Hospital** (`/hospital`) | Census, admission H&P, daily progress notes that open with what changed since yesterday and carry forward unaddressed problems for verification, an auto-built hospital course, a discharge summary with medication reconciliation and pending results, I-PASS handoff, and hospital E/M codes (99221–99239, POS 21). |
 | **Nursing** | A nurse role, spoken assessments turned into flowsheet rows for review and filing, a rolling pending-care list, a shift summary, and questions over the shift's documentation. |
-| **Behavioral health** | Psychotherapy, DAP, and BIRP templates, interventions and response from the session, a C-SSRS-style risk assessment that blocks signing when suicidal ideation is disclosed without plan, intent, means, history, and a safety plan, psychotherapy time codes (90832–90838, 90791), and restricted handling (FHIR `R` confidentiality, no transcript on the patient page, no retained audio). |
+| **Emergency department** (`/ed`) | Track board with ESI acuity, beds, door-to-provider and length-of-stay metrics, LWBS, and boarding flags. Picking up a patient starts an ED note with a timed course of re-evaluations, a disposition heard from the conversation, critical care time (99291/99292), ED E/M (99281–99285), POS 23, and one-click admission to the hospital census. |
+| **Oncology** | Stage and TNM, biomarkers, regimen, cycle, intent and line of therapy, ECOG (stated or inferred and flagged), CTCAE v5.0 toxicity grades from the conversation and labs, and the treatment decision (proceed, hold, dose reduction, growth factor, switch). Chemotherapy toxicity monitoring codes as high-risk MDM with manifestation codes plus T45.1X5A, and each signed visit updates the patient's lines of therapy and toxicity-by-cycle grid. |
+| **Behavioral health** | Psychotherapy, DAP, BIRP, and GIRP templates, psychiatric E/M with psychotherapy add-ons (90833/90836/90838) from separately documented time, group therapy (one recording split into per-member notes that never name other members, billed 90853 each), interventions and response from the session, a C-SSRS-style risk assessment that blocks signing when suicidal ideation is disclosed without plan, intent, means, history, and a safety plan, psychotherapy time codes (90832–90838, 90791), and restricted handling (FHIR `R` confidentiality, no transcript on the patient page, no retained audio). |
 | **Outside records** | Upload a C-CDA, text PDF, or pasted note. Problems, medications, allergies, results, vitals, and plans are shown as new, changed, or already charted, and only what you accept is added, labeled as outside data. |
 | **Scheduling** | Import a clinic day pasted from an EHR schedule screen or a CSV, with patient matching by MRN or name and DOB, and book follow-ups from a queue with calendar invites. |
 | **Telehealth** | Share the video visit tab: the clinician's microphone and the patient's side are recorded on separate channels, so speaker attribution is exact in live captions and the final transcript. |
 | **Note QA** (`/qa`) | Trust metrics by clinician (unedited-sign rate, edited lines, most-edited sections), a sampled review queue scored against a rubric, and engine regression cases saved from real visits. |
+| **Rehab therapy** | PT and OT daily notes and evaluations: interventions with minutes, objective measures, evaluation complexity (97161–97168), and units by the CMS 8-minute rule for Medicare or per service for other payers, billed with GP or GO and no E/M. |
+| **Social needs** | Food, housing, transportation, utilities, cost-related medication underuse, unemployment, and isolation heard in the visit become Z-codes (Z59.x, Z91.120, Z56.0, Z60.2), count as "treatment limited by social determinants" in MDM risk when they change the plan, and open a community-resources task. |
+| **Sharing** | Share a visit with a colleague (view or edit) or with an outside clinician by email. External links open only after a one-time code sent to that address, are view only, expire, can be revoked, and log every view. Behavioral health notes can't leave the organization, and admins can turn external sharing off. |
+| **Research** (`/research`) | Admins enter their studies' criteria (age, sex, diagnoses, lab thresholds, exclusions). Each visit is pre-screened, possible matches show what still needs confirming, and a referral opens a task for the study team. |
+| **Long visits** | Recordings stop at a configurable cap (`CHARTSIDE_MAX_RECORDING_MIN`, default 120) with a 30-minute warning, and notes stuck drafting after a crash are recovered automatically. |
 | **Chrome extension** (`extension/`) | Side panel with today's notes beside any web EHR, section copy, and one-click push into EHR fields mapped by pointing at them once. |
 
 ## Platform and security
@@ -230,15 +237,17 @@ Optional configuration is in `.env.example`: `ANTHROPIC_API_KEY`, `CHARTSIDE_MOD
 ## Tests
 
 ```bash
-npm test               # 161 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
+npm test               # 195 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
                        # org scoping, RBAC, admin rules, OIDC token verification, SSO provisioning, Claude + Deepgram (mock servers),
                        # official code sets (hash verification, DOS release selection, pricing, HCC V28), diagnosis review, Medicare rules,
                        # NCCI/MUE/LCD logic, the claim lifecycle, co-signature and addenda, inbox triage and drafts, dictation grammar,
                        # snippets, letters and PDF output, eCQMs, calculators (published reference values), evidence retrieval, inpatient
                        # notes and hospital coding, nursing flowsheets, public API and signed webhooks, TOTP (RFC 6238 vectors), SCIM,
-                       # behavioral health risk assessment, outside records (C-CDA, PDF), schedule import, note QA, and telehealth channels
+                       # behavioral health risk assessment, outside records (C-CDA, PDF), schedule import, note QA, telehealth channels,
+                       # ED course and disposition, oncology staging and CTCAE grading, group therapy attribution, psychotherapy add-ons,
+                       # SDOH Z-codes, visit sharing and one-time codes, research pre-screening, and the 8-minute rule
 npm run codesets:build # re-download and rebuild the official code sets (verifies pinned hashes)
-npm run test:e2e       # 48 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR and OIDC servers, and a fake microphone
+npm run test:e2e       # 60 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR, OIDC, and SendGrid servers, and a fake microphone
 npm run test:pg        # both suites against Postgres (DATABASE_URL must point at a disposable database)
 npm run typecheck
 ```
@@ -246,7 +255,8 @@ npm run typecheck
 The end-to-end suite covers:
 - co-signature, addenda, inbox and patient messaging, dictation and voice commands, letters, quality gaps, calculators,
   hospital rounds and discharge, nursing, developers API and webhooks, two-step verification, behavioral health,
-  outside records, scheduling, note QA, telehealth, and the Chrome extension's field filling
+  outside records, scheduling, note QA, telehealth, the Chrome extension's field filling, the ED track board, an oncology
+  treatment visit, group therapy, external sharing with an emailed code, research pre-screening, and a PT daily note
 - auth
 - a full ambient visit from consent to signed FHIR export
 - transcript redaction with redraft
