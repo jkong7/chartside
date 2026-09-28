@@ -98,6 +98,7 @@ export type SectionKind =
   | "therapy_services"
   | "therapy_measures"
   | "therapy_eval"
+  | "procedure_note"
   | "onc_history"
   | "onc_treatment"
   | "toxicity"
@@ -288,6 +289,7 @@ export interface CodingResult {
   risk?: RiskSummary;
   reference?: { label: string; version: string }[];
   psychotherapyAddOn?: { code: string; minutes: number; evidence: string[] };
+  procedures?: { procedures: import("./engine/procedures").ProcedureLine[]; drugs: import("./engine/procedures").DrugLine[] };
   therapy?: { discipline: "PT" | "OT" | "SLP"; evalCode: string | null; services: { cpt: string; label: string; minutes: number | null; timed: boolean; bundled: boolean; evidence: string[] }[] };
 }
 

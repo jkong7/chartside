@@ -3,6 +3,7 @@ import type { Facts, MedFact, ProblemFact, SymptomFact } from "./extract";
 import { assessRisk, goalSentences, interventionSentences, psychotherapyCode, psychotherapyMinutes, responseSentences, riskSentences } from "./behavioral";
 import { edCourse, edDisposition } from "./ed";
 import { groupTopic } from "./group";
+import { extractProcedures, procedureSentences } from "./procedures";
 import { EVALS, extractTherapy, measureSentences, serviceSentences } from "./therapy";
 import { extractOncology, oncologyHistorySentences, toxicitySentences, treatmentSentences } from "./oncology";
 import { NORMAL_EXAM, type RosSystem } from "./lexicon";
@@ -533,6 +534,9 @@ export function buildSection(ts: TemplateSection, facts: Facts, ctx: NoteContext
       }
       break;
     }
+    case "procedure_note":
+      sentences = procedureSentences(extractProcedures(ctx.utterances ?? []), ts.key);
+      break;
     case "custom":
       sentences = [];
       break;

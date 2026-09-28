@@ -123,6 +123,20 @@ export const SERVICE_SUMMARY: Record<string, string> = {
   "97035": "Ultrasound, each 15 minutes",
   "97014": "Electrical stimulation, unattended",
   "97010": "Hot or cold packs (bundled)",
+  "20600": "Arthrocentesis/injection, small joint", "20604": "Arthrocentesis/injection, small joint, with ultrasound",
+  "20605": "Arthrocentesis/injection, intermediate joint", "20606": "Arthrocentesis/injection, intermediate joint, with ultrasound",
+  "20610": "Arthrocentesis/injection, major joint", "20611": "Arthrocentesis/injection, major joint, with ultrasound",
+  "11102": "Tangential biopsy of skin, single lesion", "11103": "Tangential biopsy, each additional lesion",
+  "11104": "Punch biopsy of skin, single lesion", "11105": "Punch biopsy, each additional lesion",
+  "11106": "Incisional biopsy of skin, single lesion", "11107": "Incisional biopsy, each additional lesion",
+  "17000": "Destruction of premalignant lesion, first", "17003": "Destruction of premalignant lesions, 2 to 14, each", "17004": "Destruction of premalignant lesions, 15 or more",
+  "17110": "Destruction of benign lesions, up to 14", "17111": "Destruction of benign lesions, 15 or more",
+  "12001": "Simple repair, 2.5 cm or less", "12002": "Simple repair, 2.6 to 7.5 cm", "12004": "Simple repair, 7.6 to 12.5 cm", "12005": "Simple repair, 12.6 to 20 cm",
+  "12011": "Simple repair of face, 2.5 cm or less", "12013": "Simple repair of face, 2.6 to 5 cm", "12014": "Simple repair of face, 5.1 to 7.5 cm", "12015": "Simple repair of face, 7.6 to 12.5 cm",
+  "10060": "Incision and drainage of abscess, simple", "10061": "Incision and drainage of abscess, complicated",
+  "69209": "Cerumen removal by irrigation", "69210": "Cerumen removal with instrumentation",
+  "96372": "Therapeutic injection, SC or IM",
+  J3301: "Triamcinolone acetonide, per 10 mg", J1030: "Methylprednisolone acetate, 40 mg", J1885: "Ketorolac, per 15 mg", J0696: "Ceftriaxone, per 250 mg", J3420: "Vitamin B-12, up to 1000 mcg", J1100: "Dexamethasone sodium phosphate, 1 mg",
   "90832": "Psychotherapy, 30 minutes (16 to 37)",
   "90834": "Psychotherapy, 45 minutes (38 to 52)",
   "90837": "Psychotherapy, 60 minutes (53 or more)",
@@ -178,6 +192,9 @@ const FALLBACK_CHARGE: Record<string, number> = {
   "90656": 24, "90715": 40, "90750": 196, "90677": 254, "91320": 128, "90471": 25, "90472": 13, "90480": 45, G0008: 34, G0009: 34, G0010: 34,
   "96127": 5, "99406": 15,
   "97161": 101, "97162": 101, "97163": 101, "97164": 70, "97165": 104, "97166": 104, "97167": 104, "97168": 71,
+  "20600": 56, "20604": 75, "20605": 58, "20606": 80, "20610": 63, "20611": 92, "11102": 100, "11103": 55, "11104": 125, "11105": 65, "11106": 150, "11107": 75,
+  "17000": 68, "17003": 5, "17004": 145, "17110": 110, "17111": 132, "12001": 105, "12002": 120, "12004": 145, "12005": 175, "12011": 115, "12013": 125, "12014": 145, "12015": 170,
+  "10060": 125, "10061": 215, "69209": 15, "69210": 48, "96372": 15, J3301: 2, J1030: 5, J1885: 1, J0696: 1, J3420: 1, J1100: 1,
   "97110": 29, "97112": 34, "97116": 29, "97140": 26, "97530": 36, "97535": 32, "97035": 12, "97014": 12, "97010": 0,
 };
 
@@ -303,6 +320,17 @@ export function buildClaim(facts: Facts, coding: CodingResult, ctx: BillingConte
   } else if (!wellness || problemsAddressed.length) {
     emLine = line(coding.em.code, "em", coding.em.code === "90853" ? "Group psychotherapy" : /^908/.test(coding.em.code) ? `Psychotherapy by session time (${ctx.minutes} min)` : `${coding.em.level} MDM (${coding.em.patientType} patient)`, [...coding.em.problems.evidence, ...coding.em.risk.evidence].slice(0, 6), problemDx.length ? problemDx : ["A"], telehealth ? ["95"] : []);
     lines.push(emLine);
+  }
+
+  const proc = coding.procedures;
+  if (proc && !therapy) {
+    const ptrs = problemDx.length ? problemDx : ["A"];
+    for (const p of proc.procedures) {
+      lines.push(line(p.cpt, "procedure", `${p.label}${p.site ? `, ${p.site}` : ""}`, p.evidence, ptrs, p.laterality ? [p.laterality] : []));
+      if (p.addOn) lines.push(line(p.addOn.cpt, "procedure", p.addOn.label, p.evidence, ptrs, [], p.addOn.units));
+    }
+    for (const d of proc.drugs) lines.push(line(d.hcpcs, "procedure", `${d.label} ${d.dose}`, d.evidence, ptrs, [], d.units));
+    if (emLine && proc.procedures.length) emLine.modifiers = Array.from(new Set([...emLine.modifiers, "25"]));
   }
 
   if (emLine && coding.psychotherapyAddOn) lines.push(line(coding.psychotherapyAddOn.code, "addon", `Psychotherapy ${coding.psychotherapyAddOn.minutes} min with E/M, time separate from E/M`, coding.psychotherapyAddOn.evidence, emLine.pointers.slice(0, 1)));

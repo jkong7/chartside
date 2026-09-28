@@ -10,6 +10,7 @@ import { buildReferralLetters } from "../engine/letter";
 import { ALL_PARTY_STATES, DISCLOSURE_STATES, STATE_NAMES } from "../engine/lexicon";
 import { buildNote, therapyDiscipline, therapyEvaluation } from "../engine/note";
 import { extractTherapy } from "../engine/therapy";
+import { extractProcedures } from "../engine/procedures";
 import { stageOrders } from "../engine/orders";
 import { applyStyle, learnFromEdits } from "../engine/style";
 import { buildPatientSummary } from "../engine/summary";
@@ -124,7 +125,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   const sessionMinutes = Math.round((enc.durationS || (utts.at(-1)?.tEnd ?? 0)) / 60);
   if (!note) note = buildNote(facts, { patient, encounter: enc, template, utterances: utts, minutes: sessionMinutes, startedAt: enc.startedAt });
   else {
-    const special = template.sections.filter((ts) => ["risk", "interventions", "response", "therapy_time", "ed_course", "disposition", "goals", "group_topic", "group_participation", "therapy_services", "therapy_measures", "therapy_eval", "onc_history", "onc_treatment", "toxicity"].includes(ts.kind));
+    const special = template.sections.filter((ts) => ["risk", "interventions", "response", "therapy_time", "ed_course", "disposition", "goals", "group_topic", "group_participation", "therapy_services", "therapy_measures", "therapy_eval", "procedure_note", "onc_history", "onc_treatment", "toxicity"].includes(ts.kind));
     if (special.length) {
       const { buildSection } = await import("../engine/note");
       const ctx = { patient, encounter: enc, template, utterances: utts, minutes: sessionMinutes, startedAt: enc.startedAt };
@@ -134,6 +135,13 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   if (enc.admissionId) {
     const { inpatientNote } = await import("./inpatient");
     note = await inpatientNote(user, enc, facts, patient, note);
+  }
+  const procs = extractProcedures(utts);
+  if (procs.procedures.length && !template.sections.some((s) => s.kind === "procedure_note")) {
+    const { buildSection } = await import("../engine/note");
+    const sec = buildSection({ key: "procedure", title: "Procedure", kind: "procedure_note", format: "bullets" }, facts, { patient, encounter: enc, template, utterances: utts });
+    const at = note.sections.findIndex((s) => /assessment|plan|^ap$/i.test(s.key));
+    note = { ...note, sections: at >= 0 ? [...note.sections.slice(0, at + 1), sec, ...note.sections.slice(at + 1)] : [...note.sections, sec] };
   }
   note = applyStyle(note, rules);
   note = applyReplacements(note, await vocabulary.replacements(enc.userId, enc.orgId));
@@ -146,7 +154,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   const pediatric = patient ? ageFrom(patient.dob) < 18 : false;
   const priorVisits = (await encounters.list(user, { patientId: enc.patientId ?? "__none__" })).filter((e) => e.id !== enc!.id && e.status === "signed").length;
   const patientType = enc.visitType === "new" || (!patient?.chart.priorVisits?.length && !priorVisits) ? "new" : "established";
-  const coding = await enrichCoding(user, enc, patient, computeCoding(facts, { therapy: therapyContext(template.id, utts, patient), oncology: oncologyContext(template.id, utts, patient), patientType, minutes, chart: patient?.chart, pediatric, hccFor: hccMapper(patient, enc.scheduledAt), psychotherapy: template.id === "bh_group" ? "group" : template.id === "psych_med_mgmt" ? "addon" : template.id.startsWith("bh_") ? "standalone" : template.id === "behavioral" ? "intake" : undefined, psychotherapyMinutes: template.id === "psych_med_mgmt" ? psychotherapyMinutes(utts) : undefined, encounterClass: enc.visitType === "ed" || enc.setting === "ed" ? "ed" : enc.visitType === "inpatient" ? "initial_inpatient" : enc.visitType === "progress" ? "subsequent_inpatient" : enc.visitType === "discharge" ? "discharge" : "office" }), facts);
+  const coding = await enrichCoding(user, enc, patient, computeCoding(facts, { procedures: extractProcedures(utts), therapy: therapyContext(template.id, utts, patient), oncology: oncologyContext(template.id, utts, patient), patientType, minutes, chart: patient?.chart, pediatric, hccFor: hccMapper(patient, enc.scheduledAt), psychotherapy: template.id === "bh_group" ? "group" : template.id === "psych_med_mgmt" ? "addon" : template.id.startsWith("bh_") ? "standalone" : template.id === "behavioral" ? "intake" : undefined, psychotherapyMinutes: template.id === "psych_med_mgmt" ? psychotherapyMinutes(utts) : undefined, encounterClass: enc.visitType === "ed" || enc.setting === "ed" ? "ed" : enc.visitType === "inpatient" ? "initial_inpatient" : enc.visitType === "progress" ? "subsequent_inpatient" : enc.visitType === "discharge" ? "discharge" : "office" }), facts);
   const staged = stageOrders(facts, { chart: patient?.chart, ageYears: patient ? ageFrom(patient.dob) : undefined, now: new Date(enc.scheduledAt) });
   const coverage = computeCoverage(facts, { visitType: enc.visitType });
 

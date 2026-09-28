@@ -1,3 +1,4 @@
+import type { ProcedureFacts } from "./procedures";
 import { EVALS, type Discipline, type TherapyFacts } from "./therapy";
 import { psychotherapyCode } from "./behavioral";
 import type { Chart, CodeSuggestion, CodingResult, MdmElement } from "../types";
@@ -19,6 +20,7 @@ export interface CodingContext {
   psychotherapy?: "standalone" | "intake" | "addon" | "group";
   psychotherapyMinutes?: { minutes: number; evidence: string[] } | null;
   therapy?: { discipline: Discipline; facts: TherapyFacts };
+  procedures?: ProcedureFacts;
   oncology?: { cancer: { code: string; label: string; evidence: string[] } | null; monitoring: string[]; sideEffects: { label: string; code?: string; grade: number; evidence: string[] }[]; progression: string[] | null };
 }
 
@@ -226,6 +228,7 @@ export function computeCoding(facts: Facts, ctx: CodingContext): CodingResult {
   return {
     diagnoses,
     em: { code, level, patientType: ctx.patientType, problems, data, risk, timeBased: tc ? { minutes: ctx.minutes, code: tc } : undefined, auditRisk: { score: Math.max(0, score), direction, notes } },
+    procedures: ctx.procedures?.procedures.length || ctx.procedures?.drugs.length ? { procedures: ctx.procedures.procedures, drugs: ctx.procedures.drugs } : undefined,
     therapy: th ? { discipline: th.discipline, evalCode, services: th.facts.services } : undefined,
     psychotherapyAddOn: ctx.psychotherapy === "addon" && ctx.psychotherapyMinutes && ctx.psychotherapyMinutes.minutes >= 16 ? { code: psychotherapyCode(ctx.psychotherapyMinutes.minutes, true)!, minutes: ctx.psychotherapyMinutes.minutes, evidence: ctx.psychotherapyMinutes.evidence } : undefined,
     hcc,
