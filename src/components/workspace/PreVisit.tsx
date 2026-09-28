@@ -5,6 +5,7 @@ import { api } from "@/lib/client";
 import type { ConsentRecord } from "@/lib/types";
 import { Alert, Mic, Shield } from "../icons";
 import { Spinner } from "../ui";
+import { CareGaps } from "./QualityPanel";
 import type { Bundle } from "./types";
 
 const STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
@@ -86,6 +87,7 @@ export default function PreVisit({ b, onChange, onStart }: { b: Bundle; onChange
     <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 md:px-8 lg:grid-cols-[1fr_380px]">
       <div className="space-y-6">
         <PatientBrief b={b} />
+        <CareGaps quality={b.quality} />
         <div className="card p-5">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-3">Visit settings</h3>
           <div className="mt-3 grid gap-4 sm:grid-cols-3">

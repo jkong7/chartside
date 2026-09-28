@@ -16,17 +16,18 @@ import { AuditPanel, CodesPanel, OrdersPanel, SummaryPanel } from "./Panels";
 import DocumentsPanel from "./DocumentsPanel";
 import PreVisit from "./PreVisit";
 import TasksPanel from "./TasksPanel";
+import QualityPanel from "./QualityPanel";
 import { Addenda, CosignBanner } from "./Signoff";
 import Transcript from "./Transcript";
 import type { Bundle, Highlight } from "./types";
 
-type Tab = "note" | "codes" | "orders" | "tasks" | "billing" | "summary" | "letters" | "audit";
+type Tab = "note" | "codes" | "orders" | "tasks" | "quality" | "billing" | "summary" | "letters" | "audit";
 
 export default function Workspace({ id, initialTab }: { id: string; initialTab?: string }) {
   const [b, setB] = useState<Bundle | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [mode, setMode] = useState<"mic" | "simulate" | "type" | null>(null);
-  const [tab, setTab] = useState<Tab>((["note", "codes", "orders", "tasks", "billing", "summary", "letters", "audit"].includes(initialTab ?? "") ? initialTab : "note") as Tab);
+  const [tab, setTab] = useState<Tab>((["note", "codes", "orders", "tasks", "quality", "billing", "summary", "letters", "audit"].includes(initialTab ?? "") ? initialTab : "note") as Tab);
   const [hl, setHl] = useState<Highlight | null>(null);
   const [active, setActive] = useState<string | null>(null);
   const [signOpen, setSignOpen] = useState(false);
@@ -198,6 +199,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
               { id: "codes", label: "Codes", badge: b.artifacts.coding ? <span className="pill bg-sunken text-[10px]">{b.artifacts.coding.em.code}</span> : null },
               { id: "orders", label: "Orders", badge: staged ? <span className="pill bg-warn-50 text-[10px] text-warn">{staged}</span> : null },
               { id: "tasks", label: "Tasks", badge: b.tasks.filter((t) => t.status === "open").length ? <span className="pill bg-sunken text-[10px]" data-testid="tasks-badge">{b.tasks.filter((t) => t.status === "open").length}</span> : null },
+              { id: "quality", label: "Quality", badge: b.quality.some((q) => q.status === "gap") ? <span className="pill bg-warn-50 text-[10px] text-warn" data-testid="quality-badge">{b.quality.filter((q) => q.status === "gap").length}</span> : null },
               { id: "billing", label: "Billing", badge: b.claim ? <span className={`h-2 w-2 rounded-full ${b.claim.status === "needs_review" ? "bg-warn" : b.claim.status === "on_hold" ? "bg-rec" : "bg-ok"}`} /> : (b.artifacts.priorAuth?.length ? <span className="pill bg-sunken text-[10px]">PA</span> : null) },
               { id: "summary", label: "Patient summary", badge: b.patientFlags.some((f) => !f.resolved) ? <span className="h-2 w-2 rounded-full bg-warn" /> : null },
               { id: "letters", label: "Documents", badge: b.documents.length + (b.artifacts.letters?.length ?? 0) ? <span className="pill bg-sunken text-[10px]" data-testid="documents-badge">{b.documents.length + (b.artifacts.letters?.length ?? 0)}</span> : null },
@@ -243,6 +245,22 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
             {tab === "codes" && <CodesPanel coding={b.artifacts.coding} encounterId={id} locked={locked} onUpdate={() => load()} onCite={(ids) => cite(ids)} />}
             {tab === "orders" && <OrdersPanel encounterId={id} orders={b.orders} locked={locked} onChange={(fn: (o: StagedOrder[]) => StagedOrder[]) => setB((x) => (x ? { ...x, orders: fn(x.orders) } : x))} onCite={(ids) => cite(ids)} />}
             {tab === "tasks" && <TasksPanel encounterId={id} tasks={b.tasks} editable={b.access.edit || b.access.sign} onChange={load} onCite={(ids) => cite(ids)} />}
+            {tab === "quality" && (
+              <QualityPanel
+                encounterId={id}
+                quality={b.quality}
+                locked={locked}
+                onChanged={load}
+                onCite={(ids) => cite(ids)}
+                onInsert={async (text) => {
+                  const cur = b.note!.content;
+                  const ap = cur.sections.find((s) => /assessment|plan|ap/.test(s.key)) ?? cur.sections.filter((s) => s.key !== "__consent").at(-1)!;
+                  const next = { ...cur, sections: cur.sections.map((s) => (s.key === ap.key ? { ...s, sentences: [...s.sentences, { id: `${s.key}_q${Date.now()}`, text, evidence: [], kind: "clinician" as const, support: "strong" as const, edited: true }] } : s)) };
+                  await api(`/encounters/${id}/note`, { method: "PUT", body: { note: next, reason: "quality.inserted" } });
+                  await api(`/encounters/${id}/quality`);
+                }}
+              />
+            )}
             {tab === "billing" && <BillingPanel key={b.claim?.updatedAt ?? "draft"} encounterId={id} record={b.claim} draft={b.artifacts.claim} priorAuth={b.artifacts.priorAuth ?? []} signed={signed} canReview={b.access.billingReview} onCite={(ids) => cite(ids)} />}
             {tab === "summary" && <SummaryPanel b={b} onFlags={load} />}
             {tab === "letters" && <DocumentsPanel encounterId={id} canEdit={b.access.edit} canSign={b.access.sign || b.access.addendum} onCite={(ids) => cite(ids)} />}
@@ -287,7 +305,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
         <p className="mt-3 text-sm text-ink-3">You can review these first, or sign now and take responsibility for the note as written. Unreviewed orders will not be sent.</p>
         <div className="mt-4 flex justify-end gap-2">
           <button className="btn-ghost" onClick={() => setSignOpen(false)}>Review first</button>
-          {!blockers.some((x) => /blocking safety alert/.test(x)) && (
+          {!blockers.some((x) => /blocking safety alert|\*\*\* blanks|co-signature/.test(x)) && (
             <button className="btn-primary" onClick={() => sign(true)} disabled={signing} data-testid="sign-anyway">{signing ? <Spinner /> : <Check />} Sign anyway</button>
           )}
         </div>

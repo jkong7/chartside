@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import { roleLabel, type Role } from "@/lib/roles";
-import { Calendar, Chart, Gear, Inbox, Layout, Logo, Logout, Receipt, Shield, Users } from "./icons";
+import { Calendar, Chart, Check, Gear, Inbox, Layout, Logo, Logout, Receipt, Shield, Users } from "./icons";
 import { Avatar } from "./ui";
 
 const NAV: { href: string; label: string; icon: typeof Calendar; roles?: Role[] }[] = [
@@ -14,6 +14,7 @@ const NAV: { href: string; label: string; icon: typeof Calendar; roles?: Role[] 
   { href: "/patients", label: "Patients", icon: Users },
   { href: "/templates", label: "Templates", icon: Layout, roles: ["owner", "admin", "clinician", "scribe"] },
   { href: "/revenue", label: "Revenue", icon: Receipt, roles: ["owner", "admin", "clinician", "coder", "viewer"] },
+  { href: "/quality", label: "Quality", icon: Check, roles: ["owner", "admin", "clinician", "coder", "viewer"] },
   { href: "/insights", label: "Insights", icon: Chart, roles: ["owner", "admin", "clinician", "viewer"] },
   { href: "/admin", label: "Admin", icon: Shield, roles: ["owner", "admin"] },
   { href: "/settings", label: "Settings", icon: Gear },
