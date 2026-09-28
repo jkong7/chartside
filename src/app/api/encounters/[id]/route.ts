@@ -8,6 +8,7 @@ import type { Encounter } from "@/lib/types";
 import { attestationsFor } from "@/lib/engine/attest";
 import { verifyChain, type Cosign } from "@/lib/server/signoff";
 import { tasks } from "@/lib/server/inbox";
+import { documents } from "@/lib/server/documents";
 
 export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
   const enc = await encounters.get(user, id);
@@ -56,6 +57,7 @@ export const GET = authed<{ id: string }>(async (_req, user, { id }) => {
     claim: claim ?? null,
     addenda: adds,
     tasks: encTasks,
+    documents: (await documents.list(enc.id)).map((d) => ({ id: d.id, status: d.status })),
     chain,
     attestations: cosign ? attestationsFor(cosign.authorCredential).map((a) => ({ key: a.key, label: a.label, modifier: a.modifier, source: a.source, preview: a.text({ supervisor: user.name, author: cosign.authorName }) })) : [],
     clinician: { id: enc.userId, name: clinician?.name ?? "Unknown" },

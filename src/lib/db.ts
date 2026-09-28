@@ -315,6 +315,25 @@ CREATE TABLE IF NOT EXISTS vocabulary (
   replacement TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS documents (
+  id TEXT PRIMARY KEY,
+  encounter_id TEXT NOT NULL REFERENCES encounters(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  fields TEXT NOT NULL DEFAULT '{}',
+  body TEXT NOT NULL,
+  custom INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'draft',
+  shared INTEGER NOT NULL DEFAULT 0,
+  source TEXT NOT NULL DEFAULT 'manual',
+  evidence TEXT NOT NULL DEFAULT '[]',
+  created_by TEXT,
+  signed_by TEXT,
+  signed_at TEXT,
+  ord BIGINT NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ehr_connections (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -343,6 +362,7 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS addenda_enc ON addenda(encounter_id, ord)",
   "CREATE INDEX IF NOT EXISTS tasks_assignee ON tasks(org_id, assignee_id, status)",
   "CREATE UNIQUE INDEX IF NOT EXISTS tasks_enc_key ON tasks(encounter_id, key)",
+  "CREATE INDEX IF NOT EXISTS documents_enc ON documents(encounter_id, ord)",
   "CREATE INDEX IF NOT EXISTS snippets_org ON snippets(org_id, user_id)",
   "CREATE INDEX IF NOT EXISTS vocabulary_org ON vocabulary(org_id, user_id)",
   "CREATE INDEX IF NOT EXISTS messages_assignee ON messages(org_id, assignee_id, status)",

@@ -45,6 +45,7 @@ export interface UserPrefs {
   autoFileEhr?: boolean;
   finalPass?: boolean;
   noteDetail?: "concise" | "standard" | "detailed";
+  autoDocuments?: string[];
 }
 
 export const j = <T>(s: string | null | undefined, fallback: T): T => {

@@ -169,6 +169,8 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   await artifacts.set(enc.id, "priorAuth", buildPriorAuths(facts, coding, savedOrders, paContext(clinician.name, enc, patient)).map((p) => ({ ...p, submission: prevPa.find((x) => x.service === p.service)?.submission ?? p.submission })));
   await encounters.update(user, enc.id, { status: "review", endedAt: enc.endedAt ?? new Date().toISOString() });
   await syncTasks(user, enc);
+  const { autoDocuments } = await import("./documents");
+  await autoDocuments(user, enc);
   const stats = supportStats(note);
   await audit.log(user, enc.id, "note.generated", { engine: note.meta.engine, model: note.meta.model ?? null, template: template.id, ms: Date.now() - started, sentences: stats.total, supportedPct: stats.pct, omissions: omissions.length });
   return { note, warnings };
