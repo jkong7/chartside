@@ -69,6 +69,16 @@ export default function SettingsView({ user, templates, rules: initialRules, eng
 
       <SnippetsCard isAdmin={isAdmin} />
 
+      <div className="card p-5" data-testid="extension-settings">
+        <p className="text-sm font-semibold">Chrome extension for web EHRs</p>
+        <p className="mt-1 text-sm text-ink-2">Keep today&apos;s notes in a side panel next to any browser-based EHR. Copy a section, or teach the extension which EHR field each section belongs in once and push the whole note in one click.</p>
+        <ol className="mt-2 list-decimal space-y-0.5 pl-5 text-sm text-ink-2">
+          <li>Open <span className="kbd">chrome://extensions</span> and turn on Developer mode.</li>
+          <li>Choose Load unpacked and select the <span className="kbd">extension</span> folder of your Chartside install.</li>
+          <li>Open the side panel, enter this Chartside address, and stay signed in here.</li>
+        </ol>
+      </div>
+
       <div className="card p-5" data-testid="engine-settings">
         <p className="text-sm font-semibold">Documentation engine</p>
         {engine.llm ? (

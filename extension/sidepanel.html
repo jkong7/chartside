@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Chartside</title>
+<style>
+:root { --brand: #0f6b5c; --ink: #1d1b16; --ink3: #7a7466; --line: #e6e0d4; --bg: #faf8f3; --surface: #fff; --warn: #a15c07; --ok: #2f7a3e; }
+@media (prefers-color-scheme: dark) { :root { --ink: #eeeae1; --ink3: #a9a293; --line: #3a372f; --bg: #1a1916; --surface: #23221e; } }
+* { box-sizing: border-box; }
+body { margin: 0; font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); background: var(--bg); }
+header { display: flex; align-items: center; gap: 8px; padding: 12px; border-bottom: 1px solid var(--line); }
+header img { width: 22px; height: 22px; }
+header b { font-size: 15px; flex: 1; }
+main { padding: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+button { font: inherit; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 7px; padding: 5px 9px; cursor: pointer; }
+button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+input { font: inherit; width: 100%; border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; background: var(--surface); color: var(--ink); }
+.visit { display: flex; gap: 8px; align-items: center; padding: 8px; border-radius: 8px; cursor: pointer; }
+.visit:hover { background: var(--line); }
+.muted { color: var(--ink3); font-size: 12px; }
+.sec h3 { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; margin: 0 0 4px; color: var(--ink3); display: flex; align-items: center; gap: 6px; }
+.sec h3 span { flex: 1; }
+.sec pre { white-space: pre-wrap; font: inherit; margin: 0; }
+.row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.pill { font-size: 10px; border-radius: 99px; padding: 1px 7px; background: var(--line); }
+.ok { color: var(--ok); } .warn { color: var(--warn); }
+</style>
+</head>
+<body>
+<header><img src="icon.svg" alt="" /><b>Chartside</b><button id="settings" aria-label="Settings">Settings</button></header>
+<main>
+  <div id="setup" class="card" hidden>
+    <p><b>Connect to Chartside</b></p>
+    <p class="muted">Enter your Chartside address, then sign in to Chartside in a tab.</p>
+    <input id="base" placeholder="https://chartside.yourclinic.org" />
+    <p class="row"><button class="primary" id="save">Save</button><a id="open" class="muted" target="_blank">Open Chartside</a></p>
+  </div>
+  <div id="list"></div>
+  <div id="detail" hidden></div>
+</main>
+<script src="lib.js"></script>
+<script src="sidepanel.js"></script>
+</body>
+</html>

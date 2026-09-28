@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Chartside for web EHRs",
+  "version": "1.0.0",
+  "description": "Review today's Chartside notes beside any web EHR, and push each section into the right EHR field.",
+  "permissions": ["sidePanel", "storage", "activeTab", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "action": { "default_title": "Open Chartside" },
+  "icons": { "128": "icon.svg" }
+}
