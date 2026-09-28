@@ -11,6 +11,7 @@ import { Avatar } from "./ui";
 const NAV: { href: string; label: string; icon: typeof Calendar; group: string; roles?: Role[] }[] = [
   { href: "/today", label: "Today", icon: Calendar, group: "Care" },
   { href: "/ed", label: "Emergency", icon: Alert, group: "Care", roles: ["owner", "admin", "clinician", "nurse", "scribe", "viewer"] },
+  { href: "/queue", label: "Sign queue", icon: Shield, group: "Care", roles: ["owner", "admin", "clinician"] },
   { href: "/hospital", label: "Hospital", icon: Bed, group: "Care", roles: ["owner", "admin", "clinician", "nurse", "scribe", "viewer"] },
   { href: "/groups", label: "Groups", icon: Users, group: "Care", roles: ["owner", "admin", "clinician"] },
   { href: "/care-management", label: "Care management", icon: Users, group: "Care", roles: ["owner", "admin", "clinician", "nurse", "coder"] },
