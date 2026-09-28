@@ -59,6 +59,12 @@ Chartside covers the work around the note that enterprise scribes compete on. Th
 | **Visit agenda** | A prioritized checklist in the pre-visit brief built from urgent intake answers, oncology treatment decisions, abnormal results, the last plan, open referrals and tasks, care gaps, and risk-adjustment suspects. Items tick themselves off live as they come up in the conversation. |
 | **Office procedures** | Joint injections and aspirations (with or without ultrasound), shave, punch, and incisional biopsies with add-on lesion counts, cryotherapy of AKs and benign lesions, laceration repairs by length and site, I&D, cerumen removal, and IM injections are captured from what you say, with J-code drug units, RT/LT/50, modifier 25 on the E/M, and a procedure note whose consent and complications lines stay blank until documented. |
 | **Obstetrics** | A prenatal visit template with gestational age from the EDD on the chart, the four warning signs, fundal height and fetal heart rate, preeclampsia symptoms and blood pressure flags, a size/dates check, what is due at this gestational age (GCT, Tdap, Rh immune globulin, GBS), Z34 and Z3A codes, and CPT II 0502F inside the global OB package. |
+| **Ask the chart** | Ask "when was the last colonoscopy?", "A1c trend", or "what did we decide about the eye exam?" on the patient page or in the pre-visit brief. Answers come from the chart, prior signed notes, and outside records with dated citations (restricted notes excluded unless you're on the care team). Claude synthesizes when enabled, with verified citations. |
+| **Pediatrics** | A well-child template on Bright Futures periodicity: developmental, autism, and maternal depression screens, hemoglobin, lead, fluoride varnish, vision and hearing, detected from the visit and billed (96110 x2, 96161, 99188, 99173, 92551), immunizations due, anticipatory guidance covered, and age- and new/established-correct preventive codes (99381 to 99397). |
+| **Medicare AWV** | Required annual wellness visit elements with what's missing, a personalized screening and vaccine schedule (flu by season), advance care planning time, and G0438 or G0439 with G0444 only on subsequent visits and 99497-33. |
+| **Cardiology** | A heart failure follow-up with a four-pillar HFrEF GDMT check: current dose against target, metoprolol tartrate flagged, and holds for potassium, eGFR, blood pressure, and heart rate. |
+| **Transitional care** | Discharge opens a TCM episode with a 2-business-day contact task and a visit deadline. Contact attempts are logged on the patient page, and the follow-up visit is coded 99496 or 99495 when contact, timing, medication reconciliation, and MDM qualify, with the unmet requirement named when they don't. |
+| **Pre-bill CDI** | For each hospital stay: KDIGO AKI, hyponatremia, hypoxia, blood-loss anemia, SIRS, heart failure specificity, and BMI queries with the lab evidence by day and CC/MCC impact, non-leading options including "clinically undetermined", attending answers filed as addenda, and POA indicators. |
 | **Order sets** | One-click bundles (diabetes annual, hypertension, fatigue, chest pain, urinary, adult preventive) plus organization and personal sets saved from a visit's orders. Duplicates are skipped and recent results are noted. |
 | **PDF forms** (`/forms`) | Upload any fillable (AcroForm) PDF, map its fields once (Chartside guesses from field names), and fill it from any visit with editable values and a flattened download. |
 | **Referral loop** | Importing a specialist's consult note closes the matching open referral task. |
@@ -245,7 +251,7 @@ Optional configuration is in `.env.example`: `ANTHROPIC_API_KEY`, `CHARTSIDE_MOD
 ## Tests
 
 ```bash
-npm test               # 211 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
+npm test               # 229 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
                        # org scoping, RBAC, admin rules, OIDC token verification, SSO provisioning, Claude + Deepgram (mock servers),
                        # official code sets (hash verification, DOS release selection, pricing, HCC V28), diagnosis review, Medicare rules,
                        # NCCI/MUE/LCD logic, the claim lifecycle, co-signature and addenda, inbox triage and drafts, dictation grammar,
@@ -256,7 +262,7 @@ npm test               # 211 unit tests: extraction, notes, verification, coding
                        # SDOH Z-codes, visit sharing and one-time codes, research pre-screening, the 8-minute rule, procedures and
                        # J-code units, prenatal gestational age and flags, AcroForm filling, order sets, agenda, and access control
 npm run codesets:build # re-download and rebuild the official code sets (verifies pinned hashes)
-npm run test:e2e       # 65 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR, OIDC, and SendGrid servers, and a fake microphone
+npm run test:e2e       # 70 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR, OIDC, and SendGrid servers, and a fake microphone
 npm run test:pg        # both suites against Postgres (DATABASE_URL must point at a disposable database)
 npm run typecheck
 ```
