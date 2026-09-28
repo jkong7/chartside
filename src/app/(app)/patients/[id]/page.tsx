@@ -34,6 +34,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           <p className="text-sm text-ink-2">{ageFrom(p.dob)}{p.sex} · DOB {p.dob} · MRN {p.mrn}{p.pronouns ? ` · ${p.pronouns}` : ""} · prefers {({ en: "English", es: "Spanish", zh: "Mandarin", vi: "Vietnamese" } as Record<string, string>)[p.language] ?? p.language}</p>
         </div>
         {p.externalSystem && <ResyncButton patientId={p.id} system={systemLabel(p.externalSystem)} />}
+        {["owner", "admin"].includes(user.role) && <Link className="btn-ghost text-sm" href={`/patients/${p.id}/access`} data-testid="access-report">Access report</Link>}
         <StartVisitButton patientId={p.id} />
       </div>
       <div className="mt-6 grid gap-4 md:grid-cols-3">

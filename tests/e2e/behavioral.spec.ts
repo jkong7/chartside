@@ -47,4 +47,13 @@ test("psychotherapy session: risk assessment, interventions, time-based code, re
   const share = await (await patient.request.get(`/api/share/${href.split("/s/")[1]}`)).json();
   expect(share.transcript).toEqual([]);
   await ctx.close();
+
+  await page.goto("/patients");
+  await page.getByRole("link", { name: /Jordan Reyes/ }).first().click();
+  await page.getByTestId("access-report").click();
+  await page.waitForURL("**/access");
+  const rows = page.getByTestId("access-events");
+  await expect(rows).toContainText("Viewed the visit");
+  await expect(rows).toContainText("Signed the note");
+  await expect(rows).toContainText("Exported the note as FHIR");
 });
