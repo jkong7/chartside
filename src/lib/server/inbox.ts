@@ -63,6 +63,8 @@ export const tasks = {
       "INSERT INTO tasks (id, org_id, encounter_id, patient_id, message_id, assignee_id, kind, key, title, detail, due_at, status, evidence, source, created_by, ord, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?)",
       id, t.orgId, t.encounterId ?? null, t.patientId ?? null, t.messageId ?? null, t.assigneeId, t.kind, t.key, t.title, t.detail ?? "", t.dueAt ?? null, JSON.stringify(t.evidence ?? []), t.source, t.createdBy ?? null, nextOrd(), now(),
     );
+    const { emit } = await import("./platform");
+    await emit(t.orgId, "task.created", { taskId: id, kind: t.kind, title: t.title, encounterId: t.encounterId ?? null, patientId: t.patientId ?? null, dueAt: t.dueAt ?? null });
     return id;
   },
   setStatus: (u: User, id: string, status: Task["status"]) => run("UPDATE tasks SET status = ?, completed_by = ?, completed_at = ? WHERE org_id = ? AND id = ?", status, status === "open" ? null : u.id, status === "open" ? null : now(), u.orgId, id),
@@ -190,6 +192,8 @@ export async function receiveMessage(input: { orgId: string; patient: Patient; a
   if (triage.urgency !== "routine") {
     await tasks.create({ orgId: input.orgId, patientId: input.patient.id, messageId: id, assigneeId: input.assigneeId, kind: "callback", key: `msg:${id}`, title: `${triage.urgency === "emergency" ? "Call now" : "Call today"}: ${input.patient.name} (${triage.reasons.join(", ")})`, detail: body.slice(0, 240), dueAt: now(), source: "message" });
   }
+  const { emit } = await import("./platform");
+  await emit(input.orgId, "message.received", { messageId: id, patientId: input.patient.id, urgency: triage.urgency, intent: triage.intent });
   await audit.log(input.actor ?? { id: null, orgId: input.orgId }, input.encounterId ?? null, "message.received", { id, urgency: triage.urgency, intent: triage.intent, channel: input.channel });
   return id;
 }

@@ -171,7 +171,12 @@ export async function claimAction(user: User, encId: string, action: string, opt
     throw new Error("Unknown action");
   }
   history.push({ at, action, note, by: user.name });
-  return claims.save(enc?.userId ?? user.id, encId, status, claim, history, action === "hold" ? note : undefined, lifecycle);
+  const saved = await claims.save(enc?.userId ?? user.id, encId, status, claim, history, action === "hold" ? note : undefined, lifecycle);
+  if (saved.status !== rec.status) {
+    const { emit } = await import("./platform");
+    await emit(user.orgId, "claim.status_changed", { encounterId: encId, from: rec.status, to: saved.status, action, charges: saved.content.totals.charges });
+  }
+  return saved;
 }
 
 function manualRemit(claim: Claim, input: Partial<Remit>, at: string): Remit {

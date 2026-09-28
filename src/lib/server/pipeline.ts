@@ -178,6 +178,8 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   const { qualityFor } = await import("./quality");
   await qualityFor(user, enc);
   const stats = supportStats(note);
+  const { emit } = await import("./platform");
+  await emit(enc.orgId, "note.generated", { encounterId: enc.id, patientId: enc.patientId, engine: note.meta.engine, template: template.id });
   await audit.log(user, enc.id, "note.generated", { engine: note.meta.engine, model: note.meta.model ?? null, template: template.id, ms: Date.now() - started, sentences: stats.total, supportedPct: stats.pct, omissions: omissions.length });
   return { note, warnings };
 }
@@ -262,6 +264,8 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   const finText = JSON.stringify(final.sections.filter((s) => s.key !== "__consent").map((s) => s.sentences.map((x) => x.text)));
   const edited = genText !== finText;
   const editRatio = editDistanceRatio(genText, finText);
+  const { emit } = await import("./platform");
+  await emit(user.orgId, "note.signed", { encounterId: enc.id, patientId: enc.patientId, signedAt, cosignPending: !!cosign });
   await audit.log(user, enc.id, "note.signed", { edited, editRatio, learned: candidates.length, forced: !!opts.force, overrides: blockers });
   await finalizeClaim(user, (await encounters.get(user, enc.id))!);
   await holdClaimForCosign(user, enc.id, cosign);
