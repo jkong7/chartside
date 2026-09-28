@@ -168,6 +168,7 @@ export default function PreVisit({ b, onChange, onStart }: { b: Bundle; onChange
           <p className="mt-1 text-sm text-ink-3">{granted ? "Chartside will listen, transcribe, and track coverage live." : consent ? "Ambient capture is off because the patient declined. Type or dictate your note instead." : "Record consent to enable ambient capture."}</p>
           <div className="mt-4 space-y-2">
             <button className="btn-danger w-full py-2.5" disabled={!granted} onClick={() => onStart("mic")} data-testid="start-mic"><Mic /> Start listening</button>
+            {b.encounter.setting === "telehealth" && <p className="text-xs text-ink-3" data-testid="telehealth-hint">Telehealth: when asked, share the video visit tab and turn on Share tab audio. Your microphone and the patient&apos;s side are recorded on separate channels, so speakers are never mixed up.</p>}
             <button className="btn-outline w-full" disabled={!granted} onClick={() => onStart("simulate")} data-testid="start-simulate">Play demo conversation</button>
             <button className="btn-ghost w-full" disabled={!consent} onClick={() => onStart("type")} data-testid="start-type">{granted ? "Type or paste the conversation" : "Document manually"}</button>
           </div>

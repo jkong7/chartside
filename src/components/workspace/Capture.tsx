@@ -208,6 +208,8 @@ export default function Capture({ b, initialMode, onFinished }: { b: Bundle; ini
     [enc.id, live, mode, startBrowserCaptions, stopCaptions],
   );
 
+  const [tabCapture] = useState(true);
+  const [dual, setDual] = useState(false);
   const setCaptureRef = useRef(setCapture);
   setCaptureRef.current = setCapture;
   const finishRef = useRef<() => void>(() => undefined);
@@ -227,7 +229,7 @@ export default function Capture({ b, initialMode, onFinished }: { b: Bundle; ini
       }
       if (cancelled) return;
       const c = new AudioCapture(
-        { encounterId: enc.id, offset: elapsedRef.current, live: liveCfg, patientName: b.patient?.name },
+        { encounterId: enc.id, offset: elapsedRef.current, live: liveCfg, patientName: b.patient?.name, telehealth: enc.setting === "telehealth" && tabCapture },
         {
           onStatus: (s, detail) => {
             setCap(s);
@@ -253,12 +255,14 @@ export default function Capture({ b, initialMode, onFinished }: { b: Bundle; ini
         setMode("type");
         return;
       }
+      setDual(c.dualChannel);
+      if (enc.setting === "telehealth") await api(`/encounters/${enc.id}`, { method: "PATCH", body: { captureMode: c.dualChannel ? "dual" : "single" } }).catch(() => undefined);
       if (!liveCfg) startBrowserCaptions();
     })();
     return () => {
       cancelled = true;
     };
-  }, [mode, status, b.speech, b.patient, enc.id, post, startBrowserCaptions]);
+  }, [mode, status, b.speech, b.patient, enc.id, enc.setting, tabCapture, post, startBrowserCaptions]);
 
   useEffect(() => {
     return () => {
@@ -412,6 +416,7 @@ export default function Capture({ b, initialMode, onFinished }: { b: Bundle; ini
         {mode === "mic" && (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line bg-paper px-5 py-2 text-xs text-ink-3" data-testid="recording-health">
             <span className="flex items-center gap-1.5"><Mic size={12} /> {cap === "recording" ? "Recording audio" : cap === "paused" ? "Audio paused" : cap === "interrupted" ? "Audio interrupted" : cap === "starting" ? "Starting microphone…" : cap === "stopped" ? "Audio saved" : "Microphone"}</span>
+            {enc.setting === "telehealth" && <span className={dual ? "font-medium text-ok" : "text-ink-3"} data-testid="dual-channel">{dual ? "Telehealth: your mic and the visit tab on separate channels" : "Telehealth: microphone only"}</span>}
             <span data-testid="chunks-saved">{queue.uploaded} chunk{queue.uploaded === 1 ? "" : "s"} saved{queue.pending ? ` · ${queue.pending} waiting to upload` : ""}</span>
             {!queue.online && <span className="font-medium text-warn">Offline: audio is buffered on this device</span>}
             {queue.lastError && queue.online && <span className="text-warn">Retrying upload…</span>}

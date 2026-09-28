@@ -83,7 +83,8 @@ export const PATCH = authed<{ id: string }>(async (req, user, { id }) => {
   const enc = await encounters.get(user, id);
   if (!enc) return fail("Encounter not found", 404);
   assertCan(user, "clinical.capture");
-  const b = await body<Partial<Encounter> & { action?: "start" | "pause" | "resume" | "reset"; manual?: boolean }>(req);
+  const b = await body<Partial<Encounter> & { action?: "start" | "pause" | "resume" | "reset"; manual?: boolean; captureMode?: "single" | "dual" }>(req);
+  if (b.captureMode) await artifacts.set(enc.id, "capture", { mode: b.captureMode === "dual" ? "dual" : "single", at: new Date().toISOString() });
   const patch: Partial<Encounter> = {};
   for (const k of ["reason", "visitType", "templateId", "setting", "inputLang", "outputLang", "patientId"] as const) if (b[k] !== undefined) (patch as Record<string, unknown>)[k] = b[k];
   if (b.action === "start") {

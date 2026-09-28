@@ -43,7 +43,7 @@ export async function recordConsent(user: User, enc: Encounter, input: { decisio
   const when = new Date().toISOString();
   const statement =
     input.decision === "granted"
-      ? `${input.method === "verbal" ? "Verbal" : input.method === "written" ? "Written" : "Patient-device"} consent for AI-assisted documentation was obtained by ${user.name} at ${when} using consent script ${CONSENT_SCRIPT_VERSION}. Visit location: ${stateName}${allParty ? " (all-party consent state" + (input.othersPresent ? "; all parties present consented" : "") + ")" : ""}.`
+      ? `${input.method === "verbal" ? "Verbal" : input.method === "written" ? "Written" : "Patient-device"} consent for AI-assisted documentation was obtained by ${user.name} at ${when} using consent script ${CONSENT_SCRIPT_VERSION}. ${enc.setting === "telehealth" ? "Telehealth visit; patient located in" : "Visit location:"} ${stateName}${allParty ? " (all-party consent state" + (input.othersPresent ? "; all parties present consented" : "") + ")" : ""}.`
       : `Patient declined AI-assisted documentation at ${when}. No audio was captured; documentation will be completed manually.`;
   const digest = createHash("sha256").update(JSON.stringify({ enc: enc.id, user: user.id, ...input, statement, script: CONSENT_SCRIPT_VERSION })).digest("hex");
   const rec = await consents.add({ encounterId: enc.id, userId: user.id, decision: input.decision, method: input.method, state: input.state, allParty, othersPresent: input.othersPresent, scriptVersion: CONSENT_SCRIPT_VERSION, statement, digest });
