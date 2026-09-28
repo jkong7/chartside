@@ -34,6 +34,12 @@ export default defineConfig({
       env: { MOCK_DG_PORT: "3299" },
     },
     {
+      command: "node tests/e2e/mock-mllp.mjs",
+      port: 3294,
+      reuseExistingServer: false,
+      env: { MOCK_MLLP_PORT: "3294" },
+    },
+    {
       command: "node tests/e2e/mock-mail.mjs",
       url: "http://localhost:3295/stats",
       reuseExistingServer: false,

@@ -1,5 +1,6 @@
 "use client";
 
+import Hl7Settings from "./Hl7Settings";
 import { useCallback, useEffect, useState } from "react";
 import { api, copyText } from "@/lib/client";
 import { Copy, Plus, Refresh, X } from "./icons";
@@ -119,6 +120,7 @@ export default function DevelopersPanel() {
           </tbody>
         </table>
       </section>
+      <Hl7Settings />
     </div>
   );
 }
