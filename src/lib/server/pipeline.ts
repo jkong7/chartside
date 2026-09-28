@@ -22,6 +22,7 @@ import { buildPriorAuths } from "../engine/priorauth";
 import { enrichCoding, hccMapper, payerFor, referenceFor } from "./rcm";
 import { canSign, Forbidden } from "./policy";
 import { syncTasks } from "./inbox";
+import { applyReplacements, vocabulary } from "./snippets";
 import { cosignPlan, documentText, holdClaimForCosign, recordSignature } from "./signoff";
 import { addenda, artifacts, audit, claims, consents, encounters, notes, orders, patients, styleRules, templates, utterances, users, type User } from "./repo";
 
@@ -83,11 +84,14 @@ export interface ProcessResult {
   warnings: string[];
 }
 
-export async function processEncounter(user: User, encId: string, opts: { templateId?: string; engine?: "local" | "auto" } = {}): Promise<ProcessResult> {
+export async function processEncounter(user: User, encId: string, opts: { templateId?: string; engine?: "local" | "auto"; detail?: "concise" | "standard" | "detailed" } = {}): Promise<ProcessResult> {
   let enc = await encounters.get(user, encId);
   if (!enc) throw new Error("Encounter not found");
   if (opts.templateId && opts.templateId !== enc.templateId) enc = (await encounters.update(user, encId, { templateId: opts.templateId }))!;
-  const template = await templateFor(user, enc);
+  const base = await templateFor(user, enc);
+  const author = enc.userId === user.id ? user : await users.byId(enc.userId);
+  const detail = opts.detail ?? author?.prefs.noteDetail ?? base.style.verbosity ?? "standard";
+  const template = { ...base, style: { ...base.style, verbosity: detail } };
   const clinician = await clinicianOf(enc);
   const warnings: string[] = [];
   const started = Date.now();
@@ -116,8 +120,10 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   }
   if (!note) note = buildNote(facts, { patient, encounter: enc, template });
   note = applyStyle(note, rules);
+  note = applyReplacements(note, await vocabulary.replacements(enc.userId, enc.orgId));
   note = scoreSupport(note, utts, patient?.chart);
   note.meta.warnings = warnings;
+  note.meta.detail = detail;
 
   const omissions = detectOmissions(note, facts, template);
   const minutes = Math.round((enc.durationS || (utts.at(-1)?.tEnd ?? 0)) / 60);
@@ -291,6 +297,10 @@ export async function assist(user: User, encId: string, message: string) {
   if (result.note && enc.status !== "signed") {
     const saved = await saveNoteEdits(user, enc.id, result.note);
     result = { ...result, note: saved.note };
+  }
+  if (result.rule && enc.userId === user.id) {
+    await styleRules.addManual(user.id, result.rule);
+    await audit.log(user, enc.id, "style.rule_added", { kind: result.rule.kind, section: result.rule.section });
   }
   await audit.log(user, enc.id, "assist", { action: result.action, message: message.slice(0, 200) });
   return result;

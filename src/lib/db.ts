@@ -295,6 +295,26 @@ CREATE TABLE IF NOT EXISTS messages (
   ord BIGINT NOT NULL DEFAULT 0,
   received_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS snippets (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  shared INTEGER NOT NULL DEFAULT 0,
+  trigger TEXT NOT NULL,
+  name TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS vocabulary (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  shared INTEGER NOT NULL DEFAULT 0,
+  kind TEXT NOT NULL,
+  term TEXT NOT NULL,
+  replacement TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ehr_connections (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -323,6 +343,8 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS addenda_enc ON addenda(encounter_id, ord)",
   "CREATE INDEX IF NOT EXISTS tasks_assignee ON tasks(org_id, assignee_id, status)",
   "CREATE UNIQUE INDEX IF NOT EXISTS tasks_enc_key ON tasks(encounter_id, key)",
+  "CREATE INDEX IF NOT EXISTS snippets_org ON snippets(org_id, user_id)",
+  "CREATE INDEX IF NOT EXISTS vocabulary_org ON vocabulary(org_id, user_id)",
   "CREATE INDEX IF NOT EXISTS messages_assignee ON messages(org_id, assignee_id, status)",
 ];
 

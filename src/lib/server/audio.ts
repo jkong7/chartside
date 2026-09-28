@@ -26,6 +26,13 @@ export function speechConfig() {
   };
 }
 
+export function dictationUrl(keyterms: string[]) {
+  const cfg = speechConfig();
+  if (!cfg.wsUrl) return null;
+  const extra = keyterms.map((k) => `&keyterm=${encodeURIComponent(k)}`).join("");
+  return `${cfg.wsUrl}&tag=chartside-dictation${extra}`;
+}
+
 export async function mintDeepgramToken(ttlSeconds = 60) {
   const key = deepgramKey();
   if (!key) throw new Error("Deepgram is not configured");
