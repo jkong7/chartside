@@ -8,21 +8,21 @@ import { roleLabel, type Role } from "@/lib/roles";
 import { Bed, Calendar, Chart, Check, Gear, Inbox, Layout, Logo, Logout, Receipt, Shield, Users } from "./icons";
 import { Avatar } from "./ui";
 
-const NAV: { href: string; label: string; icon: typeof Calendar; roles?: Role[] }[] = [
-  { href: "/today", label: "Today", icon: Calendar },
-  { href: "/hospital", label: "Hospital", icon: Bed, roles: ["owner", "admin", "clinician", "nurse", "scribe", "viewer"] },
-  { href: "/inbox", label: "Inbox", icon: Inbox, roles: ["owner", "admin", "clinician", "scribe"] },
-  { href: "/patients", label: "Patients", icon: Users },
-  { href: "/scheduling", label: "Scheduling", icon: Calendar, roles: ["owner", "admin", "clinician", "scribe"] },
-  { href: "/templates", label: "Templates", icon: Layout, roles: ["owner", "admin", "clinician", "scribe"] },
-  { href: "/revenue", label: "Revenue", icon: Receipt, roles: ["owner", "admin", "clinician", "coder", "viewer"] },
-  { href: "/risk", label: "Risk adjustment", icon: Receipt, roles: ["owner", "admin", "clinician", "coder", "viewer"] },
-  { href: "/quality", label: "Quality", icon: Check, roles: ["owner", "admin", "clinician", "coder", "viewer"] },
-  { href: "/qa", label: "Note QA", icon: Shield, roles: ["owner", "admin", "viewer"] },
-  { href: "/impact", label: "Impact", icon: Chart, roles: ["owner", "admin", "viewer"] },
-  { href: "/insights", label: "Insights", icon: Chart, roles: ["owner", "admin", "clinician", "viewer"] },
-  { href: "/admin", label: "Admin", icon: Shield, roles: ["owner", "admin"] },
-  { href: "/settings", label: "Settings", icon: Gear },
+const NAV: { href: string; label: string; icon: typeof Calendar; group: string; roles?: Role[] }[] = [
+  { href: "/today", label: "Today", icon: Calendar, group: "Care" },
+  { href: "/hospital", label: "Hospital", icon: Bed, group: "Care", roles: ["owner", "admin", "clinician", "nurse", "scribe", "viewer"] },
+  { href: "/inbox", label: "Inbox", icon: Inbox, group: "Care", roles: ["owner", "admin", "clinician", "scribe"] },
+  { href: "/patients", label: "Patients", icon: Users, group: "Care" },
+  { href: "/scheduling", label: "Scheduling", icon: Calendar, group: "Care", roles: ["owner", "admin", "clinician", "scribe"] },
+  { href: "/revenue", label: "Revenue", icon: Receipt, group: "Revenue & quality", roles: ["owner", "admin", "clinician", "coder", "viewer"] },
+  { href: "/risk", label: "Risk adjustment", icon: Receipt, group: "Revenue & quality", roles: ["owner", "admin", "clinician", "coder", "viewer"] },
+  { href: "/quality", label: "Quality", icon: Check, group: "Revenue & quality", roles: ["owner", "admin", "clinician", "coder", "viewer"] },
+  { href: "/qa", label: "Note QA", icon: Shield, group: "Operations", roles: ["owner", "admin", "viewer"] },
+  { href: "/impact", label: "Impact", icon: Chart, group: "Operations", roles: ["owner", "admin", "viewer"] },
+  { href: "/insights", label: "Insights", icon: Chart, group: "Operations", roles: ["owner", "admin", "clinician", "viewer"] },
+  { href: "/templates", label: "Templates", icon: Layout, group: "Setup", roles: ["owner", "admin", "clinician", "scribe"] },
+  { href: "/admin", label: "Admin", icon: Shield, group: "Setup", roles: ["owner", "admin"] },
+  { href: "/settings", label: "Settings", icon: Gear, group: "Setup" },
 ];
 
 export interface SidebarUser {
@@ -94,17 +94,18 @@ export default function Sidebar({ user, engine }: { user: SidebarUser; engine: s
         <span className="font-serif text-xl">Chartside</span>
       </Link>
       <OrgSwitcher user={user} />
-      <nav className="flex-1 space-y-0.5 px-3" data-testid="nav">
-        {navFor(user.role).map((n) => {
+      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3" data-testid="nav">
+        {navFor(user.role).map((n, i, list) => {
           const active = path.startsWith(n.href) || (n.href === "/today" && path.startsWith("/encounters"));
           const Icon = n.icon;
-          return (
+          const heading = i > 0 && list[i - 1].group !== n.group ? <p key={`h-${n.group}`} className="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-wider text-ink-4">{n.group}</p> : null;
+          return [heading,
             <Link key={n.href} href={n.href} className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium ${active ? "bg-brand-50 text-brand" : "text-ink-2 hover:bg-sunken"}`}>
               <Icon size={17} />
               {n.label}
               {n.href === "/inbox" && inbox > 0 && <span className="ml-auto rounded-full bg-rec px-1.5 text-[10px] font-semibold text-white" data-testid="inbox-count">{inbox}</span>}
-            </Link>
-          );
+            </Link>,
+          ];
         })}
       </nav>
       <div className="mx-3 mb-3 rounded-lg bg-sunken px-3 py-2 text-[11px] text-ink-3" data-testid="engine-badge">
