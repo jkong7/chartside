@@ -6,6 +6,8 @@ import { encounters, orgs, patients, SEES_ORG } from "@/lib/server/repo";
 import { sharedWithMe } from "@/lib/server/sharing";
 import { surveyDue } from "@/lib/server/survey";
 import SurveyPrompt from "@/components/SurveyPrompt";
+import Onboarding from "@/components/Onboarding";
+import { onboarding } from "@/lib/server/onboarding";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +26,10 @@ export default async function Today() {
   const clinicians = orgWide ? (await orgs.members(user.orgId)).filter((m) => m.status === "active" && ["owner", "admin", "clinician"].includes(m.role)).map((m) => ({ id: m.userId, name: m.name })) : [];
   const shared = await sharedWithMe(user);
   const survey = await surveyDue(user);
+  const steps = await onboarding(user);
   return (
     <>
+    {steps && <Onboarding items={steps} />}
     <TodayList
       rows={rows}
       patients={pats.map((p) => ({ id: p.id, name: p.name }))}

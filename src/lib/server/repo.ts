@@ -47,6 +47,7 @@ export interface UserPrefs {
   noteDetail?: "concise" | "standard" | "detailed";
   autoDocuments?: string[];
   surveySnoozedUntil?: string;
+  onboardingDismissed?: boolean;
 }
 
 export const j = <T>(s: string | null | undefined, fallback: T): T => {
