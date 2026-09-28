@@ -52,6 +52,7 @@ const TASK_SELECT = "SELECT t.*, p.name AS patient_name FROM tasks t LEFT JOIN p
 export const tasks = {
   forEncounter: async (encId: string) => (await all<TaskRow>(`${TASK_SELECT} WHERE t.encounter_id = ? ORDER BY t.ord`, encId)).map(toTask),
   forUser: async (u: User, status: Task["status"] | "all" = "open") => (await all<TaskRow>(`${TASK_SELECT} WHERE t.org_id = ? AND t.assignee_id = ? ${status === "all" ? "" : "AND t.status = ?"} ORDER BY CASE WHEN t.due_at IS NULL THEN 1 ELSE 0 END, t.due_at, t.ord`, ...(status === "all" ? [u.orgId, u.id] : [u.orgId, u.id, status]))).map(toTask),
+  openOfKind: async (u: User, kind: TaskKind, orgWide: boolean) => (await all<TaskRow>(`${TASK_SELECT} WHERE t.org_id = ? AND t.kind = ? AND t.status = 'open' ${orgWide ? "" : "AND t.assignee_id = ?"} ORDER BY t.due_at`, ...(orgWide ? [u.orgId, kind] : [u.orgId, kind, u.id]))).map(toTask),
   forPatient: async (u: User, patientId: string) => (await all<TaskRow>(`${TASK_SELECT} WHERE t.org_id = ? AND t.patient_id = ? AND t.status = 'open' ORDER BY t.due_at`, u.orgId, patientId)).map(toTask),
   get: async (u: User, id: string) => {
     const r = await get<TaskRow>(`${TASK_SELECT} WHERE t.org_id = ? AND t.id = ?`, u.orgId, id);

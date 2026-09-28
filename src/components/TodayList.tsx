@@ -1,5 +1,6 @@
 "use client";
 
+import ImportSchedule from "./ImportSchedule";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -36,6 +37,8 @@ export default function TodayList({ rows: allRows, patients, me, orgWide = false
     done: rows.filter((r) => r.status === "signed").length,
     review: rows.filter((r) => r.status === "review").length,
   };
+
+  const [importOpen, setImportOpen] = useState(false);
 
   async function startAdhoc(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -74,12 +77,14 @@ export default function TodayList({ rows: allRows, patients, me, orgWide = false
           >
             <Refresh /> Reset demo day
           </button>}
+          {canCapture && <button className="btn-outline" onClick={() => setImportOpen(true)} data-testid="open-import">Import schedule</button>}
           {canCapture && <button className="btn-primary" onClick={() => setOpen(true)}>
             <Plus /> Unscheduled visit
           </button>}
         </div>
       </div>
 
+      <ImportSchedule open={importOpen} onClose={() => setImportOpen(false)} clinicians={canCreate && me ? [{ id: me, name: "Me" }, ...clinicians.filter((c) => c.id !== me)] : clinicians} me={(canCreate && me) || clinicians[0]?.id || ""} />
       <ol className="mt-8 space-y-2.5" data-testid="schedule">
         {rows.map((r) => {
           const done = r.status === "signed";

@@ -13,6 +13,7 @@ const NAV: { href: string; label: string; icon: typeof Calendar; roles?: Role[] 
   { href: "/hospital", label: "Hospital", icon: Bed, roles: ["owner", "admin", "clinician", "nurse", "scribe", "viewer"] },
   { href: "/inbox", label: "Inbox", icon: Inbox, roles: ["owner", "admin", "clinician", "scribe"] },
   { href: "/patients", label: "Patients", icon: Users },
+  { href: "/scheduling", label: "Scheduling", icon: Calendar, roles: ["owner", "admin", "clinician", "scribe"] },
   { href: "/templates", label: "Templates", icon: Layout, roles: ["owner", "admin", "clinician", "scribe"] },
   { href: "/revenue", label: "Revenue", icon: Receipt, roles: ["owner", "admin", "clinician", "coder", "viewer"] },
   { href: "/quality", label: "Quality", icon: Check, roles: ["owner", "admin", "clinician", "coder", "viewer"] },
