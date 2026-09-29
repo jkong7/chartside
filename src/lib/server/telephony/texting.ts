@@ -33,15 +33,22 @@ async function link(u: User, path = "/go/stack") {
 
 const HELP = "Reply STATUS for what's waiting, SCHEDULE for today, LINK to open your stack, NUDGE 5 or BRIEF 7 for daily texts, or call this number before a visit to scribe it. Texts never include patient details.";
 
-function dayBounds(at: Date, tz: string) {
+function offsetMinutes(at: Date, tz: string) {
+  const name = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "shortOffset" }).formatToParts(at).find((p) => p.type === "timeZoneName")?.value ?? "GMT";
+  const m = /GMT([+-])(\d{1,2})(?::(\d{2}))?/.exec(name);
+  return m ? (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] ?? 0)) : 0;
+}
+
+export function localMidnight(day: string, tz: string) {
+  let guess = Date.parse(`${day}T00:00:00Z`);
+  for (let i = 0; i < 3; i++) guess = Date.parse(`${day}T00:00:00Z`) - offsetMinutes(new Date(guess), tz) * 60_000;
+  return new Date(guess);
+}
+
+export function dayBounds(at: Date, tz: string) {
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(at);
-  const offsetMin = (() => {
-    const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "shortOffset" }).formatToParts(at).find((p) => p.type === "timeZoneName")?.value ?? "GMT";
-    const m = /GMT([+-])(\d{1,2})(?::(\d{2}))?/.exec(parts);
-    return m ? (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] ?? 0)) : 0;
-  })();
-  const start = new Date(Date.parse(`${day}T00:00:00Z`) - offsetMin * 60_000);
-  return { from: start.toISOString(), to: new Date(start.getTime() + 86400_000).toISOString() };
+  const next = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date(localMidnight(day, tz).getTime() + 36 * 3600_000));
+  return { from: localMidnight(day, tz).toISOString(), to: localMidnight(next, tz).toISOString() };
 }
 
 export async function dayLine(u: User, at = new Date()) {

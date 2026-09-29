@@ -139,4 +139,12 @@ describe("texting the line", () => {
     expect(reply).toMatch(/^Chartside: (No visits on your schedule today\.|\d+ visits? today, starting at )/);
     expect(reply).not.toMatch(PHI);
   });
+
+  it("finds the clinic's day correctly across daylight saving changes", async () => {
+    const { dayBounds } = await import("@/lib/server/telephony/texting");
+    const tz = "America/Chicago";
+    expect(dayBounds(new Date("2027-03-14T15:00:00Z"), tz)).toEqual({ from: "2027-03-14T06:00:00.000Z", to: "2027-03-15T05:00:00.000Z" });
+    expect(dayBounds(new Date("2026-11-01T15:00:00Z"), tz)).toEqual({ from: "2026-11-01T05:00:00.000Z", to: "2026-11-02T06:00:00.000Z" });
+    expect(dayBounds(new Date("2026-09-29T04:30:00Z"), tz)).toEqual({ from: "2026-09-28T05:00:00.000Z", to: "2026-09-29T05:00:00.000Z" });
+  });
 });
