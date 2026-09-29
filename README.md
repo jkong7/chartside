@@ -136,7 +136,7 @@ For developers, `POST /api/capture` is the one capture endpoint behind every doo
 | `CHARTSIDE_PUBLIC_URL` | The public origin used in texts, emails, sign-in links and receipts, e.g. `https://chartside.example.com` |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | Twilio Voice and SMS. Point the number's voice webhook at `{CHARTSIDE_PUBLIC_URL}/api/voice/incoming` (HTTP POST). Requests are checked against `X-Twilio-Signature`. |
 | `TWILIO_BASE_URL` | Override the Twilio API base URL, used for tests |
-| `CHARTSIDE_ALLOW_UNSIGNED_VOICE` | Accept unsigned voice webhooks in production. Leave unset. |
+| `CHARTSIDE_SIM_RATE` / `CHARTSIDE_SIM_DAILY_CAP` | Browser phone calls allowed per IP per hour (default 12) and across all visitors per day (default 300). |
 | `CHARTSIDE_LINE_NUMBER` | The E.164 number shown on `/line` and in the vCard |
 | `CHARTSIDE_LINE_DISPLAY` | The label for the browser phone at `/go/phone` (default `Demo line`) |
 | `CHARTSIDE_TZ` | The time zone for spoken times and the schedule-aware greeting (default `America/Chicago`) |

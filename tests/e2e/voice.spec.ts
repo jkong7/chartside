@@ -94,6 +94,24 @@ test("pressing a key while the line is talking cuts it off and acts right away",
   expect((await spoken(request)).some((s) => s.startsWith("Thanks. I'm listening"))).toBe(true);
 });
 
+test("a call token cannot start a second stream", async ({ baseURL }) => {
+  const params = { CallSid: `CA${Date.now()}replay`, From: randomPhone(), To: "+13125550199" };
+  const url = `${baseURL}/api/voice/incoming`;
+  const xml = await (await fetch(url, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", "x-twilio-signature": twilioSignature("test-twilio", url, params) }, body: new URLSearchParams(params).toString() })).text();
+  const callToken = /<Parameter name="callToken" value="([^"]+)"/.exec(xml)![1].replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+  const open = (sid: string) =>
+    new Promise<number>((resolve) => {
+      const ws = new WebSocket(`${baseURL!.replace(/^http/, "ws")}/api/voice/stream`);
+      ws.onopen = () => ws.send(JSON.stringify({ event: "start", streamSid: sid, start: { streamSid: sid, callSid: params.CallSid, customParameters: { callToken } } }));
+      ws.onmessage = () => {
+        ws.close(1000);
+      };
+      ws.onclose = (e) => resolve(e.code);
+    });
+  expect(await open("MZ1")).toBe(1000);
+  expect(await open("MZ2")).toBe(1008);
+});
+
 test("a declined consent records nothing and texts nothing", async ({ baseURL, request }) => {
   const from = randomPhone();
   const call = await dial({ base: baseURL!, from, twilioToken: "test-twilio", mockDeepgram: MOCK_DG, frameMs: 1, steps: [{ waitPrompts: 1 }, { digit: "0" }, { waitClose: true }] });

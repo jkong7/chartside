@@ -24,3 +24,14 @@ export function readCallToken(token: string | null | undefined): CallClaims | nu
     return null;
   }
 }
+
+const g = globalThis as unknown as { __chartsideStartedCalls?: Map<string, number> };
+const started = (g.__chartsideStartedCalls ??= new Map());
+
+export function claimCallStart(callSid: string, ttlMs = 15 * 60_000) {
+  const t = Date.now();
+  for (const [k, exp] of started) if (exp <= t) started.delete(k);
+  if (started.has(callSid)) return false;
+  started.set(callSid, t + ttlMs);
+  return true;
+}

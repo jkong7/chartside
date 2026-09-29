@@ -3,7 +3,7 @@ import { ScribeCall } from "./call";
 import { mulawDecode } from "./mulaw";
 import { phoneSession } from "./session";
 import { LiveListener, synthesize } from "./speech";
-import { readCallToken } from "./token";
+import { claimCallStart, readCallToken } from "./token";
 
 interface TwilioFrame {
   event: string;
@@ -119,7 +119,7 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
     if (msg.event === "start" && msg.start && !call) {
       streamSid = msg.start.streamSid;
       const claims = readCallToken(msg.start.customParameters?.callToken);
-      if (!claims || claims.callSid !== msg.start.callSid) {
+      if (!claims || claims.callSid !== msg.start.callSid || !claimCallStart(claims.callSid)) {
         ws.close(1008, "bad call token");
         return;
       }

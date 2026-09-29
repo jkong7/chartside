@@ -86,6 +86,7 @@ export default defineConfig({
         TWILIO_FROM: "+13125550199",
         TWILIO_BASE_URL: "http://localhost:3295",
         CHARTSIDE_CRON_SECRET: "test-cron",
+        CHARTSIDE_SIM_RATE: "500",
         CHARTSIDE_PUBLIC_URL: `http://localhost:${PORT}`,
         ...(process.env.DATABASE_URL ? { DATABASE_URL: process.env.DATABASE_URL } : {}),
       },

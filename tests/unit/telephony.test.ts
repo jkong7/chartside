@@ -75,3 +75,23 @@ describe("twilio helpers", () => {
     expect(wsOrigin("http://localhost:3100")).toBe("ws://localhost:3100");
   });
 });
+
+describe("call tokens", () => {
+  it("lets a call start only once", async () => {
+    const { claimCallStart } = await import("../../src/lib/server/telephony/token");
+    const sid = `CA${Date.now()}`;
+    expect(claimCallStart(sid)).toBe(true);
+    expect(claimCallStart(sid)).toBe(false);
+    expect(claimCallStart(`${sid}x`, -1)).toBe(true);
+    expect(claimCallStart(`${sid}x`)).toBe(true);
+  });
+
+  it("ignores a forged forwarded host when building the stream URL", async () => {
+    const { publicOrigin } = await import("../../src/lib/server/telephony/twilio");
+    const prev = process.env.CHARTSIDE_PUBLIC_URL;
+    delete process.env.CHARTSIDE_PUBLIC_URL;
+    const h = new Headers({ host: "line.example", "x-forwarded-host": "evil.example", "x-forwarded-proto": "https" });
+    expect(publicOrigin("http://line.example/api/voice/incoming", h)).toBe("https://line.example");
+    if (prev) process.env.CHARTSIDE_PUBLIC_URL = prev;
+  });
+});

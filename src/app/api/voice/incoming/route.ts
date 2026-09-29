@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   if (token) {
     const url = `${origin}${new URL(req.url).pathname}${new URL(req.url).search}`;
     if (!validSignature(token, url, params, req.headers.get("x-twilio-signature"))) return new Response("Invalid signature", { status: 403 });
-  } else if (process.env.NODE_ENV === "production" && !process.env.CHARTSIDE_ALLOW_UNSIGNED_VOICE) {
+  } else if (process.env.NODE_ENV === "production") {
     return new Response("Voice webhooks need TWILIO_AUTH_TOKEN", { status: 503 });
   }
   if (!phoneSpeechReady()) return xml(twiml([{ say: "Chartside's phone line isn't set up yet. Please try again later." }, { hangup: true }]));

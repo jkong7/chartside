@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/server/auth";
 import { seal } from "@/lib/fhir/crypto";
 import { guestForPhone } from "@/lib/server/guest";
+import { clientIp, limited, tooMany } from "@/lib/server/ratelimit";
 import { audit } from "@/lib/server/repo";
 import { clearSim } from "@/lib/server/telephony/sms";
 import { phoneSpeechReady } from "@/lib/server/telephony/speech";
@@ -10,6 +11,9 @@ import { mintCallToken } from "@/lib/server/telephony/token";
 
 export async function POST(req: Request) {
   if (!phoneSpeechReady()) return NextResponse.json({ error: "The phone line needs DEEPGRAM_API_KEY" }, { status: 503 });
+  const perIp = Number(process.env.CHARTSIDE_SIM_RATE || 12);
+  const perDay = Number(process.env.CHARTSIDE_SIM_DAILY_CAP || 300);
+  if (limited(`sim:${clientIp(req)}`, perIp, 3600_000) || limited("sim:all", perDay, 86400_000)) return tooMany();
   const body = (await req.json().catch(() => ({}))) as { phone?: string };
   const me = await currentUser().catch(() => null);
   const prior = typeof body.phone === "string" && /^\+1555\d{7}$/.test(body.phone) ? body.phone : null;

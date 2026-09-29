@@ -61,7 +61,7 @@ export function publicOrigin(reqUrl: string, headers: Headers) {
   if (env) return env.replace(/\/$/, "");
   const u = new URL(reqUrl);
   const proto = headers.get("x-forwarded-proto") || u.protocol.replace(":", "");
-  const host = headers.get("x-forwarded-host") || headers.get("host") || u.host;
+  const host = headers.get("host") || u.host;
   return `${proto}://${host}`;
 }
 
