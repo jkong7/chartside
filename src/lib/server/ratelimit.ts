@@ -1,7 +1,9 @@
 const buckets = new Map<string, { n: number; reset: number }>();
 
 export function clientIp(req: Request) {
-  return (req.headers.get("x-forwarded-for")?.split(",")[0] || req.headers.get("x-real-ip") || "local").trim().slice(0, 64);
+  const hops = (req.headers.get("x-forwarded-for") ?? "").split(",").map((h) => h.trim()).filter(Boolean);
+  const trusted = Math.max(1, Number(process.env.CHARTSIDE_PROXY_HOPS || 1));
+  return (hops[Math.max(0, hops.length - trusted)] || req.headers.get("x-real-ip") || "local").slice(0, 64);
 }
 
 export function limited(key: string, max: number, windowMs: number) {
