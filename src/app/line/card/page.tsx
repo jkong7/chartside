@@ -19,6 +19,7 @@ const KEYS: [string, string][] = [
   ["1", "Ready, put it on my stack"],
   ["8", "Next patient, same call"],
   ["7", "Text the patient after I sign"],
+  ["6", "Set my phone PIN (first call)"],
 ];
 
 export default async function PocketCard() {
