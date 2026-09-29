@@ -68,7 +68,9 @@ function finish(opts: AgentOptions, reply: string, ctx: ToolContext, citations: 
 }
 
 async function withClaude(ctx: ToolContext, history: AgentTurn[], opts: AgentOptions) {
-  const system = [SYSTEM, opts.channel === "voice" ? VOICE : "", opts.phiScope === "call" ? SCOPE_CALL : "", ctx.encounterId ? `The current visit is encounterId ${ctx.encounterId}.` : ""].filter(Boolean).join("\n\n");
+  const tz = process.env.CHARTSIDE_TZ || "America/Chicago";
+  const nowLine = `It is now ${new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: tz }).format(new Date())} clinic time (${tz}). "Next" means the first visit after now.`;
+  const system = [SYSTEM, nowLine, opts.channel === "voice" ? VOICE : "", opts.phiScope === "call" ? SCOPE_CALL : "", ctx.encounterId ? `The current visit is encounterId ${ctx.encounterId}.` : ""].filter(Boolean).join("\n\n");
   const messages: Anthropic.Beta.BetaMessageParam[] = history.map((t) => ({ role: t.role, content: t.content }));
   const citations: string[] = [];
   for (let step = 0; step < MAX_STEPS; step++) {
