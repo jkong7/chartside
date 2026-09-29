@@ -390,7 +390,7 @@ function editDistanceRatio(a: string, b: string) {
   return Math.round((1 - kept / total) * 1000) / 1000;
 }
 
-export async function assist(user: User, encId: string, message: string) {
+export async function assist(user: User, encId: string, message: string, opts: { save?: boolean } = {}) {
   const enc = await encounters.get(user, encId);
   if (!enc) throw new Error("Encounter not found");
   const rec = await notes.latest(enc.id);
@@ -428,9 +428,13 @@ export async function assist(user: User, encId: string, message: string) {
   }
   if (result.note && enc.status === "signed") {
     result = { ...result, note: undefined, rule: undefined, action: "none", reply: "This note is signed, so I didn't change it. Add an addendum instead." };
-  } else if (result.note) {
+  } else if (result.note && opts.save !== false) {
     const saved = await saveNoteEdits(user, enc.id, result.note, "assistant");
     result = { ...result, note: saved.note };
+  }
+  if (opts.save === false) {
+    await audit.log(user, enc.id, "assist.proposed", { action: result.action, message: message.slice(0, 200) });
+    return result;
   }
   if (result.rule && enc.userId === user.id) {
     await styleRules.addManual(user.id, result.rule);

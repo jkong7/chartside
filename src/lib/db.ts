@@ -687,6 +687,27 @@ CREATE TABLE IF NOT EXISTS magic_links (
   used_at TEXT,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS decision_proposals (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  encounter_id TEXT,
+  payload TEXT NOT NULL DEFAULT '{}',
+  summary TEXT NOT NULL DEFAULT '',
+  source TEXT NOT NULL DEFAULT 'agent',
+  status TEXT NOT NULL DEFAULT 'open',
+  resolved_by TEXT,
+  resolved_at TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS decision_state (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  decision_id TEXT NOT NULL,
+  snoozed_until TEXT,
+  seen_at TEXT,
+  PRIMARY KEY (user_id, decision_id)
+);
 CREATE TABLE IF NOT EXISTS capture_tokens (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,
@@ -725,6 +746,7 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS vocabulary_org ON vocabulary(org_id, user_id)",
   "CREATE INDEX IF NOT EXISTS messages_assignee ON messages(org_id, assignee_id, status)",
   "CREATE INDEX IF NOT EXISTS magic_links_email ON magic_links(email, created_at)",
+  "CREATE INDEX IF NOT EXISTS decision_proposals_user ON decision_proposals(user_id, status)",
   "CREATE UNIQUE INDEX IF NOT EXISTS users_verified_phone ON users(phone) WHERE phone_verified_at IS NOT NULL",
 ];
 
