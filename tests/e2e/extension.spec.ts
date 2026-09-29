@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { register } from "./helpers";
 
 const EHR = `<!doctype html><html><body>
 <h1>MiniEHR</h1>
@@ -52,4 +53,70 @@ test("extension fills mapped EHR fields with real input events and builds stable
   const manifest = JSON.parse(await (await import("node:fs/promises")).readFile("extension/manifest.json", "utf8"));
   expect(manifest.manifest_version).toBe(3);
   expect(manifest.side_panel.default_path).toBe("sidepanel.html");
+});
+
+test("the extension recorder uploads a visit in chunks and waits for the note", async ({ page }) => {
+  await register(page);
+  await page.goto("/today");
+  await page.addScriptTag({ path: "extension/recorder.js" });
+  const result = await page.evaluate(async () => {
+    const phases: string[] = [];
+    const R = (globalThis as unknown as { ChartsideRecorder: new (b: string, cb: (s: { phase: string }) => void, o: object) => { start(): Promise<void>; stop(): Promise<string>; pause(): void; resume(): void; seconds(): number } }).ChartsideRecorder;
+    const r = new R(location.origin, (s) => phases.push(s.phase), { timeslice: 1000, pollMs: 400 });
+    await r.start();
+    await new Promise((res) => setTimeout(res, 2500));
+    r.pause();
+    await new Promise((res) => setTimeout(res, 800));
+    r.resume();
+    await new Promise((res) => setTimeout(res, 2500));
+    const id = await r.stop();
+    return { id, phases, secs: r.seconds() };
+  });
+  expect(result.id).toMatch(/^enc_/);
+  expect(result.phases).toEqual(["recording", "paused", "recording", "finishing", "ready"]);
+  expect(result.secs).toBeGreaterThanOrEqual(4);
+  const note = await (await page.request.get(`/api/capture/${result.id}/note`)).json();
+  expect(note.sections.length).toBeGreaterThan(1);
+  const origin = await (await page.request.get(`/api/capture/${result.id}`)).json();
+  expect(origin.status).toBe("ready");
+});
+
+test("the unpacked extension records from its side panel and opens the finished note", async ({ baseURL }) => {
+  const { chromium } = await import("@playwright/test");
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const path = await import("node:path");
+  const ext = path.resolve("extension");
+  const ctx = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), "cs-ext-")), {
+    channel: "chromium",
+    headless: true,
+    args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`, "--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--use-file-for-fake-audio-capture=tests/e2e/fixtures/visit.wav"],
+    permissions: ["microphone"],
+  });
+  try {
+    const page = await ctx.newPage();
+    page.context().setDefaultTimeout(20000);
+    await page.goto(`${baseURL}/register`);
+    await page.fill("#name", "Dr. Ext Tester");
+    await page.fill("#email", `ext-${Date.now()}@chartside.test`);
+    await page.fill("#password", "correct-horse-9");
+    await page.click("button[type=submit]");
+    await page.waitForURL("**/today");
+    const isExt = (w: { url(): string }) => w.url().startsWith("chrome-extension://");
+    const worker = ctx.serviceWorkers().find(isExt) ?? (await ctx.waitForEvent("serviceworker", { predicate: isExt }));
+    const id = new URL(worker.url()).host;
+    const panel = await ctx.newPage();
+    await panel.goto(`chrome-extension://${id}/sidepanel.html`);
+    await panel.fill("#base", baseURL!);
+    await panel.click("#save");
+    await panel.click("#rec-start");
+    await panel.click("#rec-yes");
+    await expect(panel.locator("#rec-timer")).toHaveText(/0:0[6-9]/, { timeout: 20000 });
+    await panel.click("#rec-end");
+    await expect(panel.locator("#detail")).toBeVisible({ timeout: 45000 });
+    await expect(panel.locator("#detail")).toContainText(/cough/i);
+    await expect(panel.locator("#detail a")).toHaveAttribute("href", /\/go\/stack\?focus=enc_/);
+  } finally {
+    await ctx.close();
+  }
 });
