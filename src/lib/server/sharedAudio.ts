@@ -14,10 +14,27 @@ export const SHARE_COOKIE = "cs_share";
 export const SHARE_TTL_MS = 10 * 60_000;
 export const SHARE_TOTAL_BYTES = Number(process.env.CHARTSIDE_SHARE_MEMORY_MB || 300) * 1024 * 1024;
 
+const gi = globalThis as unknown as { __chartsideShareInflight?: { bytes: number; count: number } };
+const inflight = (gi.__chartsideShareInflight ??= { bytes: 0, count: 0 });
+export const SHARE_MAX_INFLIGHT = 4;
+
 export function heldBytes() {
-  let n = 0;
+  let n = inflight.bytes;
   for (const v of held.values()) n += v.bytes.length;
   return n;
+}
+
+export function reserveShare(bytes: number) {
+  if (inflight.count >= SHARE_MAX_INFLIGHT || heldBytes() + bytes > SHARE_TOTAL_BYTES) return null;
+  inflight.count++;
+  inflight.bytes += bytes;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    inflight.count--;
+    inflight.bytes -= bytes;
+  };
 }
 
 function sweep() {
@@ -27,7 +44,7 @@ function sweep() {
 
 export function holdShared(bytes: Buffer, mime: string, name: string) {
   sweep();
-  if (held.size > 200 || heldBytes() + bytes.length > SHARE_TOTAL_BYTES) throw new Error("Too many pending uploads. Try again in a few minutes.");
+  if (held.size > 200) throw new Error("Too many pending uploads. Try again in a few minutes.");
   const id = randomBytes(18).toString("base64url");
   const secret = randomBytes(24).toString("base64url");
   held.set(id, { bytes, mime, name: name.slice(0, 120), secret, expires: Date.now() + SHARE_TTL_MS });

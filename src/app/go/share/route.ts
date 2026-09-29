@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { MAX_CAPTURE_BYTES, normalizeMime } from "@/lib/server/capture";
 import { clientIp, limited, tooMany } from "@/lib/server/ratelimit";
-import { heldBytes, holdShared, SHARE_COOKIE, SHARE_TOTAL_BYTES, SHARE_TTL_MS } from "@/lib/server/sharedAudio";
+import { holdShared, reserveShare, SHARE_COOKIE, SHARE_TTL_MS } from "@/lib/server/sharedAudio";
 
 export async function POST(req: Request) {
   if (limited(`share:${clientIp(req)}`, Number(process.env.CHARTSIDE_SHARE_RATE || 30), 3600_000)) return tooMany();
@@ -9,7 +9,18 @@ export async function POST(req: Request) {
   const declared = Number(req.headers.get("content-length") ?? NaN);
   if (!Number.isFinite(declared) || declared <= 0) return back("Share the recording again from your recorder app.");
   if (declared > MAX_CAPTURE_BYTES + 64 * 1024) return back("That recording is over 100 MB.");
-  if (heldBytes() + declared > SHARE_TOTAL_BYTES) return back("Chartside is busy. Share the recording again in a few minutes.");
+  const site = req.headers.get("sec-fetch-site");
+  if (site && site !== "none" && site !== "same-origin") return back("Share recordings from your recorder app or from Chartside itself.");
+  const release = reserveShare(declared);
+  if (!release) return back("Chartside is busy. Share the recording again in a few minutes.");
+  try {
+    return await accept(req, back);
+  } finally {
+    release();
+  }
+}
+
+async function accept(req: Request, back: (msg: string) => NextResponse) {
   const form = await req.formData().catch(() => null);
   if (!form) return back("Nothing was shared.");
   const file = [...form.values()].find((v): v is File => typeof v !== "string");
