@@ -136,10 +136,13 @@ export async function redeemMagic(input: { token?: string; email?: string; code?
   let claimed: number | null = null;
   if (row.kind === "login") {
     userId = row.user_id!;
+    const owner = await users.byId(userId);
+    const sso = owner ? await orgs.requiringSso(owner.email.split("@")[1] ?? "") : null;
+    if (sso) throw new SsoRequired(sso.name);
     if (row.phone) await markPhoneVerified(userId, row.phone);
   } else {
     const email = row.email!;
-    const guestId = row.guest_user_id ?? (current?.guestUntil ? current.id : null);
+    const guestId = current?.guestUntil && (!row.guest_user_id || row.guest_user_id === current.id) ? current.id : null;
     const existing = await users.byEmail(email);
     if (existing) {
       userId = existing.id;

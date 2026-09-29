@@ -241,6 +241,23 @@ describe("try first, claim later", () => {
     expect(await repo.encounters.byIdUnscoped(r.encounterId)).toBeTruthy();
   });
 
+  it("never merges a guest into an account unless the link is redeemed in that guest's own session", async () => {
+    const m = await import("@/lib/server/magic");
+    const g = await import("@/lib/server/guest");
+    const repo = await import("@/lib/server/repo");
+    const victimEmail = unique("victim");
+    const victim = await repo.users.create({ email: victimEmail, name: "Dr. Victim", passwordHash: "", specialty: "FM" });
+    await repo.orgs.create("Victim clinic", victim.id);
+    const attacker = await g.createGuest();
+    await m.verifyPhone(attacker.id, `+1773${String(Math.floor(Math.random() * 1e7)).padStart(7, "0")}`);
+    await repo.encounters.create(attacker, { scheduledAt: new Date().toISOString(), status: "recording" });
+    await m.requestEmailSignIn(victimEmail, { guestUserId: attacker.id });
+    const r = await m.redeemMagic({ token: tokenOf(sent.at(-1)!) }, null);
+    expect(r.claimed ?? 0).toBe(0);
+    expect((await repo.users.byId(victim.id))!.phone).toBeFalsy();
+    expect(await repo.users.byId(attacker.id)).toBeTruthy();
+  });
+
   it("names accounts from email addresses", async () => {
     const { nameFromEmail } = await import("@/lib/server/guest");
     expect(nameFromEmail("maria.lopez@x.test")).toBe("Maria Lopez");
