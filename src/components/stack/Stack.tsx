@@ -172,6 +172,7 @@ export default function Stack({ initial, user, focus, justClaimed = false }: { i
               <h1 className="mt-1 text-lg font-semibold leading-snug" data-testid="stack-title">{top.title}</h1>
               <p className="mt-0.5 text-sm text-ink-3">{top.summary}</p>
               {typeof top.detail.markedReady === "object" && top.detail.markedReady && <p className="mt-2 inline-flex rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand" data-testid="stack-ready">{(top.detail.markedReady as { label: string }).label}</p>}
+              {typeof top.detail.summaryOnSign === "object" && top.detail.summaryOnSign && <p className="ml-1 mt-2 inline-flex rounded-full bg-info-50 px-2.5 py-0.5 text-xs font-medium text-info" data-testid="stack-summary-on-sign">{(top.detail.summaryOnSign as { label: string }).label}</p>}
               {typeof top.detail.unverifiedCaller === "object" && top.detail.unverifiedCaller && (
                 <p className="mt-2 inline-flex flex-wrap items-center gap-1.5 rounded-full bg-warn-50 px-2.5 py-0.5 text-xs font-medium text-warn" data-testid="stack-unverified" title={(top.detail.unverifiedCaller as { help: string }).help}>
                   {(top.detail.unverifiedCaller as { label: string }).label}

@@ -5,6 +5,7 @@ import { noteToText } from "../engine/note";
 import type { CodingResult, Note } from "../types";
 import { closeMessage, messages, prepareDraft, sendReply, tasks } from "./inbox";
 import { deleteAudio } from "./audio";
+import { notifyForEncounter } from "./notify";
 import { assist, reviseDiagnoses, saveNoteEdits, signEncounter } from "./pipeline";
 import { Forbidden, Invalid } from "./policy";
 import { unsignedQueue } from "./queue";
@@ -63,6 +64,28 @@ async function patientName(u: User, patientId: string | null) {
   return patientId ? ((await patients.get(u, patientId))?.name ?? null) : null;
 }
 
+async function sendQueuedSummary(u: User, encId: string) {
+  const queued = await artifacts.get<{ at: string; sentAt?: string }>(encId, "summary_on_sign");
+  if (!queued || queued.sentAt) return null;
+  const enc = await encounters.get(u, encId);
+  if (!enc?.patientId) return null;
+  let share = await artifacts.get<{ token: string; createdAt: string }>(encId, "share");
+  if (!share) {
+    share = { token: createHash("sha256").update(`${encId}:${Date.now()}:${Math.random()}`).digest("hex").slice(0, 32), createdAt: now() };
+    await artifacts.set(encId, "share", share);
+    await audit.log(u, encId, "summary.shared", { via: "sign" });
+  }
+  const origin = (process.env.CHARTSIDE_PUBLIC_URL || "http://localhost:3100").replace(/\/$/, "");
+  try {
+    const r = await notifyForEncounter(u, encId, "summary", `${origin}/s/${share.token}`);
+    await artifacts.set(encId, "summary_on_sign", { ...queued, sentAt: now(), status: r.status });
+    return r.status === "sent" ? "The patient's summary is on its way." : `The patient's summary wasn't sent (${r.error ?? r.status}). Send it from the visit.`;
+  } catch (err) {
+    await artifacts.set(encId, "summary_on_sign", { ...queued, sentAt: now(), status: "failed" });
+    return `The patient's summary wasn't sent: ${err instanceof Error ? err.message : "error"}`;
+  }
+}
+
 async function signCards(u: User): Promise<Decision[]> {
   const queue = await unsignedQueue(u);
   return Promise.all(queue.map(async (q) => {
@@ -71,6 +94,7 @@ async function signCards(u: User): Promise<Decision[]> {
     const origin = await artifacts.get<{ channel?: string }>(q.id, "capture_origin");
     const ready = await artifacts.get<{ at: string; callSid?: string }>(q.id, "phone_ready");
     const call = await artifacts.get<{ verifiedBy?: string }>(q.id, "phone_call");
+    const summaryOnSign = await artifacts.get<{ at: string }>(q.id, "summary_on_sign");
     const unverified = call?.verifiedBy === "caller-id";
     const discardable = !!origin && enc.status !== "signed";
     return {
@@ -85,7 +109,7 @@ async function signCards(u: User): Promise<Decision[]> {
       priority: ready ? 0 : q.ageHours >= 24 ? 1 : 2,
       at: enc.endedAt ?? q.scheduledAt,
       actions: [{ action: "approve", label: "Sign", needsScreen: true, payload: ["reviewMs", "force"] }, ...(discardable ? [{ action: "reject" as const, label: unverified ? "I didn't make this call, delete it" : "Delete this recording", needsScreen: true }] : []), snooze],
-      detail: { blockers: q.blockers, words: words(rec?.content), ageHours: q.ageHours, text: rec ? noteToText(rec.content) : "", channel: origin?.channel ?? null, markedReady: ready ? { at: ready.at, label: `Marked ready on a call at ${time(ready.at)}` } : null, unverifiedCaller: unverified ? { label: "Caller ID only, no PIN", help: "If you didn't make this call, delete it." } : null },
+      detail: { blockers: q.blockers, words: words(rec?.content), ageHours: q.ageHours, text: rec ? noteToText(rec.content) : "", channel: origin?.channel ?? null, markedReady: ready ? { at: ready.at, label: `Marked ready on a call at ${time(ready.at)}` } : null, unverifiedCaller: unverified ? { label: "Caller ID only, no PIN", help: "If you didn't make this call, delete it." } : null, summaryOnSign: summaryOnSign && enc.patientId ? { label: "Patient summary goes out when you sign" } : null },
       openUrl: `/encounters/${q.id}`,
     };
   }));
@@ -420,7 +444,9 @@ export async function actOnDecision(u: User, id: string, action: DecisionAction,
     if (!out.signed) return { ok: false, id, action, message: "Fix these before signing", blockers: out.blockers };
     await artifacts.set(ref, "sign_review", { reviewMs: Number.isFinite(reviewMs) ? reviewMs : null, words: count, fast, channel: ctx.channel, at: now() });
     if (fast) await audit.log(u, ref, "sign.fast_review", { reviewMs, words: count });
-    return done(fast ? "Signed. That was a fast review for a long note, so it's flagged for QA." : "Signed", { detail: { encounterId: ref, fast } });
+    const summary = await sendQueuedSummary(u, ref);
+    const base = fast ? "Signed. That was a fast review for a long note, so it's flagged for QA." : "Signed.";
+    return done(summary ? `${base} ${summary}` : base, { detail: { encounterId: ref, fast } });
   }
   if (prefix === "cosign") {
     if (action === "approve") await cosignNote(u, ref, { attestation: payload.attestation as string | undefined, comment: payload.comment as string | undefined });

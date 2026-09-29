@@ -343,3 +343,39 @@ test("three calls at once each get their own visit and their own text", async ({
   }
   expect(links.size).toBe(3);
 });
+
+test("the clinician asks on the call to text the patient, and the summary goes out only after signing", async ({ page, baseURL, request }) => {
+  await register(page, "Dr. Sofia Reyes");
+  const phone = await verifiedPhone(page);
+  await page.request.post("/api/auth/phone/pin", { data: { pin: "4812" } });
+  const pts = (await (await page.request.get("/api/patients")).json()).patients as { id: string; name: string }[];
+  const patient = pts.find((p) => p.name === "Maria Gonzalez") ?? pts[0];
+  const patientPhone = randomPhone();
+  await page.goto(`/patients/${patient.id}`);
+  await page.getByTestId("contact-phone").fill(patientPhone);
+  await page.getByTestId("contact-save").click();
+  await expect(page.getByTestId("contact-phone")).toHaveValue(patientPhone);
+  const made = await page.request.post("/api/encounters", { data: { patientId: patient.id, scheduledAt: new Date().toISOString(), visitType: "follow-up", reason: "Cough" } });
+  const encId = (await made.json()).encounter.id as string;
+  await dial({
+    base: baseURL!,
+    from: phone,
+    twilioToken: "test-twilio",
+    mockDeepgram: MOCK_DG,
+    frameMs: 1,
+    steps: [{ waitPrompts: 1 }, { digit: "4" }, { digit: "8" }, { digit: "1" }, { digit: "2" }, { digit: "#" }, { waitPrompts: 2 }, { digit: "1" }, { waitPrompts: 3 }, { digit: "2" }, { waitPrompts: 4 }, { wav: "tests/e2e/fixtures/visit.wav" }, { digit: "5" }, { waitPrompts: 6, timeoutMs: 60000 }, { digit: "7" }, { waitPrompts: 7 }, { digit: "1" }, { waitClose: true }],
+  });
+  expect((await spoken(request)).some((s) => s.startsWith("I'll text your patient their visit summary"))).toBe(true);
+  await new Promise((r) => setTimeout(r, 1000));
+  expect(await texts(request, patientPhone)).toEqual([]);
+  await page.goto(`/go/stack?focus=${encId}`);
+  await expect(page.getByTestId("stack-summary-on-sign")).toBeVisible();
+  await page.getByTestId("stack-approve").click();
+  const force = page.getByTestId("stack-force");
+  await expect(page.getByTestId("stack-toast").or(force)).toBeVisible();
+  if (await force.isVisible()) await force.click();
+  await expect(page.getByTestId("stack-toast")).toContainText("summary is on its way");
+  await expect.poll(async () => (await texts(request, patientPhone)).length, { timeout: 15000 }).toBe(1);
+  const sms = (await texts(request, patientPhone))[0].body;
+  expect(sms).toMatch(/your visit summary is ready\. View it securely: http:\/\/localhost:3200\/s\/\w+/);
+});
