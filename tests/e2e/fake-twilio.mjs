@@ -56,7 +56,7 @@ export async function dial({ base, from = "+15550100000", sim = false, cookie, t
   let phone = from;
   let inboxKey = null;
   if (sim) {
-    const r = await fetch(`${base}/api/voice/sim/start`, { method: "POST", headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) }, body: JSON.stringify({ phone: /^\+1555\d{7}$/.test(from) ? from : undefined }) });
+    const r = await fetch(`${base}/api/voice/sim/start`, { method: "POST", headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) }, body: "{}" });
     const j = await r.json();
     if (!r.ok) throw new Error(`sim start failed: ${j.error}`);
     callToken = j.callToken;
@@ -151,7 +151,7 @@ export async function dial({ base, from = "+15550100000", sim = false, cookie, t
     };
     const speak = async (text, voice = "aura-2-orion-en") => {
       if (mockDeepgram) {
-        await sleep(900);
+        await sleep(2200);
         await fetch(`${mockDeepgram}/phone/say?text=${encodeURIComponent(text)}`, { method: "POST" });
         await stream(Buffer.alloc(160 * 3, 0xff));
         return;

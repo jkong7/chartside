@@ -133,7 +133,7 @@ export default function PhoneSim({ lineNumber, signedInAs, autopilot = false, fa
     setSecs(0);
     setState("connecting");
     try {
-      const r = await fetch("/api/voice/sim/start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ phone: inbox.current?.phone }) });
+      const r = await fetch("/api/voice/sim/start", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Couldn't place the call");
       inbox.current = { key: j.inboxKey, phone: j.phone };
@@ -236,6 +236,10 @@ export default function PhoneSim({ lineNumber, signedInAs, autopilot = false, fa
     await navigator.clipboard.writeText(`${text} ${url}`).catch(() => {});
     setShared("Link copied. Paste it to a colleague.");
   };
+
+  useEffect(() => {
+    if (state !== "recording" && sampleRef.current) stopSample();
+  }, [state, stopSample]);
 
   useEffect(() => {
     if (!pilot) return;
