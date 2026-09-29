@@ -129,6 +129,11 @@ export async function redeemMagic(input: { token?: string; email?: string; code?
     r = await get<LinkRow>("SELECT * FROM magic_links WHERE email = ? AND kind = 'email' AND used_at IS NULL ORDER BY created_at DESC LIMIT 1", email);
     await checkCode(r, input.code ?? "");
   }
+  if (r!.kind === "login" && r!.user_id) {
+    const owner = await users.byId(r!.user_id);
+    const sso = owner ? await orgs.requiringSso(owner.email.split("@")[1] ?? "") : null;
+    if (sso) throw new SsoRequired(sso.name);
+  }
   await consume(r!);
   const row = r!;
   let userId: string;
@@ -136,9 +141,6 @@ export async function redeemMagic(input: { token?: string; email?: string; code?
   let claimed: number | null = null;
   if (row.kind === "login") {
     userId = row.user_id!;
-    const owner = await users.byId(userId);
-    const sso = owner ? await orgs.requiringSso(owner.email.split("@")[1] ?? "") : null;
-    if (sso) throw new SsoRequired(sso.name);
     if (row.phone) await markPhoneVerified(userId, row.phone);
   } else {
     const email = row.email!;

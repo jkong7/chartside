@@ -88,7 +88,7 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
     return Promise.race([pollReady(), deadline]).finally(() => clearTimeout(timer));
   };
 
-  const reviewPath = () => `/go/stack?focus=${encodeURIComponent(encId ?? "")}`;
+  const reviewPath = () => `/go/stack?focus=${encodeURIComponent(encId ?? "")}&ready=1`;
   const when = () => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: process.env.CHARTSIDE_TZ || "America/Chicago" }).format(new Date(startedAt));
 
   const deps: PhoneSession["deps"] = {

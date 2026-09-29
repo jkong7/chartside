@@ -85,9 +85,10 @@ export function isOperator(email: string) {
   return (process.env.CHARTSIDE_OPERATOR_EMAILS ?? "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean).includes(email.toLowerCase());
 }
 
-export async function isVerifiedOperator(u: { email: string }) {
+export async function isVerifiedOperator(u: { id: string; email: string }) {
   if (!isOperator(u.email)) return false;
-  return !!(await get<{ id: string }>("SELECT id FROM magic_links WHERE email = ? AND used_at IS NOT NULL LIMIT 1", u.email.toLowerCase()));
+  if (await get<{ id: string }>("SELECT id FROM magic_links WHERE email = ? AND used_at IS NOT NULL LIMIT 1", u.email.toLowerCase())) return true;
+  return !!(await get<{ id: string }>("SELECT id FROM audit WHERE user_id = ? AND action = 'user.login' AND detail LIKE '%\"method\":\"sso\"%' LIMIT 1", u.id));
 }
 
 export async function loopMetrics(scope: { orgId: string | null }, opts: { days?: number; weeks?: number; at?: Date } = {}) {

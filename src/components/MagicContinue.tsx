@@ -5,7 +5,7 @@ import { api } from "@/lib/client";
 import { Logo } from "./icons";
 import { Spinner } from "./ui";
 
-export default function MagicContinue({ token, email, note = false }: { token: string; email: string | null; note?: boolean }) {
+export default function MagicContinue({ token, email, note = false, next = "/today" }: { token: string; email: string | null; note?: boolean; next?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [challenge, setChallenge] = useState<{ id: string; next: string } | null>(null);
@@ -58,6 +58,11 @@ export default function MagicContinue({ token, email, note = false }: { token: s
         </>
       )}
       {error && <p className="rounded-lg bg-rec-50 px-3 py-2 text-sm text-rec" role="alert">{error}</p>}
+      {error && /single sign-on/i.test(error) && (
+        <a className="btn-outline w-full" href={`/login?next=${encodeURIComponent(next)}`} data-testid="magic-sso">
+          Sign in with your organization
+        </a>
+      )}
     </div>
   );
 }
