@@ -437,3 +437,21 @@ test("the line warns once when it can barely hear the room, and not when it can"
   const quiet = await dial({ base: baseURL!, from: randomPhone(), twilioToken: "test-twilio", mockDeepgram: MOCK_DG, frameMs: 1, steps: [{ waitPrompts: 1 }, { digit: "2" }, { waitPrompts: 2 }, { silence: 16 }, { waitPrompts: 3 }, { silence: 20 }, { sleep: 1500 }, { hangup: true }] });
   expect(quiet.prompts).toBe(3);
 });
+
+test("a clinician sets a PIN on the call and turns it on from the texted link", async ({ page, baseURL, request, browser }) => {
+  await register(page, "Dr. Pin By Phone");
+  const phone = await verifiedPhone(page);
+  await dial({ base: baseURL!, from: phone, twilioToken: "test-twilio", mockDeepgram: MOCK_DG, frameMs: 1, steps: [{ waitPrompts: 1 }, { digit: "6" }, { waitPrompts: 2 }, ..."5937#".split("").map((d) => ({ digit: d })), { waitPrompts: 3 }, ..."5937#".split("").map((d) => ({ digit: d })), { waitPrompts: 4 }, { hangup: true }] });
+  await expect.poll(async () => (await texts(request, phone)).filter((t) => t.body.includes("/go/pin?t=")).length, { timeout: 15000 }).toBe(1);
+  const sms = (await texts(request, phone)).find((t) => t.body.includes("/go/pin?t="))!.body;
+  expect(sms).not.toContain("5937");
+  expect((await (await page.request.get("/api/auth/phone/pin")).json()).set).toBe(false);
+  const other = await (await browser.newContext()).newPage();
+  await other.goto(/(http:\/\/\S+)/.exec(sms)![1]);
+  await other.getByTestId("pin-confirm-go").click();
+  await expect(other.getByTestId("pin-confirm")).toHaveAttribute("data-state", "done");
+  expect((await (await page.request.get("/api/auth/phone/pin")).json()).set).toBe(true);
+  await other.reload();
+  await other.getByTestId("pin-confirm-go").click();
+  await expect(other.getByTestId("pin-confirm").getByRole("alert")).toContainText("already have a phone PIN");
+});

@@ -1,6 +1,6 @@
 import { affirmative, bareWake, consentGiven, consentRefused, directAnswer, directedAtScribe, echoOf, negative, reviewIntent, wakeCommand } from "./intents";
 
-export type CallState = "greeting" | "pin" | "confirmPatient" | "consent" | "recording" | "paused" | "drafting" | "review" | "ended";
+export type CallState = "greeting" | "pin" | "newPin" | "newPinAgain" | "confirmPatient" | "consent" | "recording" | "paused" | "drafting" | "review" | "ended";
 
 export interface NextVisit {
   encounterId: string;
@@ -23,6 +23,7 @@ export interface CallDeps {
   waitForNote(): Promise<NoteBrief | null>;
   converse(text: string): Promise<string>;
   ask?(text: string): Promise<string>;
+  offerPin?(pin: string): Promise<"texted" | "invalid" | "unavailable">;
   markReady(): Promise<void>;
   queueSummary?(): Promise<"queued" | "unmatched" | "none">;
   startNext?(): void;
@@ -57,6 +58,12 @@ export const LINES = {
   anythingElse: "Anything else? Say ready when it looks right.",
   notHeard: "Sorry, I didn't catch that.",
   limit: "This visit has reached the recording limit, so I'm ending it now.",
+  pinOffer: "Tip: press 6 to set a phone PIN.",
+  newPinAsk: "Enter a new PIN of 4 to 6 digits, then pound.",
+  newPinAgain: "Enter it again, then pound.",
+  newPinMismatch: "Those didn't match, so I didn't set a PIN.",
+  newPinWeak: "That PIN is too easy to guess, so I didn't set it. Avoid repeated digits or digits in a row.",
+  newPinTexted: "I texted you a link. Tap it to turn on your PIN.",
   lowAudio: "I can barely hear the room. Move the phone closer, face up, between you and your patient.",
   stillWriting: "Still writing.",
   almostThere: "Almost there.",
@@ -80,6 +87,8 @@ export class ScribeCall {
   private wakePrimedAt = 0;
   private spokeEndedAt = 0;
   private pinVerified = false;
+  private newPin = "";
+  private newPinFirst = "";
 
   constructor(private deps: CallDeps) {}
 
@@ -102,7 +111,8 @@ export class ScribeCall {
       return;
     }
     this.state = "consent";
-    await this.say(`${intro} ${LINES.consentAsk}`);
+    const tip = !this.deps.caller.guest && !this.deps.caller.hasPin && this.deps.offerPin ? ` ${LINES.pinOffer}` : "";
+    await this.say(`${intro} ${LINES.consentAsk}${tip}`);
   }
 
   private async afterPin(ok: boolean) {
@@ -247,6 +257,27 @@ export class ScribeCall {
         }
         return;
       }
+      if (this.state === "newPin" || this.state === "newPinAgain") {
+        if (/^\d$/.test(d)) {
+          if (this.newPin.length < 6) this.newPin += d;
+          return;
+        }
+        if (d !== "#") return;
+        const entered = this.newPin;
+        this.newPin = "";
+        if (this.state === "newPin") {
+          this.newPinFirst = entered;
+          this.state = "newPinAgain";
+          return await this.say(LINES.newPinAgain);
+        }
+        const first = this.newPinFirst;
+        this.newPinFirst = "";
+        this.state = "consent";
+        if (entered !== first || entered.length < 4) return await this.say(`${LINES.newPinMismatch} ${LINES.consentAsk}`);
+        const r = await this.deps.offerPin!(entered).catch(() => "unavailable" as const);
+        this.deps.log("call.pin_offer", { result: r });
+        return await this.say(`${r === "texted" ? LINES.newPinTexted : r === "invalid" ? LINES.newPinWeak : LINES.laterNoText} ${LINES.consentAsk}`);
+      }
       if (this.state === "confirmPatient") {
         if (d === "1") {
           this.state = "consent";
@@ -259,6 +290,11 @@ export class ScribeCall {
         return;
       }
       if (this.state === "consent") {
+        if (d === "6" && this.deps.offerPin && !this.deps.caller.guest && !this.deps.caller.hasPin) {
+          this.state = "newPin";
+          this.newPin = "";
+          return await this.say(LINES.newPinAsk);
+        }
         if (d === "3") {
           await this.say(LINES.consentScript);
           this.askedPatientAt = Date.now();

@@ -10,6 +10,10 @@ import { sendText } from "./sms";
 import type { CallClaims } from "./token";
 import { wavFromPcm } from "./mulaw";
 
+function publicUrlBase() {
+  return (process.env.CHARTSIDE_PUBLIC_URL || `http://localhost:${process.env.PORT || 3100}`).replace(/\/$/, "");
+}
+
 async function loginLink(user: User, path: string, phone: string) {
   const { url } = await mintLoginLink(user.id, path, 30, { verifiesPhone: user.guestUntil ? phone : null });
   return url;
@@ -147,6 +151,16 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
       await artifacts.set(encId, "summary_on_sign", { at: new Date().toISOString(), callSid: claims.callSid });
       await audit.log(user, encId, "phone.summary_queued", {});
       return "queued";
+    },
+    offerPin: async (pin) => {
+      if (user.guestUntil || !user.phone || claims.sim) return "unavailable";
+      const { pinOfferToken } = await import("./pinByPhone");
+      const { pinProblem } = await import("../magic");
+      if (pinProblem(pin)) return "invalid";
+      const token = pinOfferToken(user.id, user.phone, pin);
+      await sendText(claims.phone, `Chartside: tap to turn on the phone PIN you just chose. If this wasn't you, ignore this text. ${publicUrlBase()}/go/pin?t=${encodeURIComponent(token)}`, "pin_offer");
+      await audit.log(user, null, "phone.pin_offered", {});
+      return "texted";
     },
     markReady: async () => {
       if (!encId) return;

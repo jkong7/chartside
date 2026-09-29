@@ -381,6 +381,29 @@ describe("scribe call", () => {
     expect(said.at(-1)).toBe(LINES.lowAudio);
   });
 
+  it("sets a PIN on the call only after it's entered twice, and confirms by text", async () => {
+    const offered: string[] = [];
+    const { call, said } = harness({ offerPin: async (p) => (offered.push(p), p === "1111" ? "invalid" : "texted") });
+    await call.start();
+    expect(said[0]).toContain(LINES.pinOffer);
+    await call.onDigit("6");
+    expect(call.state).toBe("newPin");
+    for (const d of "5937#") await call.onDigit(d);
+    expect(call.state).toBe("newPinAgain");
+    for (const d of "5938#") await call.onDigit(d);
+    expect(said.at(-1)).toContain(LINES.newPinMismatch);
+    expect(offered).toEqual([]);
+    await call.onDigit("6");
+    for (const d of "5937#5937#") await call.onDigit(d);
+    expect(offered).toEqual(["5937"]);
+    expect(said.at(-1)).toContain(LINES.newPinTexted);
+    expect(call.state).toBe("consent");
+    const guest = harness({ caller: { name: null, guest: true, hasPin: false }, offerPin: async () => "texted" });
+    await guest.call.start();
+    await guest.call.onDigit("6");
+    expect(guest.call.state).toBe("consent");
+  });
+
   it("repeats the last line on request", async () => {
     const { call, said } = harness();
     await call.start();
