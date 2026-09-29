@@ -109,7 +109,10 @@ export default async function LinePage({ searchParams }: { searchParams: Promise
                 Save to contacts
               </a>
             </div>
-            <p className="mt-3 text-sm text-ink-3">Your first note is free. No account until you want to keep it.</p>
+            <p className="mt-3 text-sm text-ink-3">
+              Your first note is free. No account until you want to keep it.{" "}
+              <Link href="/line/card" className="underline" data-testid="line-card">Print a pocket card</Link> for the exam room.
+            </p>
           </div>
         </div>
 

@@ -213,3 +213,14 @@ test("the new ghost screens pass an accessibility scan", async ({ page }) => {
   found.push(...(await scan()));
   expect(found).toEqual([]);
 });
+
+test("the pocket card shows the keypad and a QR code for the line", async ({ page }) => {
+  await page.goto("/line");
+  await page.getByTestId("line-card").click();
+  await page.waitForURL(/\/line\/card$/);
+  await expect(page.getByTestId("pocket-card")).toContainText("Next patient, same call");
+  await expect(page.getByTestId("pocket-qr").locator("svg")).toBeVisible();
+  await expect(page.getByTestId("pocket-number")).toContainText("/line");
+  const scan = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(scan.violations.map((v) => v.id)).toEqual([]);
+});
