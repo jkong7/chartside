@@ -38,6 +38,8 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
   const [isGuest, setIsGuest] = useState(guest);
   const [notice, setNotice] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
+  const [silent, setSilent] = useState(false);
+  const loudAt = useRef(0);
   const pending = useRef(0);
   const cid = useRef("");
   const seqNo = useRef(0);
@@ -170,8 +172,11 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
         let peak = 0;
         for (const v of data) peak = Math.max(peak, Math.abs(v - 128));
         setLevel(Math.min(1, peak / 64));
+        if (peak > 6) loudAt.current = Date.now();
+        setSilent(Date.now() - loudAt.current > 5000);
         if (meter.current) meter.current.raf = requestAnimationFrame(tick);
       };
+      loudAt.current = Date.now();
       meter.current = { ctx, raf: requestAnimationFrame(tick) };
       const wl = (navigator as Navigator & { wakeLock?: { request(t: "screen"): Promise<{ release(): Promise<void> }> } }).wakeLock;
       lock.current = (await wl?.request("screen").catch(() => null)) ?? null;
@@ -209,7 +214,7 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
           for (let i = 0; i < 120; i++) {
             const s = await (await fetch(`/api/capture/${id}`)).json();
             if (s.status === "ready" || s.status === "signed") return setPhase("ready");
-            if (s.status === "failed") throw new Error(s.error || "Drafting failed");
+            if (s.status === "failed") throw new Error(/no transcript is available/i.test(s.error ?? "") ? "We couldn't hear any conversation in that recording. Check that your microphone isn't muted, then record again." : s.error || "We couldn't write the note. Record again in a moment.");
             await new Promise((res) => setTimeout(res, 1500));
           }
           throw new Error("This is taking a while. We'll keep working on it; check your stack in a minute.");
@@ -284,15 +289,15 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
     <div className="mx-auto flex min-h-[70vh] w-full max-w-md flex-col items-center justify-center px-4 text-center" data-testid="go" data-phase={phase}>
       {phase === "idle" && (
         <>
-          <button onClick={() => setPhase("consent")} className="group relative flex h-44 w-44 items-center justify-center rounded-full bg-rec text-white shadow-xl transition hover:scale-[1.03] active:scale-95" aria-label="Start a visit" data-testid="go-start">
-            <span className="absolute inset-0 rounded-full bg-rec/40 pulse-ring" aria-hidden />
+          <button onClick={() => setPhase("consent")} className="group relative flex h-44 w-44 items-center justify-center rounded-full bg-brand text-white shadow-xl transition hover:scale-[1.03] active:scale-95" aria-label="Start a visit" data-testid="go-start">
+            <span className="absolute inset-0 rounded-full bg-brand/40 pulse-ring" aria-hidden />
             <span className="relative text-xl font-semibold">Start visit</span>
           </button>
           <p className="mt-6 text-ink-2">One tap. Chartside listens and writes the note.</p>
           {!signedIn && <p className="mt-1 text-sm text-ink-3">No account needed for your first note.</p>}
           {waiting > 0 && (
             <Link href="/go/stack" className="mt-6 rounded-full bg-brand-50 px-4 py-2 text-sm font-medium text-brand" data-testid="go-stack-link">
-              {waiting} waiting on your stack →
+              {waiting} waiting for you to review →
             </Link>
           )}
         </>
@@ -336,6 +341,11 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
               Pop out a floating recorder over your EHR
             </button>
           )}
+          {silent && phase === "recording" && !offline && (
+            <p className="mt-4 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn" role="status" data-testid="go-silent">
+              We&apos;re not hearing anything. Is your microphone on and unmuted?
+            </p>
+          )}
           {offline ? (
             <p className="mt-6 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn" role="status" data-testid="go-offline">
               No connection. Keep recording: the audio is held on this device and uploads when you're back online.
@@ -378,7 +388,7 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
         </p>
       )}
       {phase === "failed" && (
-        <button onClick={() => { setPhase("idle"); setError(null); }} className="btn-outline mt-3">Start over</button>
+        <button onClick={() => { setPhase("idle"); setError(null); }} className="btn-primary mt-3" data-testid="go-again">Record again</button>
       )}
 
       {pip && live && createPortal(mini, pip.document.body)}

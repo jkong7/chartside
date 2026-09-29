@@ -49,7 +49,7 @@ test("declining consent records nothing", async ({ page }) => {
 test("a signed-in clinician sees what's waiting and records into their own stack", async ({ page }) => {
   await register(page);
   await page.goto("/go");
-  await expect(page.getByTestId("go-stack-link")).toContainText("waiting on your stack");
+  await expect(page.getByTestId("go-stack-link")).toContainText("waiting for you to review");
   await expect(page.getByTestId("line-checklist")).toContainText("Verify your phone");
   await expect(page.getByTestId("line-checklist").locator('li[data-done="false"]')).toHaveCount(3);
   await page.getByTestId("go-start").click();
@@ -113,6 +113,7 @@ test("the line page shows who invited you, offers a contact card, and passes an 
   await expect(visitor.getByTestId("line-faq")).toContainText("Caller ID can be faked");
   await expect(visitor.getByTestId("line-video").locator("video")).toHaveAttribute("src", "/demo/line-call.mp4");
   expect((await visitor.request.get("/demo/line-call.mp4")).headers()["content-type"]).toContain("video/mp4");
+  await expect(visitor.getByTestId("line-contact")).toHaveCount(0);
   const vcf = await visitor.request.get("/line/contact.vcf");
   expect(vcf.headers()["content-type"]).toContain("text/vcard");
   expect(await vcf.text()).toContain("FN:Chartside Scribe");
@@ -220,7 +221,7 @@ test("the pocket card shows the keypad and a QR code for the line", async ({ pag
   await page.waitForURL(/\/line\/card$/);
   await expect(page.getByTestId("pocket-card")).toContainText("Next patient, same call");
   await expect(page.getByTestId("pocket-qr").locator("svg")).toBeVisible();
-  await expect(page.getByTestId("pocket-number")).toContainText("/line");
+  await expect(page.getByTestId("pocket-number")).toContainText("once your practice connects it");
   const scan = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(scan.violations.map((v) => v.id)).toEqual([]);
 });
