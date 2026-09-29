@@ -172,8 +172,8 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120,
         let peak = 0;
         for (const v of data) peak = Math.max(peak, Math.abs(v - 128));
         setLevel(Math.min(1, peak / 64));
-        if (peak > 6) loudAt.current = Date.now();
-        setSilent(Date.now() - loudAt.current > 5000);
+        if (peak > 6) loudAt.current = -1;
+        setSilent(loudAt.current !== -1 && Date.now() - loudAt.current > 8000);
         if (meter.current) meter.current.raf = requestAnimationFrame(tick);
       };
       loudAt.current = Date.now();
@@ -214,7 +214,7 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120,
           for (let i = 0; i < 120; i++) {
             const s = await (await fetch(`/api/capture/${id}`)).json();
             if (s.status === "ready" || s.status === "signed") return setPhase("ready");
-            if (s.status === "failed") throw new Error(/no transcript is available/i.test(s.error ?? "") ? "We couldn't hear any conversation in that recording. Check that your microphone isn't muted, then record again." : s.error || "We couldn't write the note. Record again in a moment.");
+            if (s.status === "failed") throw new Error(/unavailable right now/i.test(s.error ?? "") ? "Speech service is busy right now. Your audio is saved. Try writing the note again in a minute." : /no transcript is available/i.test(s.error ?? "") ? "We couldn't hear any conversation in that recording. Check that your microphone isn't muted, then record again." : s.error || "We couldn't write the note. Try again in a minute.");
             await new Promise((res) => setTimeout(res, 1500));
           }
           throw new Error("This is taking a while. We'll keep working on it; check your stack in a minute.");
@@ -387,7 +387,28 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120,
           {error}
         </p>
       )}
-      {phase === "failed" && (
+      {phase === "failed" && encId && error && /audio is saved/.test(error) && (
+        <button
+          onClick={async () => {
+            setError(null);
+            setPhase("finishing");
+            await fetch(`/api/capture/${encId}?finish=true`, { method: "POST" }).catch(() => null);
+            for (let i = 0; i < 120; i++) {
+              const s = await (await fetch(`/api/capture/${encId}`)).json().catch(() => ({}));
+              if (s.status === "ready" || s.status === "signed") return setPhase("ready");
+              if (s.status === "failed") break;
+              await new Promise((res) => setTimeout(res, 1500));
+            }
+            setError("Still couldn't write the note. Your audio is saved; it will be written when the service is back.");
+            setPhase("failed");
+          }}
+          className="btn-primary mt-3"
+          data-testid="go-retry"
+        >
+          Try writing it again
+        </button>
+      )}
+      {phase === "failed" && !(error && /audio is saved/.test(error)) && (
         <button onClick={() => { setPhase("idle"); setError(null); }} className="btn-primary mt-3" data-testid="go-again">Record again</button>
       )}
 

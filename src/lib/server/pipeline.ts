@@ -108,16 +108,18 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   const clinician = await clinicianOf(enc);
   const warnings: string[] = [];
   const started = Date.now();
+  let finalPassFailed = false;
   if (opts.engine !== "local" && user.prefs.finalPass !== false && !(await utterances.list(enc.id)).some((u) => u.source === "final")) {
     try {
       await finalPass(user, enc);
     } catch (err) {
+      finalPassFailed = true;
       warnings.push(`High-accuracy re-transcription was unavailable (${err instanceof Error ? err.message : "error"}); the live transcript was used.`);
     }
   }
   await localDiarize(user, enc);
   const utts = await utterances.list(enc.id);
-  if (!utts.length) throw new Error("Audio was recorded but no transcript is available. Add DEEPGRAM_API_KEY for server-side transcription, or type the conversation.");
+  if (!utts.length) throw new Error(finalPassFailed ? "Speech transcription is unavailable right now. The audio is saved; draft the note again shortly." : "Audio was recorded but no transcript is available. Add DEEPGRAM_API_KEY for server-side transcription, or type the conversation.");
   const { facts, patient } = await factsFor(user, enc);
   const rules = await styleRules.list(enc.userId);
   const interpretation = checkInterpretation(utts);
