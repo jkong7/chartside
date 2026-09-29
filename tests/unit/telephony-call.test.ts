@@ -317,6 +317,23 @@ describe("scribe call", () => {
     expect(events).not.toContain("finish");
   });
 
+  it("answers chart questions before a visit only after a PIN and only when addressed by name", async () => {
+    let asked = "";
+    const pinned = harness({ caller: { name: "Dr. Kong", guest: false, hasPin: true }, ask: async (t) => ((asked = t), "You have 3 notes to sign.") });
+    await pinned.call.start();
+    for (const d of "4812#") await pinned.call.onDigit(d);
+    await pinned.call.onTranscript("What's left today?");
+    expect(asked).toBe("");
+    await pinned.call.onTranscript("Chartside, what's left today?");
+    expect(asked).toBe("what's left today?");
+    expect(pinned.said.at(-1)).toBe(`You have 3 notes to sign. ${LINES.askMore}`);
+    expect(pinned.call.state).toBe("consent");
+    const open = harness({ ask: async () => "should not be asked" });
+    await open.call.start();
+    await open.call.onTranscript("Chartside, what's left today?");
+    expect(open.said.at(-1)).toBe(LINES.askNeedsPin);
+  });
+
   it("repeats the last line on request", async () => {
     const { call, said } = harness();
     await call.start();

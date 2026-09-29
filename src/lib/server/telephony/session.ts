@@ -43,6 +43,7 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
   let chain: Promise<unknown> = Promise.resolve();
   let pinOk = false;
   const history: AgentTurn[] = [];
+  const askHistory: AgentTurn[] = [];
   const startedAt = Date.now();
 
   const flushNow = async () => {
@@ -115,6 +116,14 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
       const r = await runAgent(user, history.slice(-8), { channel: "voice", phiScope: pinOk ? "full" : "call", encounterId: encId });
       history.push({ role: "assistant", content: r.reply });
       await audit.log(user, encId, "phone.agent_turn", { proposals: r.proposals.length, engine: r.engine });
+      return speakable(r.reply);
+    },
+    ask: async (text) => {
+      if (!pinOk) throw new Error("PIN required");
+      const turns: AgentTurn[] = [...askHistory.slice(-6), { role: "user", content: text }];
+      const r = await runAgent(user, turns, { channel: "voice", phiScope: "full" });
+      askHistory.push({ role: "user", content: text }, { role: "assistant", content: r.reply });
+      await audit.log(user, null, "phone.chart_question", { engine: r.engine, tools: r.citations.length });
       return speakable(r.reply);
     },
     markReady: async () => {

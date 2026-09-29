@@ -22,6 +22,7 @@ export interface CallDeps {
   finish(): Promise<void>;
   waitForNote(): Promise<NoteBrief | null>;
   converse(text: string): Promise<string>;
+  ask?(text: string): Promise<string>;
   markReady(): Promise<void>;
   textLink(reason: "ready" | "processing"): Promise<boolean>;
   declined(): Promise<void>;
@@ -52,6 +53,8 @@ export const LINES = {
   anythingElse: "Anything else? Say ready when it looks right.",
   notHeard: "Sorry, I didn't catch that.",
   limit: "This visit has reached the recording limit, so I'm ending it now.",
+  askNeedsPin: "I can answer questions about your chart once you've entered your phone PIN at the start of a call.",
+  askMore: "Anything else? Or press 2 when your patient agrees to be recorded.",
 } as const;
 
 export class ScribeCall {
@@ -67,6 +70,7 @@ export class ScribeCall {
   private askedPatientAt = 0;
   private wakePrimedAt = 0;
   private spokeEndedAt = 0;
+  private pinVerified = false;
 
   constructor(private deps: CallDeps) {}
 
@@ -100,6 +104,7 @@ export class ScribeCall {
       return;
     }
     this.deps.log("call.pin_ok");
+    this.pinVerified = true;
     const next = await this.deps.nextVisit().catch(() => null);
     if (next) {
       this.pendingVisit = next;
@@ -152,6 +157,13 @@ export class ScribeCall {
         return;
       }
       case "consent": {
+        const asked = /^\s*chart ?side[,.!]?\s+(.+)$/i.exec(text.trim());
+        if (asked && directedAtScribe(asked[1]) && !wakeCommand(text)) {
+          if (!this.pinVerified || !this.deps.ask) return this.say(LINES.askNeedsPin);
+          this.deps.log("call.chart_question");
+          const answer = await this.deps.ask(asked[1]).catch(() => "Sorry, I couldn't look that up right now.");
+          return this.say(`${answer} ${LINES.askMore}`);
+        }
         if (consentRefused(text)) return this.decline();
         if (consentGiven(text)) return this.beginRecording();
         if (this.askedPatientAt && Date.now() - this.askedPatientAt < 25_000) {
