@@ -112,7 +112,7 @@ export async function inboundText(fromRaw: string, bodyRaw: string, origin: stri
     await users.update(user.id, { prefs: { ...user.prefs, clinicNudgeHour: hour, textOptOut: false } });
     return say(`Got it. If anything is waiting, I'll text you at ${hour > 12 ? hour - 12 : hour}${hour >= 12 ? " PM" : " AM"}. Reply STOP any time.`);
   }
-  return say(`I can't read or send patient details by text. ${HELP} Open your stack: ${await link(user)}`);
+  return say(`I can't read or send patient details by text. ${HELP} Open what needs your review: ${await link(user)}`);
 }
 
 function localHour(at: Date, tz: string) {

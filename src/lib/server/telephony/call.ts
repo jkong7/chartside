@@ -71,7 +71,7 @@ export const LINES = {
   stillWriting: "Still writing. You can hang up any time, and I'll text you.",
   almostThere: "Almost there.",
   summaryQueued: "I'll text your patient their visit summary as soon as you sign the note.",
-  summaryUnmatched: "Once you match this visit to a patient, you can send their summary from your stack.",
+  summaryUnmatched: "Once you match this visit to a patient, you can send their summary when you review the note.",
   askNeedsPin: "I can answer questions about your chart once you've entered your phone PIN at the start of a call.",
   askMore: "Anything else? Or press 2 when your patient agrees to be recorded.",
 } as const;
