@@ -50,6 +50,8 @@ test("a signed-in clinician sees what's waiting and records into their own stack
   await register(page);
   await page.goto("/go");
   await expect(page.getByTestId("go-stack-link")).toContainText("waiting on your stack");
+  await expect(page.getByTestId("line-checklist")).toContainText("Verify your phone");
+  await expect(page.getByTestId("line-checklist").locator('li[data-done="false"]')).toHaveCount(3);
   await page.getByTestId("go-start").click();
   await page.getByTestId("go-consent-yes").click();
   await expect(page.getByTestId("go-timer")).toHaveText(/0:0[6-9]|0:1\d/, { timeout: 15000 });

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import GoRecorder from "@/components/ghost/GoRecorder";
 import LiveCallBanner from "@/components/ghost/LiveCallBanner";
+import LineChecklist from "@/components/ghost/LineChecklist";
+import { hasPhonePin } from "@/lib/server/magic";
 import { currentUser } from "@/lib/server/auth";
 import { decisionCounts } from "@/lib/server/decisions";
 import { recordingMinutesFromEnv } from "@/lib/engine/limits";
@@ -12,6 +14,7 @@ export default async function GoPage({ searchParams }: { searchParams: Promise<{
   const { shared } = await searchParams;
   const user = await currentUser().catch(() => null);
   const counts = user ? await decisionCounts(user).catch(() => null) : null;
+  const pin = user && !user.guestUntil ? await hasPhonePin(user.id).catch(() => false) : false;
   return (
     <main className="min-h-screen bg-paper">
       <header className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4 text-sm">
@@ -33,6 +36,11 @@ export default async function GoPage({ searchParams }: { searchParams: Promise<{
       {user && (
         <div className="mx-auto max-w-3xl px-4">
           <LiveCallBanner />
+        </div>
+      )}
+      {user && !user.guestUntil && (
+        <div className="px-4 pt-2">
+          <LineChecklist phone={!!user.phone} pin={pin} />
         </div>
       )}
       <GoRecorder signedIn={!!user} guest={!!user?.guestUntil} waiting={counts?.total ?? 0} maxMinutes={recordingMinutesFromEnv()} />
