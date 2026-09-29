@@ -3,6 +3,7 @@ import ServiceWorker from "@/components/ServiceWorker";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.CHARTSIDE_PUBLIC_URL || "http://localhost:3100"),
   title: "Chartside",
   description: "Ambient clinical documentation with every sentence traceable to the visit.",
   applicationName: "Chartside",
