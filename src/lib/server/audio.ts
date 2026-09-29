@@ -7,7 +7,7 @@ import { detectLang } from "../engine/lang";
 import type { Encounter, Speaker, Utterance } from "../types";
 import { artifacts, audioChunks, audit, encounters, utterances, type User } from "./repo";
 
-export const LIVE_PARAMS = "model=nova-3&language=multi&diarize=true&smart_format=true&punctuate=true&interim_results=true&utterance_end_ms=1200&endpointing=300&vad_events=true";
+export const LIVE_PARAMS = "model=nova-3&language=multi&diarize=true&smart_format=true&punctuate=true&interim_results=true&utterance_end_ms=1200&endpointing=300&vad_events=true&mip_opt_out=true";
 
 export function deepgramKey() {
   return process.env.CHARTSIDE_SPEECH === "browser" ? null : process.env.DEEPGRAM_API_KEY || null;
@@ -122,7 +122,7 @@ export async function transcribeWithDeepgram(buffer: Buffer, mime: string, lang:
   const key = deepgramKey();
   if (!key) throw new Error("Deepgram is not configured");
   const language = lang === "en" || lang === "es" ? lang : "multi";
-  const params = `model=nova-3&smart_format=true&punctuate=true&diarize=true&utterances=true&language=${language}${multichannel ? "&multichannel=true" : ""}`;
+  const params = `model=nova-3&smart_format=true&punctuate=true&diarize=true&utterances=true&mip_opt_out=true&language=${language}${multichannel ? "&multichannel=true" : ""}`;
   const res = await fetch(`${deepgramBase()}/v1/listen?${params}`, {
     method: "POST",
     headers: { Authorization: `Token ${key}`, "Content-Type": mime },
