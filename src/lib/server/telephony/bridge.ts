@@ -188,7 +188,7 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
           ?.onTranscript(text)
           .then(emitState)
           .catch((err) => console.error("phone transcript failed", err));
-      }, (err) => console.error("phone listen failed", err.message));
+      }, (err) => console.error("phone listen failed", err.message), `call-${claims.callSid}`);
       listener.open();
       void call
         .start()

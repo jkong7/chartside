@@ -56,10 +56,11 @@ export async function warmPhrases(lines: string[]) {
   for (const l of lines) await synthesize(l, undefined, /[¿¡ñáéíóú]/.test(l) ? "es" : "en").catch(() => null);
 }
 
-export function listenUrl() {
+export function listenUrl(callTag?: string) {
   const ws = (process.env.DEEPGRAM_WS_URL || "wss://api.deepgram.com/v1/listen").replace(/\/$/, "");
   const q = new URLSearchParams({ model: "nova-3", language: "multi", encoding: "mulaw", sample_rate: "8000", channels: "1", punctuate: "true", smart_format: "true", interim_results: "false", endpointing: "500", tag: "chartside-phone", mip_opt_out: "true" });
   for (const term of ["Chartside", "pause", "resume", "end visit"]) q.append("keyterm", term);
+  if (callTag) q.append("tag", callTag.slice(0, 120));
   return `${ws}?${q}`;
 }
 
@@ -69,12 +70,12 @@ export class LiveListener {
   private keepAlive: NodeJS.Timeout | null = null;
   closed = false;
 
-  constructor(private onFinal: (text: string) => void, private onError: (err: Error) => void = () => {}) {}
+  constructor(private onFinal: (text: string) => void, private onError: (err: Error) => void = () => {}, private callTag?: string) {}
 
   open() {
     const k = key();
     if (!k) return;
-    const ws = new WebSocket(listenUrl(), { headers: { Authorization: `Token ${k}` } });
+    const ws = new WebSocket(listenUrl(this.callTag), { headers: { Authorization: `Token ${k}` } });
     this.ws = ws;
     ws.on("open", () => {
       for (const b of this.queue) ws.send(b);
