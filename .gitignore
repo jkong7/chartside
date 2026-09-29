@@ -16,3 +16,7 @@ research/ui
 data/audio
 data/.secret
 data/codesets
+
+data/e2e
+data-live
+data/outbox

@@ -1,0 +1,7 @@
+dbs:
+  - path: ${CHARTSIDE_DB}
+    replicas:
+      - type: gcs
+        bucket: ${LITESTREAM_BUCKET}
+        path: chartside
+        sync-interval: 1s

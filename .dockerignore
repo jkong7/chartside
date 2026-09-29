@@ -1,0 +1,14 @@
+node_modules
+.next
+data
+data-live
+test-results
+playwright-report
+.env
+.env.*
+.context
+.git
+research/ui
+.shots
+.playwright-mcp
+*.tsbuildinfo
