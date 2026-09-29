@@ -328,3 +328,18 @@ test("a phone guest who saves their note is shown how to just call next time and
   const pin = await (await page.request.get("/api/auth/phone/pin")).json();
   expect(pin.set).toBe(true);
 });
+
+test("three calls at once each get their own visit and their own text", async ({ baseURL, request }) => {
+  const phones = [randomPhone(), randomPhone(), randomPhone()];
+  const results = await Promise.all(
+    phones.map((from) => dial({ base: baseURL!, from, twilioToken: "test-twilio", mockDeepgram: MOCK_DG, frameMs: 1, steps: [{ waitPrompts: 1 }, { digit: "2" }, { waitPrompts: 2 }, { wav: "tests/e2e/fixtures/visit.wav" }, { digit: "5" }, { waitPrompts: 4, timeoutMs: 60000 }, { digit: "1" }, { waitClose: true }] })),
+  );
+  expect(results.map((r) => r.closeCode)).toEqual([1000, 1000, 1000]);
+  const links = new Set<string>();
+  for (const from of phones) {
+    await expect.poll(async () => (await texts(request, from)).length, { timeout: 20000 }).toBe(1);
+    const body = (await texts(request, from))[0].body;
+    links.add(/(http:\/\/\S+)/.exec(body)![1]);
+  }
+  expect(links.size).toBe(3);
+});
