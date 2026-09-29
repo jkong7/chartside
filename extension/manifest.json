@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Chartside for web EHRs",
-  "version": "1.0.0",
-  "description": "Review today's Chartside notes beside any web EHR, and push each section into the right EHR field.",
+  "version": "1.1.0",
+  "description": "Record a visit beside any web EHR, then fill each note section into the right EHR field in one click.",
   "permissions": ["sidePanel", "storage", "activeTab", "scripting"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },
