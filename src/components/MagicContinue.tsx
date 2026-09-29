@@ -5,7 +5,7 @@ import { api } from "@/lib/client";
 import { Logo } from "./icons";
 import { Spinner } from "./ui";
 
-export default function MagicContinue({ token, email }: { token: string; email: string | null }) {
+export default function MagicContinue({ token, email, note = false }: { token: string; email: string | null; note?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [challenge, setChallenge] = useState<{ id: string; next: string } | null>(null);
@@ -52,8 +52,9 @@ export default function MagicContinue({ token, email }: { token: string; email: 
         </form>
       ) : (
         <>
-          <p className="text-sm text-ink-2">{email ? <>Continue as <b>{email}</b></> : "Continue to Chartside"}</p>
-          <button className="btn-primary w-full" onClick={go} disabled={busy} data-testid="magic-go">{busy && <Spinner />} Continue</button>
+          {note ? <p className="font-serif text-xl font-semibold text-ink">Your note is ready.</p> : null}
+          <p className="text-sm text-ink-2">{email ? <>Continue as <b>{email}</b></> : note ? "Tap to open it and review it." : "Continue to Chartside"}</p>
+          <button className="btn-primary w-full" onClick={go} disabled={busy} data-testid="magic-go">{busy && <Spinner />} {note ? "Open my note" : "Continue"}</button>
         </>
       )}
       {error && <p className="rounded-lg bg-rec-50 px-3 py-2 text-sm text-rec" role="alert">{error}</p>}
