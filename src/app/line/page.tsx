@@ -125,7 +125,7 @@ export default async function LinePage({ searchParams }: { searchParams: Promise
         <div className="mx-auto grid max-w-6xl gap-8 px-4 py-14 md:grid-cols-3">
           {[
             ["1. Call", "Dial before the visit. Your patient hears a short consent question, and nothing is kept until they agree."],
-            ["2. Put the phone down", "Chartside listens quietly. Say “Chartside, pause” or press 4 any time. The keypad works just like old dictation lines."],
+            ["2. Put the phone down", "Chartside listens quietly. Say “Chartside, pause” or press 4 any time. The keypad works just like old dictation lines. Say “next patient” to keep the same call going between rooms."],
             ["3. Hang up, tap the text", "Your note, codes and patient summary are ready, with every sentence linked to the moment it was said. Swipe to sign."],
           ].map(([t, d]) => (
             <div key={t}>
