@@ -672,6 +672,19 @@ CREATE TABLE IF NOT EXISTS ehr_connections (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS capture_tokens (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  source TEXT NOT NULL,
+  key_id TEXT,
+  label TEXT NOT NULL DEFAULT '',
+  expires_at TEXT NOT NULL,
+  revoked_at TEXT,
+  last_used_at TEXT,
+  created_at TEXT NOT NULL
+);
 `;
 
 const INDEXES = [

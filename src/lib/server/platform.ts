@@ -81,11 +81,11 @@ export async function apiActor(req: Request, need: Scope): Promise<{ user: User;
   return { user, keyId: row.id };
 }
 
-export function apiHandler<P = Record<string, never>>(need: Scope, fn: (req: Request, user: User, params: P) => Promise<unknown>) {
+export function apiHandler<P = Record<string, never>>(need: Scope, fn: (req: Request, user: User, params: P, keyId: string) => Promise<unknown>) {
   return async (req: Request, ctx: { params: Promise<P> }) => {
     try {
       const { user, keyId } = await apiActor(req, need);
-      const data = await fn(req, user, (await ctx.params) ?? ({} as P));
+      const data = await fn(req, user, (await ctx.params) ?? ({} as P), keyId);
       if (req.method !== "GET") await audit.log(user, null, "api.call", { keyId, method: req.method, path: new URL(req.url).pathname });
       return Response.json(data, { status: req.method === "POST" ? 201 : 200 });
     } catch (err) {
