@@ -1,4 +1,4 @@
-const VERSION = "chartside-v2";
+const VERSION = "chartside-v3";
 const OFFLINE = "/offline.html";
 
 self.addEventListener("install", (event) => {
@@ -36,14 +36,18 @@ self.addEventListener("notificationclick", (event) => {
   const url = new URL((event.notification.data && event.notification.data.url) || "/go/stack", self.location.origin);
   if (url.origin !== self.location.origin) return;
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+    (async () => {
+      const list = await self.clients.matchAll({ type: "window" });
       for (const c of list) {
-        if (new URL(c.url).origin === url.origin && "focus" in c) {
-          c.navigate(url.href);
-          return c.focus();
+        if (new URL(c.url).origin !== url.origin || !("navigate" in c)) continue;
+        try {
+          const moved = await c.navigate(url.href);
+          return (moved || c).focus();
+        } catch {
+          break;
         }
       }
       return self.clients.openWindow(url.href);
-    }),
+    })(),
   );
 });
