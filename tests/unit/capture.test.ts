@@ -144,6 +144,30 @@ describe("capture API", () => {
     expect((await post("/api/capture?consent=granted", { body: audio, headers: { "content-type": "audio/webm", "content-length": String(200 * 1024 * 1024) } })).status).toBe(413);
   });
 
+  it("records into a scheduled visit or for a known patient", async () => {
+    const cap = await import("@/lib/server/capture");
+    const repo = await import("@/lib/server/repo");
+    const { seedDemo } = await import("@/lib/server/seed");
+    const doc = await newMember("Dr. Scheduled");
+    await seedDemo(doc);
+    const scheduled = (await repo.encounters.list(doc)).find((e) => e.status === "scheduled" && e.patientId)!;
+    const r = await cap.captureAudio(doc, { bytes: audio, mime: "audio/webm", options: { consent: "granted", state: "IL", encounterId: scheduled.id } });
+    expect(r.encounterId).toBe(scheduled.id);
+    await cap.settleCaptures();
+    const done = (await repo.encounters.get(doc, scheduled.id))!;
+    expect(done.status).toBe("review");
+    expect(done.patientId).toBe(scheduled.patientId);
+    await expect(cap.captureAudio(doc, { bytes: audio, mime: "audio/webm", options: { consent: "granted", encounterId: scheduled.id } })).rejects.toThrow("already been recorded");
+    const other = await newMember("Dr. Colleague", { orgId: doc.orgId, role: "clinician" });
+    const next = (await repo.encounters.list(doc)).find((e) => e.status === "scheduled" && e.id !== scheduled.id)!;
+    await expect(cap.captureAudio(other, { bytes: audio, mime: "audio/webm", options: { consent: "granted", encounterId: next.id } })).rejects.toThrow("not found");
+    const stranger = await newMember("Dr. Elsewhere");
+    await expect(cap.captureAudio(stranger, { bytes: audio, mime: "audio/webm", options: { consent: "granted", encounterId: next.id } })).rejects.toThrow("not found");
+    const withPatient = await cap.captureAudio(doc, { bytes: audio, mime: "audio/webm", options: { consent: "granted", patientId: scheduled.patientId!, finish: false } });
+    expect((await repo.encounters.get(doc, withPatient.encounterId))?.patientId).toBe(scheduled.patientId);
+    await expect(cap.captureAudio(stranger, { bytes: audio, mime: "audio/webm", options: { consent: "granted", patientId: scheduled.patientId! } })).rejects.toThrow("Patient not found");
+  });
+
   it("scopes a token to the captures it created", async () => {
     const { root, one, note } = await routes();
     const { settleCaptures } = await import("@/lib/server/capture");

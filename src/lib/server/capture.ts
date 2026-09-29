@@ -9,7 +9,7 @@ import { currentUser } from "./auth";
 import { fail } from "./http";
 import { processEncounter, recordConsent } from "./pipeline";
 import { assertCan, Forbidden, Invalid } from "./policy";
-import { artifacts, audioChunks, audit, consents, encounters, notes, type User } from "./repo";
+import { artifacts, audioChunks, audit, consents, encounters, notes, patients, type User } from "./repo";
 
 export const MAX_CAPTURE_BYTES = 100 * 1024 * 1024;
 const CHUNK_BYTES = 4 * 1024 * 1024;
@@ -145,6 +145,19 @@ async function draft(user: User, enc: Encounter, opts: Record<string, string>) {
   });
 }
 
+async function targetEncounter(user: User, o: Record<string, string>, startedAt: string, lang: string) {
+  if (o.encounterId) {
+    const enc = await encounters.get(user, o.encounterId);
+    if (!enc) throw new Error("Encounter not found");
+    if (enc.userId !== user.id && user.role !== "scribe") throw new Forbidden("You can only record your own visits");
+    if (enc.status !== "scheduled") throw new Invalid(enc.status === "signed" ? "This visit is signed" : "This visit has already been recorded");
+    if (await artifacts.get(enc.id, "capture_origin")) throw new Invalid("This visit has already been recorded");
+    return enc;
+  }
+  if (o.patientId && !(await patients.get(user, o.patientId))) throw new Error("Patient not found");
+  return encounters.create(user, { scheduledAt: startedAt, status: "recording", patientId: o.patientId || null, visitType: (o.visitType || "follow-up") as Encounter["visitType"], reason: (o.reason || "").slice(0, 200), templateId: o.templateId || undefined, inputLang: lang });
+}
+
 export async function startCapture(auth: CaptureAuth, input: CaptureInput) {
   const { user, tokenId } = auth;
   assertCan(user, "clinical.capture");
@@ -161,8 +174,8 @@ export async function startCapture(auth: CaptureAuth, input: CaptureInput) {
   const durationS = Number(o.durationS) > 0 ? Math.round(Number(o.durationS)) : null;
   const lang = ["en", "es", "multi"].includes(o.lang) ? o.lang : "en";
   const startedAt = new Date(Date.now() - (durationS ?? 0) * 1000).toISOString();
-  const enc = await encounters.create(user, { scheduledAt: startedAt, status: "recording", visitType: (o.visitType || "follow-up") as Encounter["visitType"], reason: (o.reason || "").slice(0, 200), templateId: o.templateId || undefined, inputLang: lang });
-  await encounters.update(user, enc.id, durationS ? { startedAt, durationS } : { startedAt });
+  const enc = await targetEncounter(user, o, startedAt, lang);
+  await encounters.update(user, enc.id, { status: "recording", startedAt, ...(durationS ? { durationS } : {}), ...(o.templateId ? { templateId: o.templateId } : {}) });
   await artifacts.set(enc.id, "capture_origin", { tokenId, userId: user.id, channel: (o.channel || (tokenId ? "token" : "session")).slice(0, 30), createdAt: new Date().toISOString() } satisfies CaptureOrigin);
   await recordConsent(user, enc, { decision: "granted", method, state, othersPresent });
   const bytes = input.audio ? await storeAudio(enc.id, input.audio, input.mime!, durationS) : 0;
@@ -213,6 +226,8 @@ export interface CaptureOptions {
   allPartiesConfirmed?: boolean;
   reason?: string;
   visitType?: string;
+  encounterId?: string;
+  patientId?: string;
   templateId?: string;
   detail?: "concise" | "standard" | "detailed";
   lang?: "en" | "es" | "multi";
