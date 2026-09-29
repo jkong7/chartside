@@ -129,8 +129,8 @@ Enterprise keeps the web app, SSO and SMART launch.
 
 Everything below is on `interface/ghost`, committed one component at a time.
 
-- **Tests:** 356 unit tests and 150 or more end-to-end tests, all green on the last full run.
-- **Live evaluation:** `scripts/eval-line.mjs` places real calls through Deepgram and Claude and checks 8 scenarios. All 8 passed.
+- **Tests:** 367 unit tests and 153 end-to-end tests, all green on the last full run.
+- **Live evaluation:** `scripts/eval-line.mjs` places real calls through Deepgram and Claude and checks 8 scenarios. It was rerun after each round of fixes, and the last run passed 8 of 8.
 
 | Door or layer | Where | State |
 |---|---|---|
@@ -144,7 +144,8 @@ Everything below is on `interface/ghost`, committed one component at a time.
 | Stack | `/go/stack` | Swipe to sign, live call banner, "Caller ID only" warning with delete, patient summary on sign, next-time card, notifications, home-screen tip. |
 | Ask | `/go/ask`, on the call | Tool use over the chart; writes are proposals only. |
 | Notifications | Web Push, `public/sw.js` | "Note ready" with the visit time only. |
-| Landing | `/line`, `/` | Real call video, autopilot, contact card, FAQ, share images. |
+| Landing | `/line`, `/`, `/line/card` | Real call video, autopilot, contact card, FAQ, share images, printable pocket card. |
+| Setup by phone | keypad 6 on a call | PIN chosen on the call, turned on only by typing it again on a link texted to the verified number. |
 | Admin → Line | `/admin?tab=line` | Setup checks, stats by door, PHI-free call log, team roster, one-step Twilio connection. |
 | Growth | `growth.ts`, `loops.ts` | NPI claim, credits, receipts, footers, invite, loop metrics. |
 
@@ -161,7 +162,13 @@ Everything below is on `interface/ghost`, committed one component at a time.
 - The `/go` compressed-audio recording produced 31 utterances and a correct note.
 - A Voice Memos `.m4a` upload produced 33 utterances and a note.
 
-**An independent code review** found 15 issues in the phone code. All 15 are fixed and covered by tests.
+**Five independent reviews** found 44 or more issues. All are fixed and covered by tests.
+
+- **Review 1 (phone code), 15 findings:** a consent bypass, echo, slow-note texts, sim takeover, a stuck socket, and others.
+- **Review 2 (newer code), 12 findings:** a recovery loop, early finalizing of paused recordings, share memory, guest purge races, and others.
+- **Review 3 (PIN by phone and idempotency), 10 findings:** a spoofed PIN confirmation, offer spam, lingering consent, and upload races.
+- **Review 4 (cross-cutting security), 7 findings:** a guest-merge account takeover, WebSocket exhaustion, texted links bypassing Require SSO, and operator email verification.
+- **A layman usability walk-through, 15 friction points:** developer error text after a silent recording, a disabled Sign button with no reason, jargon, and missing-number states. The high-impact ones are fixed.
 
 **Waiting on Jonathan:**
 
