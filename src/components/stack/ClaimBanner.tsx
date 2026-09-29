@@ -55,7 +55,7 @@ export default function ClaimBanner({ onClaimed }: { onClaimed: () => void }) {
       ) : (
         <form onSubmit={send} className="mt-3 flex gap-2">
           <input className="input flex-1" type="email" autoComplete="email" placeholder="you@clinic.com" value={email} onChange={(e) => setEmail(e.target.value)} required aria-label="Email" data-testid="claim-email" />
-          <button className="btn-primary" disabled={busy} data-testid="claim-send">{busy && <Spinner />} Send code</button>
+          <button className="btn-primary" disabled={busy} data-testid="claim-send">{busy && <Spinner />} Email me a code</button>
         </form>
       )}
       {error && <p className="mt-2 text-sm text-rec" role="alert">{error}</p>}

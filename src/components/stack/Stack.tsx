@@ -196,11 +196,16 @@ export default function Stack({ initial, user, focus, justClaimed = false }: { i
                 {top.actions.some((a) => a.action === "draft") ? (
                   <button className="btn-primary" disabled={busy} onClick={() => act("draft")} data-testid="stack-draft">{busy && <Spinner />} Draft a reply</button>
                 ) : approveSpec ? (
-                  <button className="btn-primary" disabled={busy || !canApprove} onClick={() => act("approve")} data-testid="stack-approve">{busy && <Spinner />} {approveSpec.label}</button>
+                  <button className="btn-primary" disabled={busy || !canApprove} onClick={() => act("approve")} data-testid="stack-approve">{busy && <Spinner />} {top.kind === "note.sign" && !claimed ? "Save to sign" : approveSpec.label}</button>
                 ) : (
                   <a className="btn-primary text-center" href={top.openUrl}>Open</a>
                 )}
               </div>
+              {top.kind === "note.sign" && !claimed && (
+                <button className="mt-2 w-full text-center text-sm font-medium text-brand underline" onClick={() => { const el = document.querySelector<HTMLInputElement>("[data-testid=claim-email]"); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.focus(); }} data-testid="stack-save-hint">
+                  Add your email above to keep this note and sign it
+                </button>
+              )}
               {top.actions.some((a) => a.action === "reject") && (
                 <button className="mt-2 w-full text-center text-sm text-ink-3" disabled={busy} onClick={() => act("reject", { comment: text })} data-testid="stack-reject">{top.actions.find((a) => a.action === "reject")!.label}</button>
               )}
