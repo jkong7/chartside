@@ -155,6 +155,11 @@ For developers, `POST /api/capture` is the one capture endpoint behind every doo
 | `CHARTSIDE_CRON_SECRET` | Bearer secret for `POST /api/cron/nudges`. Schedule it hourly, for example with Cloud Scheduler, to send end-of-clinic texts. |
 | `CHARTSIDE_GUEST_CALLS_PER_NUMBER` / `CHARTSIDE_GUEST_CALL_DAILY_CAP` | Free calls from numbers Chartside doesn't know: per number per day (default 5) and across all numbers per day (default 200). Verified clinicians aren't limited. |
 | `CHARTSIDE_VAPID_PUBLIC`, `CHARTSIDE_VAPID_PRIVATE`, `CHARTSIDE_VAPID_SUBJECT` | Web Push keys for "Note ready" notifications to installed web apps. Generate them with `npx web-push generate-vapid-keys`. Notifications carry only the visit time. |
+| `CHARTSIDE_PROXY_HOPS` | How many proxies add to `X-Forwarded-For` in front of the app (default 1 for Cloud Run; 2 behind a load balancer). Rate limits use the address the last trusted proxy saw. |
+| `CHARTSIDE_WS_PER_IP` / `CHARTSIDE_WS_TOTAL` | Phone media sockets allowed per address and in total (defaults 8 and 60). A socket that doesn't start a call within 5 seconds is closed. |
+| `CHARTSIDE_MAX_CALL_MIN` / `CHARTSIDE_MAX_SIM_CALL_MIN` | Hard length limit for a call (default 90 minutes), and for browser-phone and guest calls (default 20). |
+| `CHARTSIDE_SHARE_MEMORY_MB` | Memory held for shared recordings awaiting consent (default 300), with at most 4 uploads in flight. |
+| `CHARTSIDE_PUSH_HOSTS` | Extra push-service hosts to accept besides FCM, Apple, Mozilla and Windows. |
 | `CHARTSIDE_SHARE_RATE` | Recordings shared to `/go/share` allowed per IP per hour (default 30) |
 | `CHARTSIDE_MAX_RECORDING_MIN` | Recording cap for every door (default 120) |
 | `CHARTSIDE_SKIP_WARM` | Skip pre-rendering the fixed phone prompts at startup |
@@ -167,7 +172,7 @@ For developers, `POST /api/capture` is the one capture endpoint behind every doo
 | `CHARTSIDE_DELIVERY` | `file` writes outgoing email and SMS to `data/outbox/` instead of sending, and `none` disables delivery. By default, outside production, messages go to `data/outbox/` when no provider is configured. |
 | `SENDGRID_API_KEY`, `CHARTSIDE_EMAIL_FROM` | Email for sign-in codes and shares. SendGrid does not sign a BAA, so email carries no patient data. |
 | `NPPES_BASE_URL` | Override the NPI registry base URL, used for tests |
-| `CHARTSIDE_OPERATOR_EMAILS` | Comma-separated emails that may see growth metrics across all organizations |
+| `CHARTSIDE_OPERATOR_EMAILS` | Comma-separated emails that may see growth and line metrics across all organizations and connect the phone number. An operator must have signed in once with an emailed code or link, which proves they own the address. |
 | `HOSTNAME_BIND`, `PORT` | Where `server.ts` listens (default `0.0.0.0:3100`) |
 
 ### Running the phone line
