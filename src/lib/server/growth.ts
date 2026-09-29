@@ -1,3 +1,4 @@
+import { nameFromEmail } from "./guest";
 import { createHash, randomBytes } from "node:crypto";
 import { all, get, now, run, uid } from "../db";
 import { Invalid } from "./policy";
@@ -60,8 +61,9 @@ export async function claimNpi(u: User, input: { npi?: string; state?: string; a
   if (!rec) throw new Invalid("No individual clinician has that NPI");
   const taken = await get<{ id: string }>("SELECT id FROM users WHERE id <> ? AND prefs LIKE ?", u.id, `%"number":"${rec.number}",%"matched":true%`);
   const nameMatch = u.name.split(/\s+/).map(norm).filter(Boolean).includes(norm(rec.last));
-  const adopt = !!input.applyName && !u.hasPassword;
-  const stateMatch = !input.state || input.state.toUpperCase() === rec.state;
+  const placeholder = u.name === "Guest clinician" || u.name === "Clinician" || u.name === nameFromEmail(u.email);
+  const adopt = !!input.applyName && !u.hasPassword && placeholder && !!input.state;
+  const stateMatch = adopt ? input.state!.toUpperCase() === rec.state : !input.state || input.state.toUpperCase() === rec.state;
   const reason = taken ? "This NPI is already on another Chartside account" : !stateMatch ? `The registry lists ${rec.state}, not ${input.state!.toUpperCase()}` : !nameMatch && !adopt ? `The registry name is ${rec.first} ${rec.last}` : null;
   const matched = !reason;
   const name = matched && adopt ? `${rec.first} ${rec.last}` : u.name;

@@ -77,9 +77,17 @@ describe("growth", () => {
     expect(wrongName.reason).toMatch(/registry name is Dana Ruiz/);
     const { run } = await import("@/lib/db");
     await run("UPDATE users SET password_hash = '', name = 'Clinician' WHERE id = ?", impostor.id);
-    const adopted = await g.claimNpi((await repo.actorFor(impostor.id))!, { npi: "1245319599", applyName: true });
+    const rec = (await g.lookupNpi("1245319599"))!;
+    const noState = await g.claimNpi((await repo.actorFor(impostor.id))!, { npi: "1245319599", applyName: true });
+    expect(noState.matched).toBe(false);
+    const adopted = await g.claimNpi((await repo.actorFor(impostor.id))!, { npi: "1245319599", applyName: true, state: rec.state });
     expect(adopted.matched).toBe(true);
     expect((await repo.users.byId(impostor.id))?.name).toBe("Dana Ruiz");
+    const named = await newMember("Dr. Real Name");
+    await run("UPDATE users SET password_hash = '' WHERE id = ?", named.id);
+    const stolen = await g.claimNpi((await repo.actorFor(named.id))!, { npi: "1234567893", applyName: true, state: "IL" });
+    expect(stolen.matched).toBe(false);
+    expect((await repo.users.byId(named.id))?.name).toBe("Dr. Real Name");
   });
 
   it("gives both sides one flat month when a referred clinician signs a first note, capped for the referrer", async () => {
