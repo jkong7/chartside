@@ -14,6 +14,8 @@ export default async function GoPage({ searchParams }: { searchParams: Promise<{
   const { shared } = await searchParams;
   const user = await currentUser().catch(() => null);
   const counts = user ? await decisionCounts(user).catch(() => null) : null;
+  const { orgs } = await import("@/lib/server/repo");
+  const sample = user ? (await orgs.get(user.orgId))?.settings.billing?.demoIdentifiers : false;
   const pin = user && !user.guestUntil ? await hasPhonePin(user.id).catch(() => false) : false;
   return (
     <main className="min-h-screen bg-paper">
@@ -43,7 +45,7 @@ export default async function GoPage({ searchParams }: { searchParams: Promise<{
           <LineChecklist phone={!!user.phone} pin={pin} />
         </div>
       )}
-      <GoRecorder signedIn={!!user} guest={!!user?.guestUntil} waiting={counts?.total ?? 0} maxMinutes={recordingMinutesFromEnv()} />
+      <GoRecorder signedIn={!!user} guest={!!user?.guestUntil} sample={!!sample} waiting={counts?.total ?? 0} maxMinutes={recordingMinutesFromEnv()} />
     </main>
   );
 }

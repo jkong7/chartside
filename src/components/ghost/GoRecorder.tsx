@@ -27,7 +27,7 @@ function pickMime() {
   return "";
 }
 
-export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 }: { signedIn: boolean; guest: boolean; waiting: number; maxMinutes?: number }) {
+export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120, sample = false }: { signedIn: boolean; guest: boolean; waiting: number; maxMinutes?: number; sample?: boolean }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [secs, setSecs] = useState(0);
   const [level, setLevel] = useState(0);
@@ -297,7 +297,7 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
           {!signedIn && <p className="mt-1 text-sm text-ink-3">No account needed for your first note.</p>}
           {waiting > 0 && (
             <Link href="/go/stack" className="mt-6 rounded-full bg-brand-50 px-4 py-2 text-sm font-medium text-brand" data-testid="go-stack-link">
-              {waiting} waiting for you to review →
+              {waiting} waiting for you to review{sample ? " (sample clinic day)" : ""} →
             </Link>
           )}
         </>
