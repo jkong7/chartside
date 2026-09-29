@@ -127,31 +127,45 @@ Enterprise keeps the web app, SSO and SMART launch.
 
 ## Status (2026-09-29, overnight build)
 
-Everything below is on `interface/ghost`, committed one component at a time, with unit and e2e tests.
+Everything below is on `interface/ghost`, committed one component at a time.
+
+- **Tests:** 356 unit tests and 150 or more end-to-end tests, all green on the last full run.
+- **Live evaluation:** `scripts/eval-line.mjs` places real calls through Deepgram and Claude and checks 8 scenarios. All 8 passed.
 
 | Door or layer | Where | State |
 |---|---|---|
-| The line (phone) | `src/lib/server/telephony/*`, `/api/voice/*`, `server.ts` | Built and tested against Twilio's Media Streams protocol with a fake caller, and live against real Deepgram and Claude through the browser phone. Includes: consent gate, keypad (2/4/5/0/3/9/1), wake words, PIN-gated schedule greeting, Spanish consent, streamed speech, keypad barge-in, spoken brief, agent at read-back, text-back. Not yet on a real Twilio number. |
-| Text the line | `/api/sms/incoming`, `/api/cron/nudges` | STATUS, LINK, HELP, STOP, START and "nudge 5". End-of-clinic nudges are opt-in and PHI-free. |
-| Browser phone | `/go/phone` | Real bridge, mic by AudioWorklet, captions, keypad, sample visit, Messages tab. |
-| One-tap recorder | `/go` | Guest try-first, consent sheet, chunked upload, wake lock, pop-out floating recorder. |
-| EHR side panel | `extension/` 1.1.0 | Record beside the EHR, then fill the mapped fields in one click. |
-| iPhone Shortcut | `/go/shortcut` | 30-day device key, build steps, privacy guidance. |
-| Stack | `/go/stack` | Swipe to sign, blockers, guest claim, "marked ready on a call". |
-| Ask | `/go/ask`, `runAgent` | Tool use over the chart. Writes are proposals only. |
-| Settings | `/go/settings` | Phone verify, PIN, devices, NPI, receipt, referral, end-of-clinic text. |
-| Landing | `/line` | Hero, real call video, contact card, invite and recap variants. |
-| Growth | `growth.ts`, `loops.ts`, Admin → Growth | NPI claim, credits, receipts, footers, invite, loop metrics (TTFV, activation, K per loop). |
+| The line (phone) | `src/lib/server/telephony/*`, `/api/voice/*`, `server.ts` | Explicit-consent gate, keypad (1 2 3 4 5 7 8 9 0 * #), wake words, PIN-gated schedule greeting and chart questions, Spanish consent, streamed speech, keypad barge-in, cues while drafting, spoken brief, agent at read-back, "next patient" on the same call, recording cap, dropped-call recovery, text-back. Tested against Twilio's protocol with a fake caller and live through the browser bridge. Not yet on a real Twilio number. |
+| Text the line | `/api/sms/incoming`, `/api/cron/nudges` | STATUS, SCHEDULE, LINK, HELP, STOP, START, NUDGE, BRIEF. Opt-in end-of-clinic and morning texts. PHI-free. |
+| Browser phone | `/go/phone` | Real bridge, captions, keypad, sample visit, autopilot demo, Messages tab, share button. |
+| One-tap recorder | `/go` | Guest try-first, consent sheet, chunked upload that survives dropped connections, wake lock, floating recorder, setup checklist. |
+| EHR side panel | `extension/` 1.1.0 | Record beside the EHR, then fill the fields in one click. Survives dropped connections. |
+| iPhone Shortcut | `/go/shortcut` | 30-day device key that can upload but not read notes. |
+| Android share | `/go/share` | Shared recordings are held in memory until consent is confirmed. |
+| Stack | `/go/stack` | Swipe to sign, live call banner, "Caller ID only" warning with delete, patient summary on sign, next-time card, notifications, home-screen tip. |
+| Ask | `/go/ask`, on the call | Tool use over the chart; writes are proposals only. |
+| Notifications | Web Push, `public/sw.js` | "Note ready" with the visit time only. |
+| Landing | `/line`, `/` | Real call video, autopilot, contact card, FAQ, share images. |
+| Admin → Line | `/admin?tab=line` | Setup checks, stats by door, PHI-free call log, team roster, one-step Twilio connection. |
+| Growth | `growth.ts`, `loops.ts` | NPI claim, credits, receipts, footers, invite, loop metrics. |
 
-**Live checks that passed:**
+**Live checks that passed (real Deepgram and Claude):**
 
-- A 101-second sample visit spoken through the browser phone's mic path was transcribed live by Deepgram. "Chartside, end visit" produced a Claude note in about 20 to 30 seconds, which was read back.
-- Keypad 1 marked it ready, the PHI-free text arrived, the link redeemed, and the Stack showed "Marked ready on a call".
-- A Spanish consent and visit produced a correct English note.
+- Consent small talk was ignored, and "she agreed" started recording.
+- A full 101-second visit went through read-back, "ready" and the text.
+- Noisy room audio produced 35 utterances across 2 speakers.
+- A split wake word worked.
+- Pause and resume worked.
+- A decline was handled.
+- Spanish consent, and a visit spoken in Spanish, produced a correct English note.
+- A chart question after the PIN was answered.
+- The `/go` compressed-audio recording produced 31 utterances and a correct note.
+- A Voice Memos `.m4a` upload produced 33 utterances and a note.
+
+**An independent code review** found 15 issues in the phone code. All 15 are fixed and covered by tests.
 
 **Waiting on Jonathan:**
 
-- Cloud Run hosting: run `deploy/gcp-grant.sh` once, then `deploy/gcp-deploy.sh`. The image already builds in Cloud Build.
-- A Twilio number with the voice webhook `{PUBLIC}/api/voice/incoming` and the messaging webhook `{PUBLIC}/api/sms/incoming`.
-- A Cloud Scheduler job for `/api/cron/nudges`.
-- BAAs before any real PHI.
+1. Run `deploy/gcp-grant.sh`, then `deploy/gcp-deploy.sh`, then `deploy/gcp-scheduler.sh`. The auto-mode check blocked IAM changes and a public tunnel, so nothing is hosted yet. The secrets already exist in Secret Manager.
+2. A Twilio number, connected from Admin → Line.
+3. BAAs before any real PHI.
+4. The dev-dc session has been waiting on a prompt since about 1 AM.
