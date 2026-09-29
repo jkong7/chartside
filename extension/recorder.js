@@ -15,6 +15,8 @@
       this.pausedFor = 0;
       this.pausedAt = 0;
       this.error = null;
+      this.cid = crypto.randomUUID();
+      this.seq = 0;
     }
 
     seconds() {
@@ -26,7 +28,9 @@
     upload(blob, finish) {
       this.queue = this.queue.then(async () => {
         if (this.error) return;
-        const q = new URLSearchParams({ consent: "granted", finish: String(finish), channel: "extension", durationS: String(Math.max(1, this.seconds())) });
+        const q = new URLSearchParams({ consent: "granted", finish: String(finish), channel: "extension", cid: this.cid, durationS: String(Math.max(1, this.seconds())) });
+        if (blob.size) q.set("seq", String(this.seq++));
+        let serverErrors = 0;
         for (let attempt = 0; ; attempt++) {
           const url = this.encId ? `${this.base}/api/capture/${this.encId}?${q}` : `${this.base}/api/capture?${q}`;
           const r = await fetch(url, { method: "POST", credentials: "include", headers: { "content-type": this.mime.split(";")[0] }, body: blob.size ? blob : null }).catch(() => null);
@@ -40,6 +44,8 @@
             return;
           }
           if (r && r.status === 401) throw new Error("signin");
+          if (r && finish && r.status === 409) return;
+          if (r && r.status >= 500 && ++serverErrors > 12) throw new Error("Chartside couldn't save the recording. Try again in a minute.");
           if (r && r.status < 500 && r.status !== 408 && r.status !== 429) throw new Error((await r.json().catch(() => ({}))).error || `Upload failed (${r.status})`);
           if (attempt >= 1 && !this.offline) {
             this.offline = true;

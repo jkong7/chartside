@@ -39,6 +39,8 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
   const [notice, setNotice] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
   const pending = useRef(0);
+  const cid = useRef("");
+  const seqNo = useRef(0);
   const rec = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
@@ -58,9 +60,11 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
 
   const upload = useCallback((blob: Blob, finish: boolean) => {
     queue.current = queue.current.then(async () => {
-      const q = new URLSearchParams({ consent: "granted", finish: String(finish), channel: "go", durationS: String(Math.max(1, Math.round((Date.now() - started.current - pausedFor.current) / 1000))) });
+      const q = new URLSearchParams({ consent: "granted", finish: String(finish), channel: "go", cid: cid.current, durationS: String(Math.max(1, Math.round((Date.now() - started.current - pausedFor.current) / 1000))) });
+      if (blob.size) q.set("seq", String(seqNo.current++));
       const url = enc.current ? `/api/capture/${enc.current}?${q}` : `/api/capture?${q}`;
       pending.current++;
+      let serverErrors = 0;
       try {
         for (let attempt = 0; ; attempt++) {
           const target = enc.current ? `/api/capture/${enc.current}?${q}` : url;
@@ -74,10 +78,15 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
             setOffline(false);
             return;
           }
+          if (r && finish && r.status === 409) {
+            setOffline(false);
+            return;
+          }
           if (r && r.status < 500 && r.status !== 408 && r.status !== 429) {
             const j = await r.json().catch(() => ({}));
             throw new Error(j.error || `Upload failed (${r.status})`);
           }
+          if (r && r.status >= 500 && ++serverErrors > 12) throw new Error("Chartside couldn't save the recording. Try again in a minute.");
           if (attempt >= 1) setOffline(true);
           await new Promise((res) => setTimeout(res, Math.min(10_000, 800 * 2 ** Math.min(attempt, 4))));
         }
@@ -145,6 +154,8 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
       enc.current = null;
       setEncId(null);
       queue.current = Promise.resolve();
+      cid.current = crypto.randomUUID();
+      seqNo.current = 0;
       started.current = Date.now();
       pausedFor.current = 0;
       setSecs(0);
