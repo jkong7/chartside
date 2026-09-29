@@ -144,7 +144,7 @@ export async function redeemMagic(input: { token?: string; email?: string; code?
     if (existing) {
       userId = existing.id;
       if (guestId && guestId !== existing.id) claimed = await mergeGuest(guestId, existing.id);
-    } else if (guestId && (await get<{ id: string }>("SELECT id FROM users WHERE id = ? AND guest_expires_at IS NOT NULL", guestId))) {
+    } else if (guestId && (await get<{ id: string }>("SELECT id FROM users WHERE id = ? AND guest_expires_at IS NOT NULL AND guest_expires_at > ?", guestId, now()))) {
       userId = await convertGuest(guestId, email);
       created = true;
       claimed = Number((await get<{ n: number }>("SELECT COUNT(*) AS n FROM encounters WHERE user_id = ?", guestId))?.n ?? 0);

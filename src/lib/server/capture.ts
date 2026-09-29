@@ -4,7 +4,8 @@ import { noteToText } from "../engine/note";
 import { ALL_PARTY_STATES, STATE_NAMES } from "../engine/lexicon";
 import type { CodingResult, ConsentRecord, Encounter, PatientSummary } from "../types";
 import { saveChunk } from "./audio";
-import { purgeGuests } from "./guest";
+import { purgeGuests, touchGuest } from "./guest";
+import { get } from "../db";
 import { CaptureAuthError, captureActor } from "./captureTokens";
 import { currentUser } from "./auth";
 import { fail } from "./http";
@@ -98,6 +99,8 @@ const truthy = (v: string | undefined) => v === "1" || v === "true" || v === "ye
 const falsy = (v: string | undefined) => v === "0" || v === "false" || v === "no" || v === "off";
 
 async function storeAudio(encId: string, audio: Buffer, mime: string, durationS: number | null) {
+  const owner = await get<{ user_id: string }>("SELECT user_id FROM encounters WHERE id = ?", encId);
+  if (owner) await touchGuest(owner.user_id);
   if (audio.length > MAX_CAPTURE_BYTES) throw new CaptureAuthError(413, "Recording is larger than 100 MB");
   const existing = await audioChunks.list(encId);
   if (existing.length && existing[0].mime !== mime) throw new Invalid(`This visit is recording ${existing[0].mime}; send the rest in the same format`);

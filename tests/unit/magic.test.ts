@@ -225,6 +225,22 @@ describe("try first, claim later", () => {
     expect(await repo.users.byId(keeper.id)).toBeTruthy();
   });
 
+  it("keeps a guest whose recording is still receiving audio, and extends their window", async () => {
+    const g = await import("@/lib/server/guest");
+    const repo = await import("@/lib/server/repo");
+    const { captureAudio } = await import("@/lib/server/capture");
+    const { run, get } = await import("@/lib/db");
+    const guest = await g.createGuest();
+    await run("UPDATE users SET guest_expires_at = ? WHERE id = ?", new Date(Date.now() + 60_000).toISOString(), guest.id);
+    const r = await captureAudio(guest, { bytes: Buffer.alloc(2000, 1), mime: "audio/webm", options: { consent: "granted", finish: false } });
+    const until = (await get<{ guest_expires_at: string }>("SELECT guest_expires_at FROM users WHERE id = ?", guest.id))!.guest_expires_at;
+    expect(Date.parse(until)).toBeGreaterThan(Date.now() + 3600_000);
+    await run("UPDATE users SET guest_expires_at = ? WHERE id = ?", new Date(Date.now() - 1000).toISOString(), guest.id);
+    await g.purgeGuests(new Date().toISOString());
+    expect(await repo.users.byId(guest.id)).toBeTruthy();
+    expect(await repo.encounters.byIdUnscoped(r.encounterId)).toBeTruthy();
+  });
+
   it("names accounts from email addresses", async () => {
     const { nameFromEmail } = await import("@/lib/server/guest");
     expect(nameFromEmail("maria.lopez@x.test")).toBe("Maria Lopez");

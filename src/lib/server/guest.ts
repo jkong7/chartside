@@ -77,12 +77,26 @@ export async function mergeGuest(guestId: string, targetUserId: string) {
   return moved;
 }
 
+export async function touchGuest(userId: string) {
+  const until = new Date(Date.now() + guestHours() * 3600000).toISOString();
+  await run("UPDATE users SET guest_expires_at = ? WHERE id = ? AND guest_expires_at IS NOT NULL AND guest_expires_at < ?", until, userId, until);
+}
+
 export async function purgeGuests(at = now()) {
-  const expired = await all<{ id: string }>("SELECT id FROM users WHERE guest_expires_at IS NOT NULL AND guest_expires_at < ?", at);
+  const expired = await all<{ id: string }>(
+    "SELECT u.id FROM users u WHERE u.guest_expires_at IS NOT NULL AND u.guest_expires_at < ? AND NOT EXISTS (SELECT 1 FROM encounters e JOIN audio_chunks c ON c.encounter_id = e.id WHERE e.user_id = u.id AND e.status IN ('recording', 'paused') AND c.created_at > ?)",
+    at,
+    new Date(Date.parse(at) - 30 * 60_000).toISOString(),
+  );
+  const { liveCallsFor } = await import("./telephony/live");
+  const purged: string[] = [];
   for (const g of expired) {
+    if (liveCallsFor(g.id).length) continue;
     const encs = await all<{ id: string; org_id: string }>("SELECT id, org_id FROM encounters WHERE user_id = ?", g.id);
     for (const e of encs) await deleteAudio({ id: g.id, orgId: e.org_id } as User, e.id, "unclaimed guest visit expired");
     const guestOrgs = await ownedOrgs(g.id);
+    const still = await get<{ id: string }>("SELECT id FROM users WHERE id = ? AND guest_expires_at IS NOT NULL AND guest_expires_at < ?", g.id, at);
+    if (!still) continue;
     await tx(async () => {
       await run("DELETE FROM encounters WHERE user_id = ?", g.id);
       await run("DELETE FROM patients WHERE user_id = ?", g.id);
@@ -90,8 +104,9 @@ export async function purgeGuests(at = now()) {
       await run("DELETE FROM users WHERE id = ?", g.id);
     });
     await audit.log(null, null, "guest.purged", { guestId: g.id, encounters: encs.length });
+    purged.push(g.id);
   }
-  return expired.length;
+  return purged.length;
 }
 
 export function nameFromEmail(email: string) {
