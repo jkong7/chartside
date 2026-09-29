@@ -10,11 +10,22 @@ export interface PrenatalFacts {
   bp: { sys: number; dia: number; evidence: string[] } | null;
 }
 
-export function gaFrom(edd: string, at: Date) {
-  const e = new Date(`${edd}T12:00:00`);
-  const d = new Date(at);
-  d.setHours(12, 0, 0, 0);
-  const daysPregnant = 280 - Math.round((e.getTime() - d.getTime()) / 86400000);
+export function clinicTimeZone() {
+  return typeof window === "undefined" ? process.env.CHARTSIDE_TZ || "America/Chicago" : undefined;
+}
+
+export function localDay(at: Date, timeZone = clinicTimeZone()) {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(at);
+  const get = (t: string) => parts.find((p) => p.type === t)!.value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+export function gaFrom(edd: string, at: Date, timeZone = clinicTimeZone()) {
+  const day = (iso: string) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  const daysPregnant = 280 - Math.round((day(edd.slice(0, 10)) - day(localDay(at, timeZone))) / 86400000);
   return { weeks: Math.floor(daysPregnant / 7), days: ((daysPregnant % 7) + 7) % 7 };
 }
 

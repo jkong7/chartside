@@ -24,6 +24,9 @@ describe("prenatal visit", () => {
   it("computes gestational age from the EDD", () => {
     expect(gaFrom("2026-12-21", AT)).toEqual({ weeks: 28, days: 0 });
     expect(gaFrom("2026-12-21", new Date("2026-12-24T09:00:00"))).toEqual({ weeks: 40, days: 3 });
+    expect(gaFrom("2026-12-21", new Date("2026-09-29T04:30:00Z"), "America/Chicago")).toEqual({ weeks: 28, days: 0 });
+    expect(gaFrom("2026-12-21", new Date("2026-09-29T04:30:00Z"), "UTC")).toEqual({ weeks: 28, days: 1 });
+    expect(gaFrom("2026-12-21", new Date("2026-11-02T05:30:00Z"), "America/Chicago")).toEqual({ weeks: 32, days: 6 });
   });
 
   it("reviews warning signs, flags hypertension with symptoms and a size/dates discrepancy, and lists what's due", () => {

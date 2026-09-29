@@ -17,7 +17,8 @@ test("prenatal visit: pregnancy on the chart, warning signs, preeclampsia flag, 
   await page.goto(`/patients/${patient.id}`);
   const card = page.getByTestId("pregnancy-card");
   await card.getByTestId("pregnancy-edit").click();
-  const edd = new Date(Date.now() + 84 * 86400000);
+  const today = new Date();
+  const edd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 84, 12);
   const iso = `${edd.getFullYear()}-${String(edd.getMonth() + 1).padStart(2, "0")}-${String(edd.getDate()).padStart(2, "0")}`;
   await card.getByTestId("pregnancy-edd").fill(iso);
   await card.getByTestId("pregnancy-gravida").fill("2");
