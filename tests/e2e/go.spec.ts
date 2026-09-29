@@ -191,3 +191,24 @@ test("the home page points signed-out visitors to the line", async ({ page }) =>
   await page.waitForURL(/\/line$/);
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Your scribe is");
 });
+
+test("the new ghost screens pass an accessibility scan", async ({ page }) => {
+  await register(page);
+  const scan = async () => (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations.flatMap((v) => v.nodes.map((n) => `${page.url()} ${v.id}: ${n.target}`));
+  const found: string[] = [];
+  await page.goto("/go");
+  await expect(page.getByTestId("line-checklist")).toBeVisible();
+  found.push(...(await scan()));
+  await page.goto("/go/stack");
+  await expect(page.getByTestId("stack-count")).toBeVisible();
+  found.push(...(await scan()));
+  await page.goto("/admin?tab=line");
+  await expect(page.getByTestId("line-panel")).toBeVisible();
+  found.push(...(await scan()));
+  const { readFileSync } = await import("node:fs");
+  const up = await page.request.post("/go/share", { multipart: { audio: { name: "Recording 9.m4a", mimeType: "audio/mp4", buffer: readFileSync("tests/e2e/fixtures/visit.wav") } }, maxRedirects: 0 });
+  await page.goto(up.headers().location);
+  await expect(page.getByTestId("share-confirm")).toBeVisible();
+  found.push(...(await scan()));
+  expect(found).toEqual([]);
+});
