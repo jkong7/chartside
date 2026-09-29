@@ -47,15 +47,15 @@ export function spokenBrief(note: NoteForBrief, minutes?: number | null) {
   const plan = ap ? null : find(/^plan|plan$|recommend/);
   const lines: string[] = ["Here's your note."];
   if (minutes && minutes > 0) lines.push(`${minutes}-minute visit.`);
-  if (ap) lines.push(`Assessment and plan: ${firstSentences(ap.text, 4, 70)}`);
+  if (ap) lines.push(`Assessment and plan: ${firstSentences(ap.text, 3, 40)}`);
   else {
-    if (assessment) lines.push(`Assessment: ${firstSentences(assessment.text, 2, 35)}`);
-    if (plan) lines.push(`Plan: ${firstSentences(plan.text, 3, 45)}`);
+    if (assessment) lines.push(`Assessment: ${firstSentences(assessment.text, 2, 22)}`);
+    if (plan) lines.push(`Plan: ${firstSentences(plan.text, 2, 25)}`);
   }
   if (!ap && !assessment && !plan && note.sections[0]) lines.push(firstSentences(note.sections[0].text, 2, 40));
   const em = note.codes?.em;
   if (em) lines.push(`Coding suggests a ${EM_LEVEL[em] ?? em} visit.`);
   const dx = note.codes?.diagnoses.length ?? 0;
-  if (dx) lines.push(`${dx} diagnos${dx === 1 ? "is" : "es"} coded.`);
+  if (dx) lines.push(`${dx} diagnos${dx === 1 ? "is" : "es"} coded. The full note is in your link.`);
   return lines.join(" ").replace(/\s+/g, " ").replace(/\.\./g, ".");
 }
