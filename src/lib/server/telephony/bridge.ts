@@ -4,6 +4,7 @@ import { recordingMinutesFromEnv } from "../../engine/limits";
 import { mulawDecode } from "./mulaw";
 import { phoneSession } from "./session";
 import { LiveListener, synthesize } from "./speech";
+import { endCall, heardOnCall, registerCall, updateCall } from "./live";
 import { claimCallStart, readCallToken } from "./token";
 
 interface TwilioFrame {
@@ -39,10 +40,12 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
   const capSeconds = recordingMinutesFromEnv() * 60;
   let lastState = "";
 
+  let liveSid = "";
   const emitState = () => {
-    if (!sim || !call || call.state === lastState) return;
+    if (!call || call.state === lastState) return;
     lastState = call.state;
-    send({ event: "chartside.state", streamSid, state: call.state });
+    if (liveSid) updateCall(liveSid, { state: call.state, encounterId: session?.encounterId() ?? null });
+    if (sim) send({ event: "chartside.state", streamSid, state: call.state });
   };
 
   const send = (obj: unknown) => {
@@ -112,6 +115,7 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
   };
 
   const teardown = async () => {
+    if (liveSid) endCall(liveSid);
     listener?.close();
     for (const r of marks.values()) r();
     marks.clear();
@@ -140,9 +144,25 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
         return;
       }
       call = new ScribeCall({ ...session.deps, say, hangup });
+      liveSid = claims.callSid;
+      const c = call;
+      registerCall({
+        callSid: liveSid,
+        userId: claims.userId,
+        startedAt: Date.now(),
+        state: c.state,
+        encounterId: null,
+        lines: [],
+        control: async (action) => {
+          interrupt();
+          await c.remote(action);
+          emitState();
+        },
+      });
       listener = new LiveListener((text) => {
         if (Date.now() < speakingUntil) return;
         if (sim) send({ event: "chartside.heard", streamSid, text });
+        if (call?.state === "recording") heardOnCall(liveSid, text);
         void call
           ?.onTranscript(text)
           .then(emitState)

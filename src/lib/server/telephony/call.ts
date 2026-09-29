@@ -224,6 +224,20 @@ export class ScribeCall {
     }
   }
 
+  async remote(action: "pause" | "resume" | "end") {
+    for (let i = 0; i < 50 && this.busy; i++) await new Promise((r) => setTimeout(r, 100));
+    if (this.state !== "recording" && this.state !== "paused") return;
+    this.busy = true;
+    try {
+      this.deps.log(`call.remote_${action}`);
+      if (action === "pause" && this.state === "recording") await this.pause();
+      else if (action === "resume" && this.state === "paused") await this.resume();
+      else if (action === "end") await this.endVisit();
+    } finally {
+      this.busy = false;
+    }
+  }
+
   async onLimit() {
     for (let i = 0; i < 50 && this.busy; i++) await new Promise((r) => setTimeout(r, 100));
     if (this.state !== "recording" && this.state !== "paused") return;

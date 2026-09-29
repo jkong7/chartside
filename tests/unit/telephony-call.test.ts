@@ -281,3 +281,20 @@ describe("spoken note brief", () => {
     expect(text.split(/\s+/).length).toBeLessThan(60);
   });
 });
+
+describe("remote control from a screen", () => {
+  it("pauses, resumes and ends a recording visit, and ignores other states", async () => {
+    const { call, events } = harness();
+    await call.start();
+    await call.remote("pause");
+    expect(call.state).toBe("consent");
+    await call.onDigit("2");
+    await call.remote("pause");
+    expect(call.state).toBe("paused");
+    await call.remote("resume");
+    expect(call.state).toBe("recording");
+    await call.remote("end");
+    expect(events).toContain("finish");
+    expect(call.state).toBe("review");
+  });
+});
