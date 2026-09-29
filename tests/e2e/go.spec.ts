@@ -104,3 +104,33 @@ test("the line page shows who invited you, offers a contact card, and passes an 
   const phoneScan = await new AxeBuilder({ page: visitor }).withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(phoneScan.violations.map((v) => `${v.id}: ${v.nodes[0]?.target}`)).toEqual([]);
 });
+
+test("sharing a recording from another app asks for consent before anything is kept", async ({ page }) => {
+  const { readFileSync } = await import("node:fs");
+  const wav = readFileSync("tests/e2e/fixtures/visit.wav");
+  const manifest = await (await page.request.get("/manifest.webmanifest")).json();
+  expect(manifest.share_target).toMatchObject({ action: "/go/share", method: "POST", enctype: "multipart/form-data" });
+  await page.goto("/go");
+  const up = await page.request.post("/go/share", { multipart: { audio: { name: "Recording 14.m4a", mimeType: "audio/mp4", buffer: wav } }, maxRedirects: 0 });
+  expect(up.status()).toBe(303);
+  const where = up.headers().location;
+  expect(where).toMatch(/\/go\/share\/confirm\?t=/);
+  await page.goto(where);
+  await expect(page.getByTestId("share-confirm")).toContainText("Recording 14.m4a");
+  await page.getByTestId("share-yes").click();
+  await expect(page.getByTestId("share-review")).toBeVisible({ timeout: 45000 });
+  await page.getByTestId("share-review").click();
+  await page.waitForURL(/\/go\/stack\?focus=enc_/);
+  await page.goto(where);
+  await expect(page.getByTestId("share-expired")).toBeVisible();
+
+  const again = await page.request.post("/go/share", { multipart: { audio: { name: "Recording 15.m4a", mimeType: "audio/mp4", buffer: wav } }, maxRedirects: 0 });
+  await page.goto(again.headers().location);
+  await page.getByTestId("share-no").click();
+  await expect(page.getByTestId("share-discarded")).toBeVisible();
+  const other = await (await page.context().browser()!.newContext()).newPage();
+  await other.goto(again.headers().location);
+  await expect(other.getByTestId("share-expired")).toBeVisible();
+  const bad = await page.request.post("/go/share", { multipart: { audio: { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hello") } }, maxRedirects: 0 });
+  expect(bad.headers().location).toContain("/go?shared=");
+});

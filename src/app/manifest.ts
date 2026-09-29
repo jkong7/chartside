@@ -1,7 +1,14 @@
 import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
+  const shareTarget = {
+    action: "/go/share",
+    method: "POST",
+    enctype: "multipart/form-data",
+    params: { title: "title", text: "text", files: [{ name: "audio", accept: ["audio/*", ".m4a", ".mp3", ".wav", ".webm", ".ogg", ".aac"] }] },
+  };
   return {
+    ...({ share_target: shareTarget } as object),
     name: "Chartside",
     short_name: "Chartside",
     description: "Ambient clinical documentation with every sentence traceable to the visit.",

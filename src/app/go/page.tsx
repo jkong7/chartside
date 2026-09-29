@@ -8,7 +8,8 @@ import { recordingMinutesFromEnv } from "@/lib/engine/limits";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Record a visit · Chartside", description: "One tap to record a visit. Chartside writes the note." };
 
-export default async function GoPage() {
+export default async function GoPage({ searchParams }: { searchParams: Promise<{ shared?: string }> }) {
+  const { shared } = await searchParams;
   const user = await currentUser().catch(() => null);
   const counts = user ? await decisionCounts(user).catch(() => null) : null;
   return (
@@ -24,6 +25,11 @@ export default async function GoPage() {
           {user && <Link href="/go/ask" className="btn-ghost">Ask</Link>}
         </nav>
       </header>
+      {shared && (
+        <p className="mx-auto max-w-md rounded-lg bg-warn-50 px-3 py-2 text-center text-sm text-warn" role="alert" data-testid="go-shared-msg">
+          {shared}
+        </p>
+      )}
       {user && (
         <div className="mx-auto max-w-3xl px-4">
           <LiveCallBanner />
