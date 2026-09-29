@@ -30,14 +30,14 @@ export async function sessionToken() {
   return (await cookies()).get(SESSION_COOKIE)?.value ?? null;
 }
 
-export async function startSession(userId: string, orgId: string | null = null) {
-  const token = await sessions.create(userId, orgId, 14, (await headers()).get("user-agent"));
+export async function startSession(userId: string, orgId: string | null = null, days = 14) {
+  const token = await sessions.create(userId, orgId, days, (await headers()).get("user-agent"));
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production" && process.env.CHARTSIDE_INSECURE_COOKIES !== "1",
     path: "/",
-    maxAge: 14 * 86400,
+    maxAge: days * 86400,
   });
 }
 
@@ -49,7 +49,7 @@ export async function endSession() {
 }
 
 export function publicUser(u: User) {
-  return { id: u.id, email: u.email, name: u.name, specialty: u.specialty, prefs: u.prefs, orgId: u.orgId, orgName: u.orgName, role: u.role };
+  return { id: u.id, email: u.email, name: u.name, specialty: u.specialty, prefs: u.prefs, orgId: u.orgId, orgName: u.orgName, role: u.role, guestUntil: u.guestUntil ?? null, phone: u.phone ? u.phone.replace(/\d(?=\d{4})/g, "•") : null };
 }
 
 export { users };

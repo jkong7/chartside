@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { all, get, now, run, uid } from "../db";
 import { seal, unseal } from "../fhir/crypto";
+import { assertNotGuest } from "./guest";
 import { Forbidden, Invalid } from "./policy";
 import { actorFor, audit, j, type User } from "./repo";
 
@@ -31,6 +32,7 @@ export const apiKeys = {
   list: async (u: User): Promise<ApiKey[]> =>
     (await all<{ id: string; name: string; prefix: string; scopes: string; creator: string | null; created_at: string; last_used_at: string | null; revoked_at: string | null }>("SELECT k.*, us.name AS creator FROM api_keys k LEFT JOIN users us ON us.id = k.created_by WHERE k.org_id = ? ORDER BY k.created_at DESC", u.orgId)).map((r) => ({ id: r.id, name: r.name, prefix: r.prefix, scopes: j(r.scopes, []), createdBy: r.creator, createdAt: r.created_at, lastUsedAt: r.last_used_at, revokedAt: r.revoked_at })),
   create: async (u: User, input: { name?: string; scopes?: string[] }) => {
+    assertNotGuest(u, "create API keys");
     assertAdmin(u);
     const name = (input.name ?? "").trim().slice(0, 60);
     if (!name) throw new Invalid("Name the key after the system that will use it");

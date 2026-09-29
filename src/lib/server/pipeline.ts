@@ -29,6 +29,7 @@ import { buildClaim, claimStatus } from "../engine/billing";
 import { buildPriorAuths } from "../engine/priorauth";
 import { enrichCoding, hccMapper, payerFor, referenceFor } from "./rcm";
 import { canSign, Forbidden, Invalid } from "./policy";
+import { assertNotGuest } from "./guest";
 import { syncTasks } from "./inbox";
 import { applyReplacements, vocabulary } from "./snippets";
 import { cosignPlan, documentText, holdClaimForCosign, recordSignature } from "./signoff";
@@ -293,6 +294,7 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   if (!enc) throw new Error("Encounter not found");
   if (enc.status === "signed") return { signed: true, blockers: [] as string[] };
   if (enc.visitType === "group" && !enc.patientId) throw new Invalid("This is the group recording. Create and sign each member's note from the group page.");
+  assertNotGuest(user, "sign");
   if (!canSign(user, enc)) throw new Forbidden(user.role === "scribe" ? "Scribes can prepare notes but only the treating clinician can sign." : "Only the treating clinician can sign this note.");
   const rec = await notes.latest(enc.id);
   if (!rec) throw new Error("Generate a note before signing");

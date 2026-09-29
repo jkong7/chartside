@@ -672,6 +672,21 @@ CREATE TABLE IF NOT EXISTS ehr_connections (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS magic_links (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+  email TEXT,
+  phone TEXT,
+  guest_user_id TEXT,
+  token_hash TEXT NOT NULL UNIQUE,
+  code_hash TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  next_path TEXT,
+  expires_at TEXT NOT NULL,
+  used_at TEXT,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS capture_tokens (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,
@@ -709,6 +724,8 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS snippets_org ON snippets(org_id, user_id)",
   "CREATE INDEX IF NOT EXISTS vocabulary_org ON vocabulary(org_id, user_id)",
   "CREATE INDEX IF NOT EXISTS messages_assignee ON messages(org_id, assignee_id, status)",
+  "CREATE INDEX IF NOT EXISTS magic_links_email ON magic_links(email, created_at)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS users_verified_phone ON users(phone) WHERE phone_verified_at IS NOT NULL",
 ];
 
 const LEGACY_COLUMNS: [string, string, string][] = [
@@ -738,6 +755,9 @@ const LEGACY_COLUMNS: [string, string, string][] = [
   ["patients", "contact_pref", "TEXT"],
   ["users", "mfa_secret", "TEXT"],
   ["users", "mfa_enabled_at", "TEXT"],
+  ["users", "phone", "TEXT"],
+  ["users", "phone_verified_at", "TEXT"],
+  ["users", "guest_expires_at", "TEXT"],
   ["users", "mfa_recovery", "TEXT"],
   ["auth_sessions", "created_at", "TEXT"],
   ["auth_sessions", "last_seen_at", "TEXT"],

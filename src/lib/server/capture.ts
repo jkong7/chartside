@@ -3,6 +3,7 @@ import { noteToText } from "../engine/note";
 import { ALL_PARTY_STATES, STATE_NAMES } from "../engine/lexicon";
 import type { CodingResult, ConsentRecord, Encounter, PatientSummary } from "../types";
 import { saveChunk } from "./audio";
+import { purgeGuests } from "./guest";
 import { CaptureAuthError, captureActor } from "./captureTokens";
 import { currentUser } from "./auth";
 import { fail } from "./http";
@@ -147,6 +148,7 @@ async function draft(user: User, enc: Encounter, opts: Record<string, string>) {
 export async function startCapture(auth: CaptureAuth, input: CaptureInput) {
   const { user, tokenId } = auth;
   assertCan(user, "clinical.capture");
+  await purgeGuests();
   const o = input.opts;
   if (o.consent !== "granted") throw new Invalid("Record the patient's consent: send consent=granted. If the patient declined, don't record.");
   const state = (o.state || user.prefs.state || "IL").toUpperCase();

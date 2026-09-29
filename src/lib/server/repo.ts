@@ -16,6 +16,9 @@ export interface UserRow {
   specialty: string;
   prefs: string;
   created_at: string;
+  phone?: string | null;
+  phone_verified_at?: string | null;
+  guest_expires_at?: string | null;
 }
 
 export interface BaseUser {
@@ -26,6 +29,8 @@ export interface BaseUser {
   prefs: UserPrefs;
   createdAt: string;
   hasPassword: boolean;
+  phone?: string | null;
+  guestUntil?: string | null;
 }
 
 export interface User extends BaseUser {
@@ -61,7 +66,7 @@ export const j = <T>(s: string | null | undefined, fallback: T): T => {
 };
 
 export function toUser(r: UserRow): BaseUser {
-  return { id: r.id, email: r.email, name: r.name, specialty: r.specialty, prefs: j(r.prefs, {}), createdAt: r.created_at, hasPassword: !!r.password_hash };
+  return { id: r.id, email: r.email, name: r.name, specialty: r.specialty, prefs: j(r.prefs, {}), createdAt: r.created_at, hasPassword: !!r.password_hash, phone: r.phone_verified_at ? r.phone ?? null : null, guestUntil: r.guest_expires_at ?? null };
 }
 
 export const SEES_ORG = new Set<Role>(["owner", "admin", "nurse", "scribe", "coder", "viewer"]);

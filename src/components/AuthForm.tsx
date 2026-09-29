@@ -28,6 +28,7 @@ export default function AuthForm({ mode, next, invite, error: initialError }: { 
   const [ssoMode, setSsoMode] = useState(false);
   const [email, setEmail] = useState(invite?.email ?? "");
   const [challenge, setChallenge] = useState<string | null>(null);
+  const [codeSent, setCodeSent] = useState<string | null>(null);
   const passwordless = mode === "login" && (ssoMode || !!sso?.required);
 
   async function lookup(value: string) {
@@ -47,6 +48,39 @@ export default function AuthForm({ mode, next, invite, error: initialError }: { 
       window.location.assign(url);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Single sign-on is unavailable");
+      setBusy(false);
+    }
+  }
+
+  async function emailCode() {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return setError("Enter your email first");
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api<{ email: string }>("/auth/magic", { body: { email, next } });
+      setCodeSent(r.email);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send a code");
+      if (err instanceof Error && /single sign-on/i.test(err.message)) lookup(email);
+    }
+    setBusy(false);
+  }
+
+  async function submitCode(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api<{ mfa?: boolean; challenge?: string; next: string }>("/auth/magic/verify", { body: { email, code: new FormData(e.currentTarget).get("code") } });
+      if (r.mfa && r.challenge) {
+        setCodeSent(null);
+        setChallenge(r.challenge);
+        setBusy(false);
+        return;
+      }
+      window.location.assign(next ?? r.next ?? "/today");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign-in failed");
       setBusy(false);
     }
   }
@@ -92,7 +126,18 @@ export default function AuthForm({ mode, next, invite, error: initialError }: { 
           <Logo />
           <span className="font-serif text-2xl">Chartside</span>
         </Link>
-        {challenge ? (
+        {codeSent ? (
+          <form onSubmit={submitCode} className="card space-y-4 p-6 shadow-sm" data-testid="magic-code-form">
+            <div>
+              <h1 className="text-lg font-semibold">Check your email</h1>
+              <p className="mt-1 text-sm text-ink-3">We sent a 6-digit code to {codeSent}. It expires in 10 minutes.</p>
+            </div>
+            <input className="input text-center font-mono text-lg tracking-widest" name="code" inputMode="numeric" autoComplete="one-time-code" autoFocus required aria-label="Sign-in code" data-testid="magic-code" />
+            {error && <p className="rounded-lg bg-rec-50 px-3 py-2 text-sm text-rec" role="alert">{error}</p>}
+            <button className="btn-primary w-full" disabled={busy} type="submit" data-testid="magic-submit">{busy && <Spinner />} Sign in</button>
+            <button type="button" className="w-full text-center text-sm text-brand" onClick={() => { setCodeSent(null); setError(null); }}>Back</button>
+          </form>
+        ) : challenge ? (
           <form onSubmit={submit} className="card space-y-4 p-6 shadow-sm" data-testid="mfa-form">
             <div>
               <h1 className="text-lg font-semibold">Two-step verification</h1>
@@ -155,6 +200,9 @@ export default function AuthForm({ mode, next, invite, error: initialError }: { 
             <button type="button" className="btn-outline w-full" data-testid="sso-button" onClick={() => (sso?.sso ? startSso() : setSsoMode(true))} disabled={busy}>
               <Shield /> {sso?.sso ? `Sign in with ${sso.orgName} SSO` : "Sign in with SSO"}
             </button>
+          )}
+          {mode === "login" && !passwordless && (
+            <button type="button" className="btn-outline w-full" data-testid="magic-button" onClick={emailCode} disabled={busy}>Email me a sign-in code</button>
           )}
           {mode === "login" && ssoMode && !sso?.required && <button type="button" className="w-full text-center text-sm text-brand" onClick={() => setSsoMode(false)}>Use a password instead</button>}
           <p className="text-center text-sm text-ink-3">

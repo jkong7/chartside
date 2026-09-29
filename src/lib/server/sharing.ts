@@ -4,6 +4,7 @@ import { noteToText } from "../engine/note";
 import { seal, unseal } from "../fhir/crypto";
 import { sendOrgEmail } from "./notify";
 import { Forbidden, Invalid } from "./policy";
+import { assertNotGuest } from "./guest";
 import { addenda, audit, encounters, notes, orgs, patients, SEES_ORG, users, type User } from "./repo";
 
 export type ShareAccess = "view" | "edit";
@@ -77,6 +78,7 @@ export async function listShares(u: User, encId: string) {
 }
 
 export async function shareWithMember(u: User, encId: string, input: { userId?: string; access?: ShareAccess; message?: string }) {
+  assertNotGuest(u, "share visits");
   const enc = await ownEncounter(u, encId);
   const access: ShareAccess = input.access === "edit" ? "edit" : "view";
   if (!input.userId) throw new Invalid("Choose a colleague");
@@ -97,6 +99,7 @@ export async function shareWithMember(u: User, encId: string, input: { userId?: 
 }
 
 export async function shareExternal(u: User, encId: string, input: { email?: string; days?: number; message?: string }, origin: string) {
+  assertNotGuest(u, "share visits");
   const enc = await ownEncounter(u, encId);
   const org = await orgs.get(u.orgId);
   if ((org?.settings as { sharing?: { external?: boolean } } | undefined)?.sharing?.external === false) throw new Forbidden("Your organization has turned off external sharing");

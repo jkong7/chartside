@@ -4,6 +4,7 @@ import { seal } from "../fhir/crypto";
 import { discoverOidc } from "../sso/oidc";
 import { Forbidden, Invalid } from "./policy";
 import { audit, invites, orgs, ROLES, sessions, type Role, type SsoConfig, type User } from "./repo";
+import { assertNotGuest } from "./guest";
 
 export async function adminSnapshot(user: User) {
   const org = (await orgs.get(user.orgId))!;
@@ -77,6 +78,7 @@ export async function removeMember(actor: User, userId: string) {
 
 export async function inviteMember(actor: User, email: string, role: Role, origin: string) {
   assertRole(role);
+  assertNotGuest(actor, "invite colleagues");
   const clean = email.trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) throw new Invalid("Enter a valid email address");
   if (role === "owner" && actor.role !== "owner") throw new Forbidden("Only an owner can invite owners.");

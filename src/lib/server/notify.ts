@@ -21,7 +21,7 @@ export function normalizePhone(p: string) {
   return null;
 }
 
-async function sendSms(to: string, body: string) {
+export async function sendSms(to: string, body: string) {
   const sid = process.env.TWILIO_ACCOUNT_SID!;
   const base = (process.env.TWILIO_BASE_URL || "https://api.twilio.com").replace(/\/$/, "");
   const res = await fetch(`${base}/2010-04-01/Accounts/${sid}/Messages.json`, {
@@ -35,7 +35,7 @@ async function sendSms(to: string, body: string) {
   return j.sid ?? null;
 }
 
-async function sendEmail(to: string, subject: string, body: string, fromName: string) {
+export async function sendEmail(to: string, subject: string, body: string, fromName: string) {
   const base = (process.env.SENDGRID_BASE_URL || "https://api.sendgrid.com").replace(/\/$/, "");
   const res = await fetch(`${base}/v3/mail/send`, {
     method: "POST",
@@ -58,6 +58,7 @@ export type NoticeKind = keyof typeof TEMPLATES;
 
 export async function notifyPatient(u: User | null, input: { orgId: string; patientId: string; encounterId?: string | null; kind: NoticeKind; url: string; channel?: Channel }) {
   if (u && !["owner", "admin", "clinician", "scribe"].includes(u.role)) throw new Forbidden("Your role can't contact patients");
+  if (u?.guestUntil) throw new Forbidden("Save your note with your email first, then you can contact patients.");
   const p = await patients.byIdUnscoped(input.patientId);
   if (!p) throw new Error("Patient not found");
   const channel: Channel | null = input.channel ?? (p.contactPref === "sms" && p.phone ? "sms" : p.contactPref === "email" && p.email ? "email" : p.phone ? "sms" : p.email ? "email" : null);
