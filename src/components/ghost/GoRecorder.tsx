@@ -27,7 +27,7 @@ function pickMime() {
   return "";
 }
 
-export default function GoRecorder({ signedIn, guest, waiting }: { signedIn: boolean; guest: boolean; waiting: number }) {
+export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 }: { signedIn: boolean; guest: boolean; waiting: number; maxMinutes?: number }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [secs, setSecs] = useState(0);
   const [level, setLevel] = useState(0);
@@ -35,6 +35,7 @@ export default function GoRecorder({ signedIn, guest, waiting }: { signedIn: boo
   const [encId, setEncId] = useState<string | null>(null);
   const [pip, setPip] = useState<Pip | null>(null);
   const [isGuest, setIsGuest] = useState(guest);
+  const [notice, setNotice] = useState<string | null>(null);
   const rec = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
@@ -181,6 +182,15 @@ export default function GoRecorder({ signedIn, guest, waiting }: { signedIn: boo
     pip?.close();
   };
 
+  const finishRef = useRef(finish);
+  finishRef.current = finish;
+  useEffect(() => {
+    if (phase === "recording" && secs >= maxMinutes * 60) {
+      setNotice(`Recording stopped at the ${maxMinutes}-minute limit.`);
+      finishRef.current();
+    }
+  }, [phase, secs, maxMinutes]);
+
   const popOut = async () => {
     if (!window.documentPictureInPicture) return;
     const w = await window.documentPictureInPicture.requestWindow({ width: 300, height: 150 });
@@ -305,6 +315,11 @@ export default function GoRecorder({ signedIn, guest, waiting }: { signedIn: boo
         </div>
       )}
 
+      {notice && (phase === "finishing" || phase === "ready") && (
+        <p className="mt-4 text-sm text-ink-3" role="status" data-testid="go-notice">
+          {notice}
+        </p>
+      )}
       {error && (
         <p role="alert" className="mt-4 rounded-lg bg-rec-50 px-3 py-2 text-sm text-rec" data-testid="go-error">
           {error}

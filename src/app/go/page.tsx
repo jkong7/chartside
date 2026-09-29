@@ -2,6 +2,7 @@ import Link from "next/link";
 import GoRecorder from "@/components/ghost/GoRecorder";
 import { currentUser } from "@/lib/server/auth";
 import { decisionCounts } from "@/lib/server/decisions";
+import { recordingMinutesFromEnv } from "@/lib/engine/limits";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Record a visit · Chartside", description: "One tap to record a visit. Chartside writes the note." };
@@ -22,7 +23,7 @@ export default async function GoPage() {
           {user && <Link href="/go/ask" className="btn-ghost">Ask</Link>}
         </nav>
       </header>
-      <GoRecorder signedIn={!!user} guest={!!user?.guestUntil} waiting={counts?.total ?? 0} />
+      <GoRecorder signedIn={!!user} guest={!!user?.guestUntil} waiting={counts?.total ?? 0} maxMinutes={recordingMinutesFromEnv()} />
     </main>
   );
 }
