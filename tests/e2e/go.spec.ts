@@ -77,6 +77,8 @@ test("the line page shows who invited you, offers a contact card, and passes an 
   await visitor.waitForURL(/\/line\?ref=/);
   await expect(visitor.getByTestId("line-invited")).toContainText("Dr. Rivera invited you");
   await expect(visitor.getByRole("heading", { level: 1 })).toContainText("Your scribe is");
+  await expect(visitor.getByTestId("line-video").locator("video")).toHaveAttribute("src", "/demo/line-call.mp4");
+  expect((await visitor.request.get("/demo/line-call.mp4")).headers()["content-type"]).toContain("video/mp4");
   const vcf = await visitor.request.get("/line/contact.vcf");
   expect(vcf.headers()["content-type"]).toContain("text/vcard");
   expect(await vcf.text()).toContain("FN:Chartside Scribe");

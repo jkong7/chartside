@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Chartside Line · Your scribe is a phone number",
   description: "Call before a visit, set the phone down, hang up. Your note is waiting. No app, no login, no setup.",
-  openGraph: { title: "Your scribe is a phone number", description: "Call before a visit, set the phone down, hang up. Your note is waiting." },
+  openGraph: { title: "Your scribe is a phone number", description: "Call before a visit, set the phone down, hang up. Your note is waiting.", type: "website" },
+  twitter: { card: "summary_large_image", title: "Your scribe is a phone number", description: "Call before a visit, set the phone down, hang up. Your note is waiting." },
 };
 
 function pretty(e164: string) {
@@ -97,7 +98,32 @@ export default async function LinePage({ searchParams }: { searchParams: Promise
           </div>
         </div>
 
-        <figure className="rounded-3xl bg-[#0b0f16] p-5 text-white shadow-xl" aria-label="What a call sounds like">
+        <figure className="mx-auto w-full max-w-[340px]" data-testid="line-video">
+          <div className="overflow-hidden rounded-[40px] border-[8px] border-[#11161f] bg-[#0b0f16] shadow-2xl">
+            <video className="block h-auto w-full" src="/demo/line-call.mp4" poster="/demo/line-call-poster.jpg" autoPlay muted loop playsInline preload="metadata" aria-label="A real call to Chartside, sped up six times: consent, a two-minute visit, the note read back, then the text that opens it" />
+          </div>
+          <figcaption className="mt-3 text-center text-sm text-ink-3">A real call, sped up 6×. Consent, a two-minute visit, the note read back, then the text that opens it.</figcaption>
+        </figure>
+      </section>
+
+      <section className="border-y border-line bg-surface">
+        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-14 md:grid-cols-3">
+          {[
+            ["1. Call", "Dial before the visit. Your patient hears a short consent question, and nothing is kept until they agree."],
+            ["2. Put the phone down", "Chartside listens quietly. Say “Chartside, pause” or press 4 any time. The keypad works just like old dictation lines."],
+            ["3. Hang up, tap the text", "Your note, codes and patient summary are ready, with every sentence linked to the moment it was said. Swipe to sign."],
+          ].map(([t, d]) => (
+            <div key={t}>
+              <h2 className="font-serif text-2xl font-semibold text-ink">{t}</h2>
+              <p className="mt-2 leading-relaxed text-ink-2">{d}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 py-14">
+        <h2 className="mb-6 text-center font-serif text-3xl font-semibold text-ink">What you hear on the line</h2>
+        <figure className="mx-auto max-w-2xl rounded-3xl bg-[#0b0f16] p-5 text-white shadow-xl" aria-label="What a call sounds like">
           <figcaption className="mb-3 flex items-center justify-between text-xs uppercase tracking-widest text-white/65">
             <span>A real call, start to finish</span>
             <span className="flex items-center gap-1.5">
@@ -123,21 +149,6 @@ export default async function LinePage({ searchParams }: { searchParams: Promise
             <p className="mt-1">Chartside: your note from the 3:42 PM call is ready. Review and sign: chartside…/m/…</p>
           </div>
         </figure>
-      </section>
-
-      <section className="border-y border-line bg-surface">
-        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-14 md:grid-cols-3">
-          {[
-            ["1. Call", "Dial before the visit. Your patient hears a short consent question, and nothing is kept until they agree."],
-            ["2. Put the phone down", "Chartside listens quietly. Say “Chartside, pause” or press 4 any time. The keypad works just like old dictation lines."],
-            ["3. Hang up, tap the text", "Your note, codes and patient summary are ready, with every sentence linked to the moment it was said. Swipe to sign."],
-          ].map(([t, d]) => (
-            <div key={t}>
-              <h2 className="font-serif text-2xl font-semibold text-ink">{t}</h2>
-              <p className="mt-2 leading-relaxed text-ink-2">{d}</p>
-            </div>
-          ))}
-        </div>
       </section>
 
       <section className="mx-auto max-w-6xl px-4 py-14">
