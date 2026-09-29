@@ -132,6 +132,29 @@ describe("magic sign-in", () => {
   });
 });
 
+describe("phone PIN", () => {
+  it("rejects weak PINs, verifies with scrypt, and locks after five misses", async () => {
+    const m = await import("@/lib/server/magic");
+    const { get } = await import("@/lib/db");
+    const doc = await newMember("Dr. Pin");
+    expect(await m.hasPhonePin(doc.id)).toBe(false);
+    expect(await m.verifyPhonePin(doc.id, "4821")).toBe(false);
+    for (const bad of ["12", "1234567", "abcd", "1111", "1234", "9876", "4567"]) await expect(m.setPhonePin(doc.id, bad)).rejects.toThrow();
+    await m.setPhonePin(doc.id, "4821");
+    expect(await m.hasPhonePin(doc.id)).toBe(true);
+    expect((await get<{ phone_pin_hash: string }>("SELECT phone_pin_hash FROM users WHERE id = ?", doc.id))?.phone_pin_hash).toMatch(/^scrypt\$/);
+    expect(await m.verifyPhonePin(doc.id, "4821")).toBe(true);
+    for (let i = 0; i < 4; i++) expect(await m.verifyPhonePin(doc.id, "0000")).toBe(false);
+    expect(await m.verifyPhonePin(doc.id, "4821")).toBe(true);
+    for (let i = 0; i < 5; i++) expect(await m.verifyPhonePin(doc.id, "0000")).toBe(false);
+    expect(await m.phonePinLocked(doc.id)).toBe(true);
+    expect(await m.verifyPhonePin(doc.id, "4821")).toBe(false);
+    await m.setPhonePin(doc.id, "5930");
+    expect(await m.phonePinLocked(doc.id)).toBe(false);
+    expect(await m.verifyPhonePin(doc.id, "5930")).toBe(true);
+  });
+});
+
 describe("try first, claim later", () => {
   it("lets a guest record, blocks signing and sharing, then claims into a new account", async () => {
     const g = await import("@/lib/server/guest");

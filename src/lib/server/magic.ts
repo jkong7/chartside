@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { get, now, run, uid } from "../db";
+import { hashPassword, verifyPassword } from "./auth";
 import { deliver } from "./delivery";
 import { convertGuest, GUEST_EMAIL_DOMAIN, mergeGuest, nameFromEmail } from "./guest";
 import { normalizePhone } from "./notify";
@@ -195,6 +196,50 @@ export async function verifyPhone(userId: string, e164: string) {
   if (!phone) throw new Invalid("Invalid phone number");
   if (!(await markPhoneVerified(userId, phone))) throw new Invalid("That number is already verified on another Chartside account");
   return phone;
+}
+
+const PIN_MAX_FAILURES = 5;
+const PIN_LOCK_MS = 30 * 60 * 1000;
+
+export function pinProblem(pin: string) {
+  if (!/^\d{4,6}$/.test(pin)) return "Use 4 to 6 digits";
+  if (/^(\d)\1+$/.test(pin)) return "Avoid a PIN that repeats one digit";
+  const up = "0123456789012345";
+  const down = "9876543210987654";
+  if (up.includes(pin) || down.includes(pin)) return "Avoid a PIN with digits in a row";
+  return null;
+}
+
+export async function setPhonePin(userId: string, pin: string) {
+  const problem = pinProblem(String(pin ?? ""));
+  if (problem) throw new Invalid(problem);
+  await run("UPDATE users SET phone_pin_hash = ?, phone_pin_failures = 0, phone_pin_locked_until = NULL WHERE id = ?", hashPassword(String(pin)), userId);
+  await audit.log({ id: userId, orgId: null }, null, "phone.pin_set", {});
+}
+
+export async function hasPhonePin(userId: string) {
+  return !!(await get<{ phone_pin_hash: string | null }>("SELECT phone_pin_hash FROM users WHERE id = ?", userId))?.phone_pin_hash;
+}
+
+export async function phonePinLocked(userId: string) {
+  const r = await get<{ phone_pin_locked_until: string | null }>("SELECT phone_pin_locked_until FROM users WHERE id = ?", userId);
+  return !!r?.phone_pin_locked_until && r.phone_pin_locked_until > now();
+}
+
+export async function verifyPhonePin(userId: string, pin: string) {
+  const r = await get<{ phone_pin_hash: string | null; phone_pin_failures: number; phone_pin_locked_until: string | null }>("SELECT phone_pin_hash, phone_pin_failures, phone_pin_locked_until FROM users WHERE id = ?", userId);
+  if (!r?.phone_pin_hash) return false;
+  if (r.phone_pin_locked_until && r.phone_pin_locked_until > now()) return false;
+  if (verifyPassword(String(pin ?? ""), r.phone_pin_hash)) {
+    await run("UPDATE users SET phone_pin_failures = 0, phone_pin_locked_until = NULL WHERE id = ?", userId);
+    await audit.log({ id: userId, orgId: null }, null, "phone.pin_ok", {});
+    return true;
+  }
+  const failures = Number(r.phone_pin_failures ?? 0) + 1;
+  const lock = failures >= PIN_MAX_FAILURES ? new Date(Date.now() + PIN_LOCK_MS).toISOString() : null;
+  await run("UPDATE users SET phone_pin_failures = ?, phone_pin_locked_until = ? WHERE id = ?", lock ? 0 : failures, lock, userId);
+  await audit.log({ id: userId, orgId: null }, null, lock ? "phone.pin_locked" : "phone.pin_failed", { failures });
+  return false;
 }
 
 export async function userByPhone(e164: string): Promise<User | null> {
