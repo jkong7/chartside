@@ -37,18 +37,49 @@ function words(spk, start, end, text) {
   return ws.map((w, i) => ({ word: w.toLowerCase().replace(/[^a-z']/g, ""), punctuated_word: w, start: start + i * step, end: start + (i + 1) * step, confidence: 0.95, speaker: spk, language: "en" }));
 }
 
-const stats = { grants: 0, prerecorded: 0, lastBytes: 0, wsConnections: 0, wsAudioMessages: 0 };
+const stats = { grants: 0, prerecorded: 0, lastBytes: 0, wsConnections: 0, wsAudioMessages: 0, phoneConnections: 0, phoneAudioMessages: 0, spoken: [] };
+const phoneQueue = [];
+const phoneSockets = new Set();
 
 const server = createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   let size = 0;
-  req.on("data", (c) => (size += c.length));
+  let speakText = "";
+  const parts = [];
+  req.on("data", (c) => {
+    size += c.length;
+    if (url.pathname === "/v1/speak") parts.push(c);
+  });
+  req.on("end", () => {
+    if (url.pathname === "/v1/speak") {
+      try {
+        speakText = JSON.parse(Buffer.concat(parts).toString()).text || "";
+      } catch {
+        speakText = "";
+      }
+    }
+  });
   req.on("end", () => {
     if (url.pathname === "/stats") return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(stats));
+    if (req.method === "POST" && url.pathname === "/phone/say") {
+      const text = url.searchParams.get("text") || "";
+      phoneQueue.push(text);
+      return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ queued: phoneQueue.length }));
+    }
+    if (req.method === "POST" && url.pathname === "/phone/reset") {
+      phoneQueue.length = 0;
+      stats.spoken = [];
+      return res.writeHead(200).end("{}");
+    }
     if (req.headers.authorization !== `Token ${KEY}`) return res.writeHead(401).end(JSON.stringify({ err_msg: "bad key" }));
     if (req.method === "POST" && url.pathname === "/v1/auth/grant") {
       stats.grants++;
       return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ access_token: TOKEN, expires_in: 60 }));
+    }
+    if (req.method === "POST" && url.pathname === "/v1/speak") {
+      if (url.searchParams.get("encoding") !== "mulaw" || url.searchParams.get("sample_rate") !== "8000") return res.writeHead(400).end(JSON.stringify({ err_msg: "phone audio must be mulaw 8000" }));
+      stats.spoken.push(speakText);
+      return res.writeHead(200, { "content-type": "audio/basic" }).end(Buffer.alloc(Math.min(4000, Math.max(160, speakText.length * 8)), 0xff));
     }
     if (req.method === "POST" && url.pathname === "/v1/listen") {
       if (!/^audio\//.test(req.headers["content-type"] || "") || size < 1000 || url.searchParams.get("diarize") !== "true" || url.searchParams.get("utterances") !== "true") {
@@ -66,7 +97,31 @@ const server = createServer((req, res) => {
 });
 
 const wss = new WebSocketServer({ noServer: true, handleProtocols: (protocols) => (protocols.has("bearer") ? "bearer" : false) });
+const phoneWss = new WebSocketServer({ noServer: true });
 server.on("upgrade", (req, socket, head) => {
+  const phoneUrl = new URL(req.url, `http://localhost:${PORT}`);
+  if (phoneUrl.pathname === "/v1/listen" && phoneUrl.searchParams.get("encoding") === "mulaw") {
+    if (req.headers.authorization !== `Token ${KEY}` || phoneUrl.searchParams.get("sample_rate") !== "8000") {
+      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+      return socket.destroy();
+    }
+    return phoneWss.handleUpgrade(req, socket, head, (ws) => {
+      stats.phoneConnections++;
+      phoneSockets.add(ws);
+      ws.on("message", (data, isBinary) => {
+        if (!isBinary) {
+          try {
+            if (JSON.parse(data.toString()).type === "CloseStream") ws.close();
+          } catch {}
+          return;
+        }
+        stats.phoneAudioMessages++;
+        const text = phoneQueue.shift();
+        if (text) ws.send(JSON.stringify({ type: "Results", is_final: true, speech_final: true, channel: { alternatives: [{ transcript: text, confidence: 0.95, words: [] }] } }));
+      });
+      ws.on("close", () => phoneSockets.delete(ws));
+    });
+  }
   const protos = (req.headers["sec-websocket-protocol"] || "").split(",").map((s) => s.trim());
   const url = new URL(req.url, `http://localhost:${PORT}`);
   if (url.pathname !== "/v1/listen" || protos[0] !== "bearer" || protos[1] !== TOKEN || url.searchParams.get("diarize") !== "true") {
