@@ -192,6 +192,27 @@ node scripts/fake-twilio-call.mjs --base=http://localhost:3100 --sim   # through
 
 It dials the bridge, streams `tests/e2e/fixtures/visit.wav` as 8 kHz mu-law, says "Chartside, end visit", and prints the call result and any texts it sent. Pass `--cookie='cs_session=…'` to call as a signed-in clinician, `--mock=http://localhost:3299` to use the mock Deepgram, or `--script='[...]'` to change the steps.
 
+### Live evaluation of the line
+
+`scripts/eval-line.mjs` places real calls through the browser-phone bridge, with the caller's side spoken by Deepgram voices, and checks each outcome:
+
+- consent small talk that must be ignored
+- a full visit through to the text
+- a split wake word
+- pause and resume
+- a decline
+- Spanish consent
+- a patient saying no when asked
+- a chart question after a PIN
+
+It uses real Deepgram and Claude, so each full run costs well under a dollar.
+
+```bash
+DEEPGRAM_API_KEY=… node scripts/eval-line.mjs --base=http://localhost:3100
+node scripts/eval-line.mjs --base=… --only=full_visit,split_wake
+node scripts/eval-line.mjs --base=… --cookie='cs_session=…' --pin=5937   # adds the chart question
+```
+
 ### Testing the doors
 
 Two sessions share one machine in this project, so run Playwright through the lock:
