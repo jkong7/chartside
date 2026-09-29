@@ -95,3 +95,20 @@ describe("call tokens", () => {
     if (prev) process.env.CHARTSIDE_PUBLIC_URL = prev;
   });
 });
+
+describe("phone speech settings", () => {
+  it("builds a live listen URL Deepgram accepts, opted out of training and tagged with the call", async () => {
+    const { listenUrl, voiceFor } = await import("../../src/lib/server/telephony/speech");
+    const u = new URL(listenUrl("call-CA123"));
+    const q = u.searchParams;
+    expect(q.get("encoding")).toBe("mulaw");
+    expect(q.get("sample_rate")).toBe("8000");
+    expect(q.get("language")).toBe("multi");
+    expect(q.get("mip_opt_out")).toBe("true");
+    expect(q.getAll("tag")).toEqual(["chartside-phone", "call-CA123"]);
+    if (q.has("utterance_end_ms")) expect(q.get("interim_results")).toBe("true");
+    expect(q.getAll("keyterm")).toContain("Chartside");
+    expect(voiceFor("es")).toMatch(/-es$/);
+    expect(voiceFor("en")).toMatch(/-en$/);
+  });
+});
