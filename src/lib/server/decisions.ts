@@ -4,6 +4,7 @@ import { attestationsFor } from "../engine/attest";
 import { noteToText } from "../engine/note";
 import type { CodingResult, Note } from "../types";
 import { closeMessage, messages, prepareDraft, sendReply, tasks } from "./inbox";
+import { deleteAudio } from "./audio";
 import { assist, reviseDiagnoses, saveNoteEdits, signEncounter } from "./pipeline";
 import { Forbidden, Invalid } from "./policy";
 import { unsignedQueue } from "./queue";
@@ -54,7 +55,7 @@ export const FAST_REVIEW_MS = 20000;
 export const FAST_REVIEW_WORDS = 300;
 
 const snooze: DecisionActionSpec = { action: "snooze", label: "Later", needsScreen: false, payload: ["minutes"] };
-const time = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+const time = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: process.env.CHARTSIDE_TZ || "America/Chicago" });
 const contentHash = (note: Note) => createHash("sha256").update(JSON.stringify(note.sections)).digest("hex");
 const words = (note: Note | undefined) => (note ? note.sections.flatMap((s) => s.sentences).filter((s) => !s.pending).reduce((n, s) => n + s.text.split(/\s+/).filter(Boolean).length, 0) : 0);
 
@@ -69,10 +70,13 @@ async function signCards(u: User): Promise<Decision[]> {
     const rec = await notes.latest(q.id);
     const origin = await artifacts.get<{ channel?: string }>(q.id, "capture_origin");
     const ready = await artifacts.get<{ at: string; callSid?: string }>(q.id, "phone_ready");
+    const call = await artifacts.get<{ verifiedBy?: string }>(q.id, "phone_call");
+    const unverified = call?.verifiedBy === "caller-id";
+    const discardable = !!origin && enc.status !== "signed";
     return {
       id: `sign:${q.id}`,
       kind: "note.sign" as const,
-      title: `Sign note: ${q.patient}`,
+      title: `Sign note: ${enc.patientId ? q.patient : `${time(enc.startedAt ?? q.scheduledAt)} visit`}`,
       summary: [q.reason, `${words(rec?.content)} words`, q.blockers.length ? `${q.blockers.length} to fix first` : "ready"].filter(Boolean).join(" · "),
       safeLabel: `Note ready to sign (${time(enc.startedAt ?? q.scheduledAt)} visit)`,
       encounterId: q.id,
@@ -80,8 +84,8 @@ async function signCards(u: User): Promise<Decision[]> {
       patientName: enc.patientId ? q.patient : null,
       priority: ready ? 0 : q.ageHours >= 24 ? 1 : 2,
       at: enc.endedAt ?? q.scheduledAt,
-      actions: [{ action: "approve", label: "Sign", needsScreen: true, payload: ["reviewMs", "force"] }, snooze],
-      detail: { blockers: q.blockers, words: words(rec?.content), ageHours: q.ageHours, text: rec ? noteToText(rec.content) : "", channel: origin?.channel ?? null, markedReady: ready ? { at: ready.at, label: `Marked ready on a call at ${time(ready.at)}` } : null },
+      actions: [{ action: "approve", label: "Sign", needsScreen: true, payload: ["reviewMs", "force"] }, ...(discardable ? [{ action: "reject" as const, label: unverified ? "I didn't make this call, delete it" : "Delete this recording", needsScreen: true }] : []), snooze],
+      detail: { blockers: q.blockers, words: words(rec?.content), ageHours: q.ageHours, text: rec ? noteToText(rec.content) : "", channel: origin?.channel ?? null, markedReady: ready ? { at: ready.at, label: `Marked ready on a call at ${time(ready.at)}` } : null, unverifiedCaller: unverified ? { label: "Caller ID only, no PIN", help: "If you didn't make this call, delete it." } : null },
       openUrl: `/encounters/${q.id}`,
     };
   }));
@@ -394,9 +398,19 @@ export async function actOnDecision(u: User, id: string, action: DecisionAction,
   }
   if (action !== "draft" && !SCREEN.includes(ctx.channel)) throw new Forbidden("Open this on your screen to approve or reject it. Voice and text can only snooze or propose.");
   if (prefix === "sign") {
-    if (action !== "approve") throw new Invalid("A note can be signed or snoozed");
     const enc = await encounters.get(u, ref);
     if (!enc) throw new Error("Encounter not found");
+    if (action === "reject") {
+      const origin = await artifacts.get<{ channel?: string }>(ref, "capture_origin");
+      if (!origin) throw new Invalid("Only quick captures can be deleted from the stack. Open the visit to change it.");
+      if (enc.status === "signed") throw new Invalid("This note is signed. Add an addendum instead.");
+      if (enc.userId !== u.id) throw new Forbidden("Only the clinician who recorded this visit can delete it");
+      await deleteAudio(u, ref, "discarded_from_stack");
+      await run("DELETE FROM encounters WHERE id = ?", ref);
+      await audit.log(u, null, "capture.discarded", { encounterId: ref, channel: origin.channel ?? null });
+      return done("Deleted. The recording and note are gone.", { detail: { encounterId: ref } });
+    }
+    if (action !== "approve") throw new Invalid("A note can be signed or snoozed");
     const rec = await notes.latest(ref);
     const reviewMs = Number(payload.reviewMs);
     if (ctx.channel === "stack" && !(reviewMs >= 0)) throw new Invalid("Send reviewMs from the review screen");
