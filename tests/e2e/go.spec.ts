@@ -184,3 +184,10 @@ test("clinicians can subscribe to PHI-free note-ready notifications; guests can'
   await guest.request.post(`${new URL(page.url()).origin}/api/auth/try`);
   expect((await guest.request.post(`${new URL(page.url()).origin}/api/push`, { data: { endpoint: "https://push.invalid/sub/2", keys: { p256dh: "x", auth: "y" } } })).status()).toBe(422);
 });
+
+test("the home page points signed-out visitors to the line", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("home-line").click();
+  await page.waitForURL(/\/line$/);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Your scribe is");
+});

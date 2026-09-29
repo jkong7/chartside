@@ -40,7 +40,10 @@ export default async function Home() {
 
       <section className="mx-auto grid max-w-6xl items-center gap-12 px-6 pb-16 pt-10 lg:grid-cols-[1.05fr_1fr]">
         <div>
-          <p className="pill bg-brand-50 text-brand">Ambient clinical documentation</p>
+          <Link href="/line" className="inline-flex flex-wrap items-center gap-2 rounded-full border border-brand/30 bg-surface px-3 py-1 text-sm text-ink hover:border-brand" data-testid="home-line">
+            <span className="rounded-full bg-brand px-2 py-0.5 text-xs font-semibold text-white">New</span>
+            Your scribe is a phone number. Call it, hang up, tap the text →
+          </Link>
           <h1 className="mt-5 font-serif text-5xl leading-[1.05] tracking-tight">Talk to your patient. <span className="text-brand">Sign a note you can trust.</span></h1>
           <p className="mt-5 max-w-xl text-lg text-ink-2">
             Chartside listens to the visit and drafts a specialty-ready note, codes, orders, and a patient summary. Every sentence links back to the moment it came from.
