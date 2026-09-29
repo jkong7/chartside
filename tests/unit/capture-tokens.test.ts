@@ -41,6 +41,25 @@ describe("capture tokens", () => {
     await expect(t.captureActor(req(second.token))).rejects.toThrow("expired");
   });
 
+  it("mints 30-day device tokens only from a session, lists and revokes them", async () => {
+    const t = await import("@/lib/server/captureTokens");
+    const doc = await newMember("Dr. Device");
+    const dev = await t.mintCaptureToken(doc, { source: "session", device: true, label: "iPhone Shortcut" });
+    const days = (new Date(dev.expiresAt).getTime() - Date.now()) / 86400000;
+    expect(days).toBeGreaterThan(29.9);
+    expect(days).toBeLessThanOrEqual(30);
+    await expect(t.mintCaptureToken(doc, { source: "api_key", device: true })).rejects.toThrow("signed in");
+    await expect(t.mintCaptureToken(doc, { source: "session", minutes: 3 * 24 * 60 })).rejects.toThrow("between 5 and 1440");
+    await expect(t.mintCaptureToken(doc, { source: "session", device: true, minutes: 31 * 24 * 60 })).rejects.toThrow("between 5 and 43200");
+    const guest = await (await import("@/lib/server/guest")).createGuest();
+    await expect(t.mintCaptureToken(guest, { source: "session", device: true })).rejects.toThrow("Save your account");
+    const list = await t.listCaptureTokens(doc);
+    expect(list.map((x) => x.label)).toEqual(["iPhone Shortcut"]);
+    expect(JSON.stringify(list)).not.toContain(dev.token);
+    await t.revokeCaptureToken(doc, dev.id);
+    expect(await t.listCaptureTokens(doc)).toEqual([]);
+  });
+
   it("refuses roles that cannot record and tokens whose clinician lost access", async () => {
     const t = await import("@/lib/server/captureTokens");
     const repo = await import("@/lib/server/repo");

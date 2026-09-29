@@ -1,11 +1,12 @@
 import { createHash, randomBytes } from "node:crypto";
-import { get, now, run, uid } from "../db";
+import { all, get, now, run, uid } from "../db";
 import { assertCan, can, Invalid } from "./policy";
 import { actorFor, audit, type User } from "./repo";
 
 export const CAPTURE_SCOPES = ["capture:create", "capture:upload", "capture:read"] as const;
 const DEFAULT_MINUTES = 60;
 const MAX_MINUTES = 24 * 60;
+const MAX_DEVICE_MINUTES = 30 * 24 * 60;
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
 export class CaptureAuthError extends Error {
@@ -14,17 +15,25 @@ export class CaptureAuthError extends Error {
   }
 }
 
-export async function mintCaptureToken(u: User, input: { minutes?: number; label?: string; source: "session" | "api_key"; keyId?: string | null }) {
+export async function mintCaptureToken(u: User, input: { minutes?: number; label?: string; source: "session" | "api_key" | "phone"; keyId?: string | null; device?: boolean }) {
   assertCan(u, "clinical.capture");
-  const minutes = input.minutes === undefined || input.minutes === null ? DEFAULT_MINUTES : Math.round(Number(input.minutes));
-  if (!Number.isFinite(minutes) || minutes < 5 || minutes > MAX_MINUTES) throw new Invalid(`minutes must be between 5 and ${MAX_MINUTES}`);
+  if (input.device && input.source !== "session") throw new Invalid("Device tokens can only be created while signed in");
+  if (input.device && u.guestUntil) throw new Invalid("Save your account before connecting a device");
+  const max = input.device ? MAX_DEVICE_MINUTES : MAX_MINUTES;
+  const minutes = input.minutes === undefined || input.minutes === null ? (input.device ? MAX_DEVICE_MINUTES : DEFAULT_MINUTES) : Math.round(Number(input.minutes));
+  if (!Number.isFinite(minutes) || minutes < 5 || minutes > max) throw new Invalid(`minutes must be between 5 and ${max}`);
   const token = `cs_cap_${randomBytes(24).toString("base64url")}`;
   const id = uid("cap_");
   const expiresAt = new Date(Date.now() + minutes * 60000).toISOString();
   const label = (input.label ?? "").trim().slice(0, 60);
   await run("INSERT INTO capture_tokens (id, org_id, user_id, token_hash, source, key_id, label, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", id, u.orgId, u.id, sha(token), input.source, input.keyId ?? null, label, expiresAt, now());
-  await audit.log(u, null, "capture_token.created", { id, source: input.source, keyId: input.keyId ?? null, minutes });
+  await audit.log(u, null, "capture_token.created", { id, source: input.source, keyId: input.keyId ?? null, minutes, device: !!input.device });
   return { id, token, expiresAt, scopes: [...CAPTURE_SCOPES] };
+}
+
+export async function listCaptureTokens(u: User) {
+  const rows = await all<{ id: string; label: string; source: string; expires_at: string; last_used_at: string | null; created_at: string }>("SELECT id, label, source, expires_at, last_used_at, created_at FROM capture_tokens WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC", u.id, now());
+  return rows.map((r) => ({ id: r.id, label: r.label || (r.source === "api_key" ? "API" : "Browser"), source: r.source, expiresAt: r.expires_at, lastUsedAt: r.last_used_at, createdAt: r.created_at }));
 }
 
 export async function revokeCaptureToken(u: User, id: string) {
