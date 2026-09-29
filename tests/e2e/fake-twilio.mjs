@@ -87,6 +87,7 @@ export async function dial({ base, from = "+15550100000", sim = false, cookie, t
     let closed = false;
     let closeCode = null;
     let clears = 0;
+    let lastState = "";
     const pendingMarks = new Set();
     const waiters = [];
     ws.on("message", (data) => {
@@ -94,7 +95,11 @@ export async function dial({ base, from = "+15550100000", sim = false, cookie, t
       if (m.event === "media") outboundBytes += Buffer.from(m.media.payload, "base64").length;
       if (m.event === "chartside.heard") log(`heard: ${m.text}`);
       if (m.event === "chartside.caption") log(`said: ${m.text.slice(0, 90)}`);
-      if (m.event === "chartside.state") log(`state: ${m.state}`);
+      if (m.event === "chartside.state") {
+        lastState = m.state;
+        log(`state: ${m.state}`);
+        for (const w of [...waiters]) w();
+      }
       if (m.event === "clear") {
         clears++;
         outboundBytes = 0;
@@ -181,10 +186,20 @@ export async function dial({ base, from = "+15550100000", sim = false, cookie, t
       if (step.waitPrompts) {
         const ok = await waitFor(() => prompts >= step.waitPrompts || closed, step.timeoutMs ?? 20000);
         if (!ok) throw new Error(`timed out waiting for prompt ${step.waitPrompts} (have ${prompts})`);
+      } else if (step.waitQuiet) {
+        const ok = await waitFor(() => (pendingMarks.size === 0 && outboundBytes === 0) || closed, step.timeoutMs ?? 90000);
+        if (!ok) throw new Error("timed out waiting for the line to finish speaking");
+        await sleep(step.after ?? 1200);
+      } else if (step.waitState) {
+        const ok = await waitFor(() => lastState === step.waitState || closed, step.timeoutMs ?? 60000);
+        if (!ok) throw new Error(`timed out waiting for state ${step.waitState} (at ${lastState})`);
       } else if (step.digit) send({ event: "dtmf", streamSid, dtmf: { track: "inbound_track", digit: step.digit } });
       else if (step.say) await speak(step.say, step.voice);
       else if (step.wav) await stream(wavToMulaw8k(step.wav));
-      else if (step.ulaw) await stream(readFileSync(step.ulaw));
+      else if (step.ulaw) {
+        const all = readFileSync(step.ulaw);
+        await stream(step.seconds ? all.subarray(0, Math.round(step.seconds * 8000)) : all);
+      }
       else if (step.silence) await stream(Buffer.alloc(Math.round(step.silence * 8000), 0xff));
       else if (step.sleep) await sleep(step.sleep);
       else if (step.hangup) {
