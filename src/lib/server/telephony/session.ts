@@ -126,6 +126,15 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
       await audit.log(user, null, "phone.chart_question", { engine: r.engine, tools: r.citations.length });
       return speakable(r.reply);
     },
+    queueSummary: async () => {
+      if (!encId) return "none";
+      const { encounters } = await import("../repo");
+      const enc = await encounters.get(user, encId);
+      if (!enc?.patientId) return "unmatched";
+      await artifacts.set(encId, "summary_on_sign", { at: new Date().toISOString(), callSid: claims.callSid });
+      await audit.log(user, encId, "phone.summary_queued", {});
+      return "queued";
+    },
     markReady: async () => {
       if (!encId) return;
       await artifacts.set(encId, "phone_ready", { at: new Date().toISOString(), callSid: claims.callSid });

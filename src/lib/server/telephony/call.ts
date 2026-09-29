@@ -24,6 +24,7 @@ export interface CallDeps {
   converse(text: string): Promise<string>;
   ask?(text: string): Promise<string>;
   markReady(): Promise<void>;
+  queueSummary?(): Promise<"queued" | "unmatched" | "none">;
   textLink(reason: "ready" | "processing"): Promise<boolean>;
   declined(): Promise<void>;
   abandon(): Promise<void>;
@@ -40,7 +41,7 @@ export const LINES = {
   resumed: "Listening again.",
   drafting: "Got it. Writing your note now. Stay on the line to hear it, or hang up and I'll text you when it's ready.",
   declined: "Understood. Nothing was recorded. You can call back any time. Goodbye.",
-  reviewPrompt: "Say ready, and I'll put it at the top of your stack to sign. Tell me anything to change. Or hang up, and I'll text you the link.",
+  reviewPrompt: "Say ready, and I'll put it at the top of your stack to sign. Tell me anything to change, or press 7 to text the patient their summary after you sign. Or hang up, and I'll text you the link.",
   ready: "Done. It's at the top of your stack. I'm texting you the link to review and sign. Goodbye.",
   readyGuest: "Done. I'm texting you a link to read it and save it, free. Goodbye.",
   readyNoText: "Done. It's at the top of your stack. I couldn't send you a text, so open Chartside to review and sign. Goodbye.",
@@ -53,6 +54,8 @@ export const LINES = {
   anythingElse: "Anything else? Say ready when it looks right.",
   notHeard: "Sorry, I didn't catch that.",
   limit: "This visit has reached the recording limit, so I'm ending it now.",
+  summaryQueued: "I'll text your patient their visit summary as soon as you sign the note.",
+  summaryUnmatched: "Once you match this visit to a patient, you can send their summary from your stack.",
   askNeedsPin: "I can answer questions about your chart once you've entered your phone PIN at the start of a call.",
   askMore: "Anything else? Or press 2 when your patient agrees to be recorded.",
 } as const;
@@ -194,6 +197,10 @@ export class ScribeCall {
         }
         const intent = reviewIntent(text.replace(/^\s*chart ?side[,.!]?\s*/i, ""));
         if (intent.kind === "repeat") return this.say(this.lastSpoken);
+        if (intent.kind === "summary") {
+          const r = this.deps.queueSummary ? await this.deps.queueSummary().catch(() => "none" as const) : "none";
+          return this.say(`${r === "queued" ? LINES.summaryQueued : LINES.summaryUnmatched} ${LINES.anythingElse}`);
+        }
         if (intent.kind === "ready") {
           await this.deps.markReady();
           const sent = await this.deps.textLink("ready").catch(() => false);
@@ -264,6 +271,7 @@ export class ScribeCall {
       if (this.state === "review") {
         if (d === "1") return await this.handleTranscript("ready");
         if (d === "9") return await this.say(this.lastSpoken);
+        if (d === "7") return await this.handleTranscript("text the patient their summary");
         if (d === "5" || d === "#") return await this.handleTranscript("text me");
       }
     } finally {

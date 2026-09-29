@@ -53,6 +53,8 @@ describe("phone intents", () => {
     expect(reviewIntent("Text me the link").kind).toBe("later");
     expect(reviewIntent("Can you repeat that").kind).toBe("repeat");
     expect(reviewIntent("Make the plan shorter")).toEqual({ kind: "other", text: "Make the plan shorter" });
+    expect(reviewIntent("Text the patient their summary").kind).toBe("summary");
+    expect(reviewIntent("send her summary").kind).toBe("summary");
   });
 });
 

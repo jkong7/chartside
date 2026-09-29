@@ -34,11 +34,12 @@ export function wakeCommand(text: string): WakeCommand {
   return null;
 }
 
-export type ReviewIntent = { kind: "ready" } | { kind: "later" } | { kind: "repeat" } | { kind: "other"; text: string };
+export type ReviewIntent = { kind: "ready" } | { kind: "later" } | { kind: "repeat" } | { kind: "summary" } | { kind: "other"; text: string };
 
 export function reviewIntent(text: string): ReviewIntent {
   const t = norm(text);
   if (/\b(repeat|say that again|again please|come again|what was that)\b/.test(t)) return { kind: "repeat" };
+  if (/\b(text|send|share|message)\b.*\b(patient|summary|her summary|his summary|their summary|visit summary)\b/.test(t)) return { kind: "summary" };
   if (/\b(sign|ready to sign|looks good|looks great|that's good|that's perfect|perfect|good to go|approve|ready)\b/.test(t) && !/\b(don't|not|change|but)\b/.test(t)) return { kind: "ready" };
   if (/^(no|nope|nothing|that's all|that's it|all set|done|bye|goodbye|thanks|thank you|later|text me|send it|send me the link)\b/.test(t) || /\b(text me|send me the link|i'll review later|review later|hang up)\b/.test(t)) return { kind: "later" };
   return { kind: "other", text: text.trim() };
@@ -49,7 +50,7 @@ export function directedAtScribe(text: string) {
   if (!t) return false;
   if (WAKE.test(t)) return true;
   if (reviewIntent(text).kind !== "other") return true;
-  return /^(please |can you |could you |would you |go ahead and |i want you to |let's )?(make|change|add|remove|delete|drop|shorten|lengthen|expand|fix|update|rewrite|replace|include|put|move|mention|note that|document|code|switch|use|list|read|explain|what|what's|whats|why|how|did|does|is there|are there|which|who|when|tell me|show me|summarize)\b/.test(t);
+  return /^(please |can you |could you |would you |go ahead and |i want you to |let's )?(text|send|make|change|add|remove|delete|drop|shorten|lengthen|expand|fix|update|rewrite|replace|include|put|move|mention|note that|document|code|switch|use|list|read|explain|what|what's|whats|why|how|did|does|is there|are there|which|who|when|tell me|show me|summarize)\b/.test(t);
 }
 
 function isQuestion(text: string) {
