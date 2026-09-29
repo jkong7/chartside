@@ -128,6 +128,16 @@ describe("scribe call", () => {
     expect(events).toContain("open:new");
   });
 
+  it("keeps the opening short and reads the consent script to the patient on 3", async () => {
+    const { call, said } = harness();
+    await call.start();
+    expect(said[0].split(/\s+/).length).toBeLessThan(40);
+    await call.onDigit("3");
+    expect(said.at(-1)).toBe(LINES.consentScript);
+    await call.onTranscript("Yes, that's fine");
+    expect(call.state).toBe("recording");
+  });
+
   it("stops and records nothing when the patient declines", async () => {
     const { call, said, events } = harness();
     await call.start();

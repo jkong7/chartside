@@ -29,8 +29,8 @@ export interface CallDeps {
 }
 
 export const LINES = {
-  consentAsk:
-    "Please ask your patient now: I use an AI assistant that listens and drafts my note, so I can focus on you. I review everything, and the recording is deleted after. Is that okay? When they agree, say they agreed, or press 2. If they'd rather not, say no, or press 0.",
+  consentAsk: "When your patient agrees to be recorded, say they agreed, or press 2. Press 3, and I'll ask them for you.",
+  consentScript: "Hi, I'm Chartside, an AI assistant that helps your clinician write the visit note. They review everything, and the recording is deleted afterward. Is it okay if I listen? You can say yes, or no.",
   recording: "Thanks. I'm listening and I'll stay quiet. Say Chartside, pause, or Chartside, end visit, any time. Or just hang up when you're done.",
   paused: "Paused. Nothing is being recorded. Say Chartside, resume, or press 2 to keep going.",
   resumed: "Listening again.",
@@ -65,7 +65,7 @@ export class ScribeCall {
   async start() {
     const who = this.deps.caller.name ? ` ${this.deps.caller.name}` : "";
     const intro = this.deps.caller.guest
-      ? "Hi, this is Chartside, an AI scribe, on a recorded line. I'll write the note for your next visit. It's free, and there's nothing to sign up for."
+      ? "Hi, this is Chartside, an AI scribe, on a recorded line. Your first note is free, and there's nothing to sign up for."
       : `Hi${who}. This is your Chartside scribe, on a recorded line.`;
     if (!this.deps.caller.guest && this.deps.caller.hasPin) {
       this.state = "pin";
@@ -189,6 +189,7 @@ export class ScribeCall {
         return;
       }
       if (this.state === "consent") {
+        if (d === "3") return await this.say(LINES.consentScript);
         if (d === "2" || d === "1") return await this.beginRecording();
         if (d === "0") return await this.decline();
         return;

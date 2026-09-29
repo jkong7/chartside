@@ -32,6 +32,14 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
   const marks = new Map<string, () => void>();
   let ended = false;
   let hungUp = false;
+  let sim = false;
+  let lastState = "";
+
+  const emitState = () => {
+    if (!sim || !call || call.state === lastState) return;
+    lastState = call.state;
+    send({ event: "chartside.state", streamSid, state: call.state });
+  };
 
   const send = (obj: unknown) => {
     if (ws.readyState === 1) ws.send(JSON.stringify(obj));
@@ -39,25 +47,39 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
 
   const say = async (text: string) => {
     if (hungUp) return;
-    let audio: Buffer;
+    speakingUntil = Number.POSITIVE_INFINITY;
+    if (sim) send({ event: "chartside.caption", streamSid, text });
+    let pending = Buffer.alloc(0);
+    let total = 0;
+    const flushOut = (final: boolean) => {
+      const n = final ? pending.length : pending.length - (pending.length % FRAME);
+      if (!n) return;
+      send({ event: "media", streamSid, media: { payload: pending.subarray(0, n).toString("base64") } });
+      pending = pending.subarray(n);
+    };
     try {
-      audio = await synthesize(text);
+      await synthesize(text, (chunk) => {
+        total += chunk.length;
+        pending = Buffer.concat([pending, chunk]);
+        if (pending.length >= FRAME * 25) flushOut(false);
+      });
+      flushOut(true);
     } catch (err) {
       console.error("phone tts failed", err);
+      speakingUntil = Date.now();
       return;
     }
-    speakingUntil = Number.POSITIVE_INFINITY;
-    for (let off = 0; off < audio.length; off += FRAME * 50) send({ event: "media", streamSid, media: { payload: audio.subarray(off, off + FRAME * 50).toString("base64") } });
     const name = `m${++markSeq}`;
     const played = new Promise<void>((resolve) => {
       marks.set(name, resolve);
       setTimeout(() => {
         if (marks.delete(name)) resolve();
-      }, Math.ceil(audio.length / 8) + 4000);
+      }, Math.ceil(total / 8) + 4000);
     });
     send({ event: "mark", streamSid, mark: { name } });
     await played;
     speakingUntil = Date.now() + ECHO_GUARD_MS;
+    emitState();
   };
 
   const hangup = () => {
@@ -86,6 +108,7 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
         ws.close(1008, "bad call token");
         return;
       }
+      sim = claims.sim;
       try {
         session = await phoneSession(claims, opts);
       } catch (err) {
@@ -96,10 +119,17 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
       call = new ScribeCall({ ...session.deps, say, hangup });
       listener = new LiveListener((text) => {
         if (Date.now() < speakingUntil) return;
-        void call?.onTranscript(text).catch((err) => console.error("phone transcript failed", err));
-      });
+        if (sim) send({ event: "chartside.heard", streamSid, text });
+        void call
+          ?.onTranscript(text)
+          .then(emitState)
+          .catch((err) => console.error("phone transcript failed", err));
+      }, (err) => console.error("phone listen failed", err.message));
       listener.open();
-      void call.start().catch((err) => console.error("phone start failed", err));
+      void call
+        .start()
+        .then(emitState)
+        .catch((err) => console.error("phone start failed", err));
       return;
     }
     if (!call || !session) return;
@@ -113,7 +143,10 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
       return;
     }
     if (msg.event === "dtmf" && msg.dtmf) {
-      void call.onDigit(msg.dtmf.digit).catch((err) => console.error("phone digit failed", err));
+      void call
+        .onDigit(msg.dtmf.digit)
+        .then(emitState)
+        .catch((err) => console.error("phone digit failed", err));
       return;
     }
     if (msg.event === "mark" && msg.mark) {

@@ -14,20 +14,29 @@ export function phoneSpeechReady() {
 
 const cache = new Map<string, Buffer>();
 
-export async function synthesize(text: string): Promise<Buffer> {
+export async function synthesize(text: string, onChunk?: (audio: Buffer) => void): Promise<Buffer> {
   const k = key();
   if (!k) throw new Error("Deepgram is not configured");
   const hit = cache.get(text);
-  if (hit) return hit;
+  if (hit) {
+    onChunk?.(hit);
+    return hit;
+  }
   const model = process.env.CHARTSIDE_PHONE_VOICE || "aura-2-thalia-en";
   const res = await fetch(`${base()}/v1/speak?model=${encodeURIComponent(model)}&encoding=mulaw&sample_rate=8000&container=none`, {
     method: "POST",
     headers: { Authorization: `Token ${k}`, "Content-Type": "application/json" },
     body: JSON.stringify({ text }),
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(30000),
   });
-  if (!res.ok) throw new Error(`Speech synthesis failed (${res.status})`);
-  const audio = Buffer.from(await res.arrayBuffer());
+  if (!res.ok || !res.body) throw new Error(`Speech synthesis failed (${res.status})`);
+  const parts: Buffer[] = [];
+  for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+    const b = Buffer.from(chunk);
+    parts.push(b);
+    onChunk?.(b);
+  }
+  const audio = Buffer.concat(parts);
   if (text.length < 400) {
     if (cache.size > 200) cache.delete(cache.keys().next().value!);
     cache.set(text, audio);
@@ -35,9 +44,13 @@ export async function synthesize(text: string): Promise<Buffer> {
   return audio;
 }
 
+export async function warmPhrases(lines: string[]) {
+  for (const l of lines) await synthesize(l).catch(() => null);
+}
+
 export function listenUrl() {
   const ws = (process.env.DEEPGRAM_WS_URL || "wss://api.deepgram.com/v1/listen").replace(/\/$/, "");
-  const q = new URLSearchParams({ model: "nova-3", language: "en", encoding: "mulaw", sample_rate: "8000", channels: "1", punctuate: "true", smart_format: "true", interim_results: "false", endpointing: "500", utterance_end_ms: "1000", tag: "chartside-phone" });
+  const q = new URLSearchParams({ model: "nova-3", language: "en", encoding: "mulaw", sample_rate: "8000", channels: "1", punctuate: "true", smart_format: "true", interim_results: "false", endpointing: "500", tag: "chartside-phone" });
   for (const term of ["Chartside", "pause", "resume", "end visit"]) q.append("keyterm", term);
   return `${ws}?${q}`;
 }
@@ -70,6 +83,7 @@ export class LiveListener {
         return;
       }
     });
+    ws.on("unexpected-response", (_req, res) => this.onError(new Error(`Deepgram listen refused (${res.statusCode}): ${res.headers["dg-error"] ?? ""}`)));
     ws.on("error", (err) => this.onError(err));
     ws.on("close", () => this.keepAlive && clearInterval(this.keepAlive));
   }
