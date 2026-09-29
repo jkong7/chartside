@@ -108,6 +108,35 @@ The full web app is the back office. The ghost interface is the front door: reco
 | **Landing** | `/line`, `/line/contact.vcf` | The public page for the number: a real sped-up call, "Watch a call play itself" (`/go/phone?autopilot=1`), save to contacts, an FAQ, and "invited by" and patient-recap variants. |
 | **Admin → Line** | `/admin?tab=line` | Setup checks, the webhook addresses, calls and texts by door, the team roster (phone, PIN, calls) with a setup link the admin texts themselves, and one-step Twilio number connection for operators. |
 
+**On a call:**
+
+| Key | Action |
+|---|---|
+| 2 | Patient agreed, start recording |
+| 3 | Chartside asks the patient itself |
+| 9 | Ask the patient in Spanish |
+| 0 | Patient declined, hang up with nothing kept |
+| 4 | Pause (2 resumes) |
+| 5 | End the visit and write the note |
+| 1 | At read-back: ready to sign |
+| 8 | Next patient on the same call |
+| 7 | Text the patient their summary once the note is signed |
+| 6 | Set a phone PIN. It's texted as a link and turns on only when the same PIN is typed there |
+| `*` | Skip the PIN |
+| `#` | Finish the PIN |
+
+Voice works too:
+
+- "they agreed"
+- "Chartside, pause" and "Chartside, resume"
+- "Chartside, end visit"
+- "ready"
+- "next patient"
+- "make the plan shorter"
+- after the PIN, "Chartside, what's left today?"
+
+Pressing a key while the line is talking cuts it off. A printable card of all of this is at `/line/card`.
+
 For developers, `POST /api/capture` is the one capture endpoint behind every door. It takes raw or multipart audio (webm, m4a, mp4, wav, ogg, mp3 or aac, up to 100 MB) with `consent=granted`, authenticated by the session cookie or a `Bearer cs_cap_…` capture token. It drafts in the background, with `GET /api/capture/{id}` for status and `GET /api/capture/{id}/note` for the note. Mint a token with `POST /api/capture/token` (session) or `POST /api/v1/capture/token` (API key with `encounters:write`).
 
 ### Identity without signup
