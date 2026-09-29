@@ -14,7 +14,7 @@ interface Metrics {
   activation: { signups: number; activated: number; rate: number | null; rule: string };
 }
 
-const LABELS: Record<string, string> = { referral: "Referral link", share: "Shared note footer", receipt: "Weekly receipt", invite: "Invite after 3rd note", recap: "Patient recap footer", line: "Line landing page", phone_guest: "First call (phone guest)", go_guest: "Try on the web (guest)", direct: "Direct" };
+const LABELS: Record<string, string> = { referral: "Referral link", share: "Shared note footer", receipt: "Weekly receipt", invite: "Invite after 3rd note", recap: "Patient recap footer", text: "Texted the line", line: "Line landing page", phone_guest: "First call (phone guest)", go_guest: "Try on the web (guest)", direct: "Direct" };
 
 const dur = (s: number | null) => (s === null ? "–" : s < 120 ? `${s}s` : `${Math.round(s / 60)}m`);
 

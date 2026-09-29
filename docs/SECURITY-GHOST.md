@@ -46,6 +46,7 @@ Data at rest and the existing web app are covered by the earlier reviews.
 | 18 | SMS content | PHI in texts. | Mitigated | Texts carry only a time, a count and a sign-in link. The e2e tests scan every text against patient names and diagnoses. Login links are single use, last 15 minutes, respect MFA, and only redirect to same-site paths. |
 | 19 | Guest data | Unclaimed PHI with no accountable user. | Mitigated | Guests are purged with their audio after 2 hours (`CHARTSIDE_GUEST_HOURS`). They can't sign, share, create keys, invite or message patients. |
 | 20 | Email vendor | SendGrid does not sign a BAA. | Mitigated | Email carries only codes and links. Switch to a BAA-covered provider before any PHI goes by email. |
+| 21 | Preferences (`PATCH /api/auth/me`) | The endpoint merged any `prefs` keys, so a user could write `prefs.npi` with `matched: true` and fake a badge, or squat on another clinician's NPI so their real claim reads "already on another account". | Medium | **Fixed.** Server-managed prefs (`npi`, `invitePromptSeenAt`) are stripped, `clinicNudgeHour` is validated to 12 through 20, and `textOptOut` is coerced to a boolean. Covered in `tests/e2e/settings.spec.ts`. |
 
 ## Checked and fine
 
@@ -57,4 +58,4 @@ Data at rest and the existing web app are covered by the earlier reviews.
 
 ## What's left for the telephony owner
 
-Findings 12 to 15: refuse or remove the unsigned-voice flag in production, require `CHARTSIDE_PUBLIC_URL`, make call tokens single use, and rate limit the browser-phone sim.
+Findings 12 to 15, plus the new texting webhook (`/api/sms/incoming`): confirm it checks the Twilio signature the same way as voice and never returns PHI in a reply. Also refuse or remove the unsigned-voice flag in production, require `CHARTSIDE_PUBLIC_URL`, make call tokens single use, and rate limit the browser-phone sim.

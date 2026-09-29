@@ -3,7 +3,7 @@ import { all, get, now, run, uid } from "../db";
 
 export const LOOP_COOKIE = "cs_loop";
 export const VISITOR_COOKIE = "cs_vid";
-export const LOOPS = ["referral", "share", "receipt", "invite", "recap", "line", "phone_guest", "go_guest", "direct"] as const;
+export const LOOPS = ["referral", "share", "receipt", "invite", "recap", "text", "line", "phone_guest", "go_guest", "direct"] as const;
 export type LoopId = (typeof LOOPS)[number];
 export type LoopKind = "exposure" | "click" | "signup" | "activation";
 export const ACTIVATION_NOTES = 3;
@@ -143,7 +143,7 @@ export async function touchFromCookies(jar: { get(name: string): { value: string
 export async function trackLineVisit(input: { src?: string | null; ref?: string | null; visitor?: string | null }) {
   const src = input.src ?? "";
   const r = input.ref && /^[a-z0-9]{6}$/.test(input.ref) ? await get<{ user_id: string }>("SELECT user_id FROM referral_codes WHERE code = ?", input.ref) : undefined;
-  const loop: LoopId = src === "recap" ? "recap" : r ? loopId(src === "share" || src === "receipt" || src === "invite" ? src : "referral") : "line";
-  if (r && loop !== "recap") return false;
+  const loop: LoopId = src === "recap" || src === "text" ? src : r ? loopId(src === "share" || src === "receipt" || src === "invite" ? src : "referral") : "line";
+  if (r && loop !== "recap" && loop !== "text") return false;
   return trackLoop({ loop, kind: "click", inviterId: r?.user_id ?? null, visitor: visitorKey(input.visitor ?? null) });
 }

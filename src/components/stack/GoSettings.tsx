@@ -6,7 +6,7 @@ import { Logo } from "../icons";
 import { Spinner } from "../ui";
 
 interface Props {
-  user: { name: string; email: string; phone: string | null };
+  user: { name: string; email: string; phone: string | null; prefs?: { clinicNudgeHour?: number | null; textOptOut?: boolean } };
   growth: { referral: { url: string; message: string }; credits: { months: number; fromReferrals: number; cap: number; capped: boolean }; npi: { number: string; name: string; matched: boolean; reason: string | null } | null; signed: number };
   receipt: { notesSigned: number; hoursBack: number; closedSameDay: number; medianMinutesToSign: number | null };
   pinSet: boolean;
@@ -40,7 +40,7 @@ function useAction() {
   return { busy, run, note };
 }
 
-function Phone({ initial }: { initial: string | null }) {
+function Phone({ initial, onVerified }: { initial: string | null; onVerified: (p: string) => void }) {
   const [phone, setPhone] = useState(initial);
   const [value, setValue] = useState("");
   const [code, setCode] = useState("");
@@ -56,7 +56,7 @@ function Phone({ initial }: { initial: string | null }) {
           <button className="btn-primary" disabled={a.busy} data-testid="phone-send">{a.busy && <Spinner />} {phone ? "Change" : "Verify"}</button>
         </form>
       ) : (
-        <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); a.run(async () => { const r = await api<{ phone: string }>("/auth/phone/verify", { body: { code } }); setPhone(r.phone); setSent(false); setCode(""); return "Phone verified"; }); }}>
+        <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); a.run(async () => { const r = await api<{ phone: string }>("/auth/phone/verify", { body: { code } }); setPhone(r.phone); onVerified(r.phone); setSent(false); setCode(""); return "Phone verified"; }); }}>
           <label className="sr-only" htmlFor="phone-code">Code from the text</label>
           <input id="phone-code" className="input flex-1 text-center font-mono tracking-widest" inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code" value={code} onChange={(e) => setCode(e.target.value)} required data-testid="phone-code" />
           <button className="btn-primary" disabled={a.busy} data-testid="phone-verify">{a.busy && <Spinner />} Confirm</button>
@@ -79,6 +79,36 @@ function Pin({ initial }: { initial: boolean }) {
         <input id="pin-input" className="input flex-1 text-center font-mono tracking-widest" type="password" inputMode="numeric" autoComplete="new-password" placeholder="4 to 6 digits" value={pin} onChange={(e) => setPin(e.target.value)} required data-testid="pin-input" />
         <button className="btn-primary" disabled={a.busy} data-testid="pin-save">{a.busy && <Spinner />} {set ? "Change" : "Set"}</button>
       </form>
+      {a.note}
+    </Section>
+  );
+}
+
+const hourLabel = (h: number) => `${h === 12 ? 12 : h - 12} PM`;
+
+function Nudge({ initial, hasPhone }: { initial: number | null; hasPhone: boolean }) {
+  const [hour, setHour] = useState<number | null>(initial);
+  const a = useAction();
+  const save = (h: number | null) => a.run(async () => {
+    await api("/auth/me", { method: "PATCH", body: { prefs: { clinicNudgeHour: h } } });
+    setHour(h);
+    return h === null ? "End-of-clinic text off" : `We'll text you at ${hourLabel(h)} if notes are waiting`;
+  });
+  return (
+    <Section id="nudge" title="End-of-clinic text" hint="One text a day if notes are still waiting, with a link to your stack. No patient details.">
+      {!hasPhone && <p className="text-sm text-ink-3">Verify your phone above to turn this on.</p>}
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" className="accent-brand" checked={hour !== null} disabled={!hasPhone || a.busy} onChange={(e) => save(e.target.checked ? hour ?? 17 : null)} data-testid="nudge-toggle" />
+        Text me when notes are waiting
+      </label>
+      {hour !== null && (
+        <label className="flex items-center gap-2 text-sm">
+          <span>At</span>
+          <select className="input w-auto" value={hour} disabled={a.busy} onChange={(e) => save(Number(e.target.value))} data-testid="nudge-hour" aria-label="Time for the end-of-clinic text">
+            {Array.from({ length: 9 }, (_, i) => 12 + i).map((h) => <option key={h} value={h}>{hourLabel(h)}</option>)}
+          </select>
+        </label>
+      )}
       {a.note}
     </Section>
   );
@@ -150,6 +180,7 @@ function Devices({ initial }: { initial: Props["devices"] }) {
 
 export default function GoSettings(p: Props) {
   const [ready, setReady] = useState(false);
+  const [phone, setPhone] = useState(p.user.phone);
   useEffect(() => {
     setReady(true);
   }, []);
@@ -166,8 +197,9 @@ export default function GoSettings(p: Props) {
         </div>
       </header>
       <div className="mx-auto max-w-xl space-y-4 px-4 pt-4">
-        <Phone initial={p.user.phone} />
+        <Phone initial={p.user.phone} onVerified={setPhone} />
         <Pin initial={p.pinSet} />
+        <Nudge initial={p.user.prefs?.clinicNudgeHour ?? null} hasPhone={!!phone} />
         <Devices initial={p.devices} />
         <Npi initial={p.growth.npi} />
         <Receipt stats={p.receipt} />

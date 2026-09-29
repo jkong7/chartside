@@ -31,6 +31,14 @@ test("settings verifies a phone by text, sets a PIN, claims an NPI, and shares a
   await page.getByTestId("phone-verify").click();
   await expect(page.getByTestId("phone-current")).toHaveText(new RegExp(`${phone.slice(-4)}$`));
 
+  await page.getByTestId("nudge-toggle").click();
+  await expect(page.getByTestId("settings-nudge")).toContainText("5 PM if notes are waiting");
+  await page.getByTestId("nudge-hour").selectOption("18");
+  await expect(page.getByTestId("settings-nudge")).toContainText("6 PM");
+  expect((await (await page.request.get("/api/auth/me")).json()).user.prefs.clinicNudgeHour).toBe(18);
+  expect((await page.request.patch("/api/auth/me", { data: { prefs: { clinicNudgeHour: 7 } } })).status()).toBe(400);
+  await page.request.patch("/api/auth/me", { data: { prefs: { npi: { number: "1234567893", matched: true } } } });
+  expect((await (await page.request.get("/api/auth/me")).json()).user.prefs.npi).toBeUndefined();
   await expect(page.getByTestId("pin-status")).toHaveText("No PIN yet.");
   await page.getByTestId("pin-input").fill("1234");
   await page.getByTestId("pin-save").click();
