@@ -21,6 +21,22 @@ test("a guest records a visit with one tap and lands on the note", async ({ page
   await expect(page.getByTestId("claim-banner")).toBeVisible();
 });
 
+test("the one-tap recorder keeps a visit through a dropped connection and finishes when it's back", async ({ page }) => {
+  await register(page);
+  let down = false;
+  await page.route("**/api/capture**", (route) => (down && route.request().method() === "POST" ? route.abort("internetdisconnected") : route.continue()));
+  await page.goto("/go");
+  await page.getByTestId("go-start").click();
+  await page.getByTestId("go-consent-yes").click();
+  await expect(page.getByTestId("go-timer")).toHaveText(/0:0[6-9]/, { timeout: 15000 });
+  down = true;
+  await expect(page.getByTestId("go-offline")).toBeVisible({ timeout: 20000 });
+  down = false;
+  await expect(page.getByTestId("go-offline")).toBeHidden({ timeout: 20000 });
+  await page.getByTestId("go-end").click();
+  await expect(page.getByTestId("go-review")).toHaveText("Review and sign", { timeout: 60000 });
+});
+
 test("declining consent records nothing", async ({ page }) => {
   await page.goto("/go");
   await page.getByTestId("go-start").click();

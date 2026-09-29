@@ -37,6 +37,8 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
   const pipRef = useRef<Pip | null>(null);
   const [isGuest, setIsGuest] = useState(guest);
   const [notice, setNotice] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
+  const pending = useRef(0);
   const rec = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
@@ -58,23 +60,30 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
     queue.current = queue.current.then(async () => {
       const q = new URLSearchParams({ consent: "granted", finish: String(finish), channel: "go", durationS: String(Math.max(1, Math.round((Date.now() - started.current - pausedFor.current) / 1000))) });
       const url = enc.current ? `/api/capture/${enc.current}?${q}` : `/api/capture?${q}`;
-      for (let attempt = 0; attempt < 4; attempt++) {
-        const r = await fetch(url, { method: "POST", headers: { "content-type": mime.current.split(";")[0] }, body: blob.size ? blob : null }).catch(() => null);
-        if (r?.ok) {
-          const j = await r.json();
-          if (!enc.current) {
-            enc.current = j.encounterId;
-            setEncId(j.encounterId);
+      pending.current++;
+      try {
+        for (let attempt = 0; ; attempt++) {
+          const target = enc.current ? `/api/capture/${enc.current}?${q}` : url;
+          const r = await fetch(target, { method: "POST", headers: { "content-type": mime.current.split(";")[0] }, body: blob.size ? blob : null }).catch(() => null);
+          if (r?.ok) {
+            const j = await r.json();
+            if (!enc.current) {
+              enc.current = j.encounterId;
+              setEncId(j.encounterId);
+            }
+            setOffline(false);
+            return;
           }
-          return;
+          if (r && r.status < 500 && r.status !== 408 && r.status !== 429) {
+            const j = await r.json().catch(() => ({}));
+            throw new Error(j.error || `Upload failed (${r.status})`);
+          }
+          if (attempt >= 1) setOffline(true);
+          await new Promise((res) => setTimeout(res, Math.min(10_000, 800 * 2 ** Math.min(attempt, 4))));
         }
-        if (r && r.status < 500) {
-          const j = await r.json().catch(() => ({}));
-          throw new Error(j.error || `Upload failed (${r.status})`);
-        }
-        await new Promise((res) => setTimeout(res, 800 * (attempt + 1)));
+      } finally {
+        pending.current--;
       }
-      throw new Error("Couldn't reach Chartside. Check your connection.");
     });
     queue.current.catch((err) => {
       setError(err instanceof Error ? err.message : "Upload failed");
@@ -108,6 +117,13 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
     pipRef.current?.close();
   };
   useEffect(() => () => releaseAll(), [releaseAll]);
+  useEffect(() => {
+    const warn = (e: BeforeUnloadEvent) => {
+      if (rec.current?.state === "recording" || rec.current?.state === "paused" || pending.current > 0) e.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
 
   const begin = async () => {
     setError(null);
@@ -309,14 +325,20 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
               Pop out a floating recorder over your EHR
             </button>
           )}
-          <p className="mt-6 text-xs text-ink-3">Keep this screen on. Audio uploads as you go and is encrypted at rest.</p>
+          {offline ? (
+            <p className="mt-6 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn" role="status" data-testid="go-offline">
+              No connection. Keep recording: the audio is held on this device and uploads when you're back online.
+            </p>
+          ) : (
+            <p className="mt-6 text-xs text-ink-3">Keep this screen on. Audio uploads as you go and is encrypted at rest.</p>
+          )}
         </div>
       )}
 
       {phase === "finishing" && (
         <div data-testid="go-finishing">
           <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-brand-100 border-t-brand" aria-hidden />
-          <p className="mt-4 text-lg text-ink">Writing your note…</p>
+          <p className="mt-4 text-lg text-ink">{offline ? "Waiting for a connection to finish uploading…" : "Writing your note…"}</p>
           <p className="text-sm text-ink-3">Usually under a minute.</p>
         </div>
       )}
