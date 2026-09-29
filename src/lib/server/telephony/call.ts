@@ -45,6 +45,7 @@ export const LINES = {
   drafting: "Got it. Writing your note now. Stay on the line to hear it, or hang up and I'll text you when it's ready.",
   declined: "Understood. Nothing was recorded. You can call back any time. Goodbye.",
   reviewPrompt: "Say ready, or next patient to keep going, or tell me what to change. Press 7 to text the patient after you sign.",
+  reviewPromptGuest: "Say ready, or tell me what to change.",
   nextPatient: "It's on your stack. Next patient.",
   ready: "Done. It's at the top of your stack. I'm texting you the link to review and sign. Goodbye.",
   readyGuest: "Done. I'm texting you a link to read it and save it, free. Goodbye.",
@@ -63,7 +64,9 @@ export const LINES = {
   newPinAgain: "Enter it again, then pound.",
   newPinMismatch: "Those didn't match, so I didn't set a PIN.",
   newPinWeak: "That PIN is too easy to guess, so I didn't set it. Avoid repeated digits or digits in a row.",
-  newPinTexted: "I texted you a link. Tap it to turn on your PIN.",
+  newPinTexted: "I texted you a link. Tap it and type the same PIN to turn it on.",
+  newPinNoText: "I couldn't text you a link right now. You can set a PIN in Chartside settings.",
+  newPinCancelled: "Okay, no PIN for now.",
   lowAudio: "I can barely hear the room. Move the phone closer, face up, between you and your patient.",
   stillWriting: "Still writing.",
   almostThere: "Almost there.",
@@ -88,6 +91,7 @@ export class ScribeCall {
   private spokeEndedAt = 0;
   private pinVerified = false;
   private newPin = "";
+  private pinOffered = false;
   private newPinFirst = "";
 
   constructor(private deps: CallDeps) {}
@@ -214,7 +218,7 @@ export class ScribeCall {
         const intent = reviewIntent(text.replace(/^\s*chart ?side[,.!]?\s*/i, ""));
         if (intent.kind === "repeat") return this.say(this.lastSpoken);
         if (intent.kind === "next") {
-          if (this.deps.startNext) return this.nextPatient();
+          if (this.deps.startNext && !this.deps.caller.guest) return this.nextPatient();
           return this.handleTranscript("ready");
         }
         if (intent.kind === "summary") {
@@ -258,6 +262,12 @@ export class ScribeCall {
         return;
       }
       if (this.state === "newPin" || this.state === "newPinAgain") {
+        if (d === "*") {
+          this.newPin = "";
+          this.newPinFirst = "";
+          this.state = "consent";
+          return await this.say(`${LINES.newPinCancelled} ${LINES.consentAsk}`);
+        }
         if (/^\d$/.test(d)) {
           if (this.newPin.length < 6) this.newPin += d;
           return;
@@ -275,8 +285,9 @@ export class ScribeCall {
         this.state = "consent";
         if (entered !== first || entered.length < 4) return await this.say(`${LINES.newPinMismatch} ${LINES.consentAsk}`);
         const r = await this.deps.offerPin!(entered).catch(() => "unavailable" as const);
+        if (r !== "invalid") this.pinOffered = true;
         this.deps.log("call.pin_offer", { result: r });
-        return await this.say(`${r === "texted" ? LINES.newPinTexted : r === "invalid" ? LINES.newPinWeak : LINES.laterNoText} ${LINES.consentAsk}`);
+        return await this.say(`${r === "texted" ? LINES.newPinTexted : r === "invalid" ? LINES.newPinWeak : LINES.newPinNoText} ${LINES.consentAsk}`);
       }
       if (this.state === "confirmPatient") {
         if (d === "1") {
@@ -290,7 +301,7 @@ export class ScribeCall {
         return;
       }
       if (this.state === "consent") {
-        if (d === "6" && this.deps.offerPin && !this.deps.caller.guest && !this.deps.caller.hasPin) {
+        if (d === "6" && this.deps.offerPin && !this.deps.caller.guest && !this.deps.caller.hasPin && !this.pinOffered) {
           this.state = "newPin";
           this.newPin = "";
           return await this.say(LINES.newPinAsk);
@@ -459,7 +470,7 @@ export class ScribeCall {
       return this.close();
     }
     this.state = "review";
-    await this.say(`${note.spoken} ${LINES.reviewPrompt}`);
+    await this.say(`${note.spoken} ${this.deps.caller.guest ? LINES.reviewPromptGuest : LINES.reviewPrompt}`);
   }
 
   private close() {

@@ -1,7 +1,7 @@
 import { appendCaptureAudio, captureAudio, captureNote, captureStatus, finishCaptureFor } from "../capture";
 import { hasPhonePin, mintLoginLink, verifyPhonePin } from "../magic";
 import { runAgent, type AgentTurn } from "../agent";
-import { run } from "../../db";
+import { get, run } from "../../db";
 import { actorFor, artifacts, audit, type User } from "../repo";
 import { spokenBrief, speakable } from "./brief";
 import type { CallDeps } from "./call";
@@ -157,6 +157,8 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
       const { pinOfferToken } = await import("./pinByPhone");
       const { pinProblem } = await import("../magic");
       if (pinProblem(pin)) return "invalid";
+      const recent = await get<{ n: number }>("SELECT COUNT(*) AS n FROM audit WHERE user_id = ? AND action = 'phone.pin_offered' AND created_at > ?", user.id, new Date(Date.now() - 86400_000).toISOString());
+      if (Number(recent?.n ?? 0) >= 3) return "unavailable";
       const token = pinOfferToken(user.id, user.phone, pin);
       await sendText(claims.phone, `Chartside: tap to turn on the phone PIN you just chose. If this wasn't you, ignore this text. ${publicUrlBase()}/go/pin?t=${encodeURIComponent(token)}`, "pin_offer");
       await audit.log(user, null, "phone.pin_offered", {});
@@ -207,6 +209,7 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
       if (scheduledVisit) {
         await run("UPDATE encounters SET status = 'scheduled', started_at = NULL WHERE id = ?", encId);
         await run("DELETE FROM artifacts WHERE encounter_id = ? AND kind IN ('capture_origin', 'phone_call')", encId);
+        await run("DELETE FROM consents WHERE encounter_id = ?", encId);
         await audit.log(user, encId, "phone.abandoned", { callSid: claims.callSid, scheduled: true });
         encId = null;
         return;

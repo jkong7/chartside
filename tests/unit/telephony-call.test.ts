@@ -398,10 +398,30 @@ describe("scribe call", () => {
     expect(offered).toEqual(["5937"]);
     expect(said.at(-1)).toContain(LINES.newPinTexted);
     expect(call.state).toBe("consent");
+    await call.onDigit("6");
+    expect(call.state).toBe("consent");
     const guest = harness({ caller: { name: null, guest: true, hasPin: false }, offerPin: async () => "texted" });
     await guest.call.start();
     await guest.call.onDigit("6");
     expect(guest.call.state).toBe("consent");
+    const cancel = harness({ offerPin: async () => "texted" });
+    await cancel.call.start();
+    await cancel.call.onDigit("6");
+    await cancel.call.onDigit("*");
+    expect(cancel.call.state).toBe("consent");
+    expect(cancel.said.at(-1)).toContain(LINES.newPinCancelled);
+  });
+
+  it("doesn't let a guest start another visit on the same call", async () => {
+    let resets = 0;
+    const { call, events } = harness({ caller: { name: null, guest: true, hasPin: false }, startNext: () => void resets++ });
+    await call.start();
+    await call.onDigit("2");
+    await call.onDigit("5");
+    await call.onDigit("8");
+    expect(resets).toBe(0);
+    expect(events).toContain("ready");
+    expect(call.state).toBe("ended");
   });
 
   it("repeats the last line on request", async () => {

@@ -450,10 +450,16 @@ test("a clinician sets a PIN on the call and turns it on from the texted link", 
   expect((await (await page.request.get("/api/auth/phone/pin")).json()).set).toBe(false);
   const other = await (await browser.newContext()).newPage();
   await other.goto(/(http:\/\/\S+)/.exec(sms)![1]);
+  await other.getByTestId("pin-input").fill("2468");
+  await other.getByTestId("pin-confirm-go").click();
+  await expect(other.getByTestId("pin-confirm").getByRole("alert")).toContainText("isn't the PIN chosen on the call");
+  expect((await (await page.request.get("/api/auth/phone/pin")).json()).set).toBe(false);
+  await other.getByTestId("pin-input").fill("5937");
   await other.getByTestId("pin-confirm-go").click();
   await expect(other.getByTestId("pin-confirm")).toHaveAttribute("data-state", "done");
   expect((await (await page.request.get("/api/auth/phone/pin")).json()).set).toBe(true);
   await other.reload();
+  await other.getByTestId("pin-input").fill("5937");
   await other.getByTestId("pin-confirm-go").click();
   await expect(other.getByTestId("pin-confirm").getByRole("alert")).toContainText("already have a phone PIN");
 });
