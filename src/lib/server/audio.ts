@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { dataDir } from "../db";
+import { sealBytes, unsealBytes } from "../fhir/crypto";
 import { assignRoles, clusterVoices } from "../engine/diarize";
 import { detectLang } from "../engine/lang";
 import type { Encounter, Speaker, Utterance } from "../types";
@@ -58,8 +59,8 @@ export async function saveChunk(encId: string, seq: number, tMs: number, mime: s
   if (data.length > 5 * 1024 * 1024) throw new Error("Audio chunk too large");
   const dir = audioDir(encId);
   mkdirSync(dir, { recursive: true });
-  const file = path.join(dir, `${String(seq).padStart(6, "0")}.bin`);
-  writeFileSync(file, data);
+  const file = path.join(dir, `${String(seq).padStart(6, "0")}.enc`);
+  writeFileSync(file, sealBytes(data), { mode: 0o600 });
   await audioChunks.add(encId, { seq, tMs: Math.max(0, Math.round(tMs)), bytes: data.length, mime: mime.split(";")[0], path: file });
   return (await audioChunks.list(encId)).length;
 }
@@ -70,7 +71,8 @@ export async function recording(encId: string) {
   const parts: Buffer[] = [];
   for (const c of chunks) {
     try {
-      parts.push(readFileSync(c.path));
+      const raw = readFileSync(c.path);
+      parts.push(c.path.endsWith(".enc") ? unsealBytes(raw) : raw);
     } catch {
       continue;
     }

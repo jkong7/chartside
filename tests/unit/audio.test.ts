@@ -47,6 +47,27 @@ describe("server audio", () => {
     await expect(saveChunk(enc.id, -1, 0, "audio/webm", Buffer.alloc(10))).rejects.toThrow("Invalid chunk sequence");
   });
 
+  it("encrypts chunks at rest and still reads legacy plaintext chunks", async () => {
+    const { saveChunk, recording } = await import("@/lib/server/audio");
+    const { readFileSync, writeFileSync } = await import("node:fs");
+    const { repo, enc } = await setup();
+    const plain = Buffer.from("RIFF-this-is-private-visit-audio".repeat(20));
+    await saveChunk(enc.id, 0, 0, "audio/wav", plain);
+    const [stored] = await repo.audioChunks.list(enc.id);
+    expect(stored.path.endsWith(".enc")).toBe(true);
+    const disk = readFileSync(stored.path);
+    expect(disk.includes(Buffer.from("private-visit-audio"))).toBe(false);
+    expect(disk.subarray(0, 4).toString()).toBe("CSB1");
+    const legacy = stored.path.replace(/000000\.enc$/, "000001.bin");
+    writeFileSync(legacy, Buffer.from("legacy-plain"));
+    await repo.audioChunks.add(enc.id, { seq: 1, tMs: 4000, bytes: 12, mime: "audio/wav", path: legacy });
+    const rec = (await recording(enc.id))!;
+    expect(rec.buffer.equals(Buffer.concat([plain, Buffer.from("legacy-plain")]))).toBe(true);
+    disk[disk.length - 1] ^= 0xff;
+    writeFileSync(stored.path, disk);
+    expect((await recording(enc.id))!.buffer.toString()).toBe("legacy-plain");
+  });
+
   it("re-transcribes the full recording with diarization and maps speakers to roles", async () => {
     const { saveChunk, finalPass, speechConfig, mintDeepgramToken } = await import("@/lib/server/audio");
     const { repo, user, enc } = await setup();
