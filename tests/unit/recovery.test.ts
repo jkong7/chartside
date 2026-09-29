@@ -48,4 +48,25 @@ describe("stalled capture recovery", () => {
     const r = await captureAudio(doc, { bytes: readFileSync("tests/e2e/fixtures/visit.wav"), mime: "audio/wav", options: { consent: "granted", finish: false, channel: "go" } });
     expect(await recoverStalledCaptures()).not.toContain(r.encounterId);
   });
+
+  it("never retries a failed draft and never finishes a paused browser recording early", async () => {
+    const { captureAudio } = await import("@/lib/server/capture");
+    const { recoverStalledCaptures } = await import("@/lib/server/recovery");
+    const { run } = await import("@/lib/db");
+    const repo = await import("@/lib/server/repo");
+    const doc = await newMember("Dr. Careful Sweep");
+    const wav = readFileSync("tests/e2e/fixtures/visit.wav");
+    const failed = await captureAudio(doc, { bytes: wav, mime: "audio/wav", options: { consent: "granted", finish: false, channel: "phone" } });
+    const origin = await repo.artifacts.get<Record<string, unknown>>(failed.encounterId, "capture_origin");
+    await repo.artifacts.set(failed.encounterId, "capture_origin", { ...origin, error: "Deepgram transcription failed (400)" });
+    const paused = await captureAudio(doc, { bytes: wav, mime: "audio/wav", options: { consent: "granted", finish: false, channel: "go" } });
+    const old = new Date(Date.now() - 45 * 60_000).toISOString();
+    await run("UPDATE audio_chunks SET created_at = ? WHERE encounter_id IN (?, ?)", old, failed.encounterId, paused.encounterId);
+    const out = await recoverStalledCaptures();
+    expect(out).not.toContain(failed.encounterId);
+    expect(out).not.toContain(paused.encounterId);
+    const ancient = new Date(Date.now() - 6 * 3600_000).toISOString();
+    await run("UPDATE audio_chunks SET created_at = ? WHERE encounter_id = ?", ancient, paused.encounterId);
+    expect(await recoverStalledCaptures()).toContain(paused.encounterId);
+  });
 });
