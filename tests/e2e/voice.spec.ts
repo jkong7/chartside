@@ -94,6 +94,21 @@ test("pressing a key while the line is talking cuts it off and acts right away",
   expect((await spoken(request)).some((s) => s.startsWith("Thanks. I'm listening"))).toBe(true);
 });
 
+test("the line ends and drafts a visit that reaches the recording limit", async ({ baseURL, request }) => {
+  const from = randomPhone();
+  const call = await dial({
+    base: baseURL!,
+    from,
+    twilioToken: "test-twilio",
+    mockDeepgram: MOCK_DG,
+    frameMs: 0,
+    steps: [{ waitPrompts: 1 }, { digit: "2" }, { waitPrompts: 2 }, { silence: 305 }, { waitPrompts: 4, timeoutMs: 60000 }, { hangup: true }],
+  });
+  expect(call.connected).toBe(true);
+  expect((await spoken(request)).some((s) => s.startsWith("This visit has reached the recording limit"))).toBe(true);
+  await expect.poll(async () => (await texts(request, from)).length, { timeout: 20000 }).toBeGreaterThan(0);
+});
+
 test("a call token cannot start a second stream", async ({ baseURL }) => {
   const params = { CallSid: `CA${Date.now()}replay`, From: randomPhone(), To: "+13125550199" };
   const url = `${baseURL}/api/voice/incoming`;
