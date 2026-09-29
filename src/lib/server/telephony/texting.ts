@@ -59,9 +59,15 @@ export async function inboundText(fromRaw: string, bodyRaw: string, origin: stri
     const c = await decisionCounts(user);
     return say(`Chartside: ${queueLine(c)}${c.total ? ` Open: ${await link(user)}` : ""}`);
   }
-  if (/^(nudge|remind)( me)?( at)? ?(\d{1,2})?/.test(body)) {
-    const h = Number(/(\d{1,2})/.exec(body)?.[1] ?? 17);
-    const hour = h >= 1 && h <= 12 && !/am/.test(body) && h < 8 ? h + 12 : Math.min(23, Math.max(0, h));
+  if (/^(nudge|remind)\b/.test(body)) {
+    const m = /\b(\d{1,2})(?::\d{2})?\s*(am|pm|a\.m\.|p\.m\.)?(?!\s*(min|minute|hour|hr))\b/.exec(body);
+    let hour = 17;
+    if (m) {
+      const h = Number(m[1]);
+      const suffix = m[2]?.replace(/\./g, "");
+      hour = suffix === "am" ? h % 12 : h < 12 ? h + 12 : h;
+    }
+    hour = Math.min(20, Math.max(12, hour));
     await users.update(user.id, { prefs: { ...user.prefs, clinicNudgeHour: hour, textOptOut: false } });
     return say(`Got it. If anything is waiting, I'll text you at ${hour > 12 ? hour - 12 : hour}${hour >= 12 ? " PM" : " AM"}. Reply STOP any time.`);
   }
@@ -91,9 +97,13 @@ export async function sendClinicNudges(at = new Date()) {
     if (!u) continue;
     const c = await decisionCounts(u);
     if (!c.total) continue;
-    await sendText(r.phone, `Chartside: ${queueLine(c)} Clear it before you leave: ${await link(u)} Reply STOP to end these.`, "clinic_nudge");
-    await audit.log(u, null, "text.nudge", { day, total: c.total });
-    sent.push(r.id);
+    try {
+      await sendText(r.phone, `Chartside: ${queueLine(c)} Clear it before you leave: ${await link(u)} Reply STOP to end these.`, "clinic_nudge");
+      await audit.log(u, null, "text.nudge", { day, total: c.total });
+      sent.push(r.id);
+    } catch (err) {
+      await audit.log(u, null, "text.nudge_failed", { error: err instanceof Error ? err.message.slice(0, 120) : "error" });
+    }
   }
   return { hour, day, sent: sent.length };
 }

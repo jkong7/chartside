@@ -80,6 +80,12 @@ describe("texting the line", () => {
     await magic.verifyPhone(doc.id, "+13125550133");
     expect(await inboundText("+13125550133", "nudge 5", "https://line.test")).toContain("5 PM");
     expect((await repo.users.byId(doc.id))!.prefs.clinicNudgeHour).toBe(17);
+    const hourOf = async (body: string) => (await inboundText("+13125550133", body, "https://line.test"), (await repo.users.byId(doc.id))!.prefs.clinicNudgeHour);
+    expect(await hourOf("remind me at 9pm")).toBe(20);
+    expect(await hourOf("remind me at 4 pm")).toBe(16);
+    expect(await hourOf("nudge me 1:30")).toBe(13);
+    expect(await hourOf("remind me in 30 minutes")).toBe(17);
+    expect(await hourOf("nudge the team")).toBe(17);
   });
 
   it("sends one PHI-free end-of-clinic nudge at the chosen hour and skips empty stacks", async () => {
