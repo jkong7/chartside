@@ -1,6 +1,7 @@
 import { appendCaptureAudio, captureAudio, captureNote, captureStatus, finishCaptureFor } from "../capture";
 import { hasPhonePin, mintLoginLink, verifyPhonePin } from "../magic";
 import { runAgent, type AgentTurn } from "../agent";
+import { run } from "../../db";
 import { actorFor, artifacts, audit, type User } from "../repo";
 import { spokenBrief, speakable } from "./brief";
 import type { CallDeps } from "./call";
@@ -61,11 +62,12 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
   };
   const flush = () => (chain = chain.then(flushNow).catch((err) => console.error("phone flush failed", err)));
 
-  let ready: Promise<string | null> | null = null;
-  const waitReady = (maxMs: number) =>
-    (ready ??= (async () => {
+  let poller: Promise<string | null> | null = null;
+  const LONGEST_WAIT_MS = 10 * 60_000;
+  const pollReady = () =>
+    (poller ??= (async () => {
       if (!encId) return null;
-      const until = Date.now() + maxMs;
+      const until = Date.now() + LONGEST_WAIT_MS;
       while (Date.now() < until) {
         const s = await captureStatus({ user, tokenId: null }, encId).catch(() => null);
         if (s?.status === "ready" || s?.status === "signed") return encId;
@@ -74,6 +76,11 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
       }
       return null;
     })());
+  const waitReady = (maxMs: number) => {
+    let timer: NodeJS.Timeout | undefined;
+    const deadline = new Promise<"timeout">((r) => (timer = setTimeout(() => r("timeout"), maxMs)));
+    return Promise.race([pollReady(), deadline]).finally(() => clearTimeout(timer));
+  };
 
   const reviewPath = () => `/go/stack?focus=${encodeURIComponent(encId ?? "")}`;
   const when = () => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: process.env.CHARTSIDE_TZ || "America/Chicago" }).format(new Date(startedAt));
@@ -98,7 +105,7 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
     },
     waitForNote: async () => {
       const id = await waitReady(opts.waitMs ?? 75_000);
-      if (!id) return null;
+      if (!id || id === "timeout") return null;
       const note = await captureNote({ user, tokenId: null }, id);
       return { spoken: spokenBrief(note, Math.round(totalSamples / 8000 / 60) || null) };
     },
@@ -116,7 +123,12 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
       await audit.log(user, encId, "phone.ready_to_sign", {});
     },
     textLink: async (reason) => {
-      if (!encId) return;
+      if (!encId) return false;
+      const fresh = await actorFor(user.id, user.orgId).catch(() => undefined);
+      if (fresh?.prefs.textOptOut) {
+        await audit.log(user, encId, "phone.text_skipped", { reason: "opted_out" });
+        return false;
+      }
       const send = async () => {
         const link = await loginLink(user, reviewPath(), claims.phone);
         const body = user.guestUntil
@@ -125,15 +137,31 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
         await sendText(claims.phone, body);
         await audit.log(user, encId, "phone.texted", { reason });
       };
-      if (reason === "ready") return send();
+      if (reason === "ready") {
+        try {
+          await send();
+          return true;
+        } catch (err) {
+          console.error("phone text failed", err instanceof Error ? err.message : err);
+          await audit.log(user, encId, "phone.text_failed", {});
+          return false;
+        }
+      }
       void (async () => {
-        const id = await waitReady(10 * 60_000);
-        if (!id) {
+        const id = await waitReady(LONGEST_WAIT_MS);
+        if (!id || id === "timeout") {
           await sendText(claims.phone, `Chartside: we couldn't finish the note from your ${when()} call. Open Chartside to retry: ${await loginLink(user, "/go", claims.phone)}`).catch(() => {});
           return;
         }
         await send();
-      })().catch((err) => console.error("phone text failed", err));
+      })().catch((err) => console.error("phone text failed", err instanceof Error ? err.message : err));
+      return true;
+    },
+    abandon: async () => {
+      if (!encId || wroteHeader) return;
+      await run("DELETE FROM encounters WHERE id = ?", encId);
+      await audit.log(user, null, "phone.abandoned", { callSid: claims.callSid });
+      encId = null;
     },
     declined: async () => {
       await audit.log(user, null, "phone.consent_declined", { callSid: claims.callSid });
