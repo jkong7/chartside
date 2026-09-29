@@ -38,7 +38,11 @@ function words(spk, start, end, text) {
 }
 
 const stats = { grants: 0, prerecorded: 0, lastBytes: 0, wsConnections: 0, wsAudioMessages: 0, phoneConnections: 0, phoneAudioMessages: 0, spoken: [] };
-const phoneQueue = [];
+const phoneQueues = new Map();
+const queueFor = (key) => {
+  if (!phoneQueues.has(key)) phoneQueues.set(key, []);
+  return phoneQueues.get(key);
+};
 const phoneSockets = new Set();
 
 const server = createServer((req, res) => {
@@ -63,11 +67,12 @@ const server = createServer((req, res) => {
     if (url.pathname === "/stats") return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(stats));
     if (req.method === "POST" && url.pathname === "/phone/say") {
       const text = url.searchParams.get("text") || "";
-      phoneQueue.push(text);
-      return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ queued: phoneQueue.length }));
+      const q = queueFor(url.searchParams.get("call") ? `call-${url.searchParams.get("call")}` : "any");
+      q.push(text);
+      return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ queued: q.length }));
     }
     if (req.method === "POST" && url.pathname === "/phone/reset") {
-      phoneQueue.length = 0;
+      phoneQueues.clear();
       stats.spoken = [];
       return res.writeHead(200).end("{}");
     }
@@ -109,6 +114,7 @@ server.on("upgrade", (req, socket, head) => {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
       return socket.destroy();
     }
+    const callTag = phoneUrl.searchParams.getAll("tag").find((t) => t.startsWith("call-")) ?? "any";
     return phoneWss.handleUpgrade(req, socket, head, (ws) => {
       stats.phoneConnections++;
       phoneSockets.add(ws);
@@ -120,7 +126,7 @@ server.on("upgrade", (req, socket, head) => {
           return;
         }
         stats.phoneAudioMessages++;
-        const text = phoneQueue.shift();
+        const text = queueFor(callTag).shift() ?? (callTag !== "any" ? queueFor("any").shift() : undefined);
         if (text) ws.send(JSON.stringify({ type: "Results", is_final: true, speech_final: true, channel: { alternatives: [{ transcript: text, confidence: 0.95, words: [] }] } }));
       });
       ws.on("close", () => phoneSockets.delete(ws));

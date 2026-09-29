@@ -166,7 +166,7 @@ export async function dial({ base, from = "+15550100000", sim = false, cookie, t
     const speak = async (text, voice = "aura-2-orion-en") => {
       if (mockDeepgram) {
         await sleep(2200);
-        await fetch(`${mockDeepgram}/phone/say?text=${encodeURIComponent(text)}`, { method: "POST" });
+        await fetch(`${mockDeepgram}/phone/say?text=${encodeURIComponent(text)}&call=${encodeURIComponent(sid)}`, { method: "POST" });
         await stream(Buffer.alloc(160 * 3, 0xff));
         return;
       }
