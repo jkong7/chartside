@@ -18,6 +18,8 @@ interface TwilioFrame {
 
 const FRAME = 160;
 const ECHO_GUARD_MS = 700;
+const QUIET_WINDOW_S = 15;
+const QUIET_RMS = 120;
 
 export interface BridgeOptions {
   waitMs?: number;
@@ -37,6 +39,10 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
   let sim = false;
   let interrupted = false;
   let limitFired = false;
+  let quietChecked = false;
+  let heardWhileRecording = false;
+  let quietSamples = 0;
+  let quietSum = 0;
   const digits: string[] = [];
   let draining = false;
   const drainDigits = async () => {
@@ -183,7 +189,10 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
       listener = new LiveListener((text) => {
         if (Date.now() < speakingUntil) return;
         if (sim) send({ event: "chartside.heard", streamSid, text });
-        if (call?.state === "recording") heardOnCall(liveSid, text);
+        if (call?.state === "recording") {
+          heardOnCall(liveSid, text);
+          heardWhileRecording = true;
+        }
         void call
           ?.onTranscript(text)
           .then(emitState)
@@ -202,7 +211,28 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
       listener?.send(bytes);
       if (call.capturing) {
         call.onAudio();
-        session.pushAudio(mulawDecode(bytes));
+        if (session.recordedSeconds() === 0) {
+          quietChecked = false;
+          quietSamples = 0;
+          quietSum = 0;
+          heardWhileRecording = false;
+        }
+        const pcm = mulawDecode(bytes);
+        session.pushAudio(pcm);
+        if (!quietChecked) {
+          for (let i = 0; i < pcm.length; i++) quietSum += pcm[i] * pcm[i];
+          quietSamples += pcm.length;
+          if (quietSamples >= 8000 * QUIET_WINDOW_S) {
+            quietChecked = true;
+            if (Math.sqrt(quietSum / quietSamples) < QUIET_RMS && !heardWhileRecording) {
+              const c = call;
+              void c
+                .onQuiet()
+                .then(emitState)
+                .catch((err) => console.error("phone quiet check failed", err));
+            }
+          }
+        }
         if (limitFired && session.recordedSeconds() < capSeconds) limitFired = false;
         if (!limitFired && session.recordedSeconds() >= capSeconds) {
           limitFired = true;

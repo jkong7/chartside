@@ -371,6 +371,16 @@ describe("scribe call", () => {
     expect(resets).toBe(2);
   });
 
+  it("warns about a quiet room only while recording", async () => {
+    const { call, said } = harness();
+    await call.start();
+    await call.onQuiet();
+    expect(said).not.toContain(LINES.lowAudio);
+    await call.onDigit("2");
+    await call.onQuiet();
+    expect(said.at(-1)).toBe(LINES.lowAudio);
+  });
+
   it("repeats the last line on request", async () => {
     const { call, said } = harness();
     await call.start();

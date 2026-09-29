@@ -430,3 +430,10 @@ test("one call can cover two patients in a row", async ({ page, baseURL, request
   expect(after.length - before).toBe(2);
   expect(after.filter((d) => d.detail.markedReady).length).toBe(2);
 });
+
+test("the line warns once when it can barely hear the room, and not when it can", async ({ baseURL }) => {
+  const loud = await dial({ base: baseURL!, from: randomPhone(), twilioToken: "test-twilio", mockDeepgram: MOCK_DG, frameMs: 1, steps: [{ waitPrompts: 1 }, { digit: "2" }, { waitPrompts: 2 }, { wav: "tests/e2e/fixtures/visit.wav" }, { sleep: 1500 }, { hangup: true }] });
+  expect(loud.prompts).toBe(2);
+  const quiet = await dial({ base: baseURL!, from: randomPhone(), twilioToken: "test-twilio", mockDeepgram: MOCK_DG, frameMs: 1, steps: [{ waitPrompts: 1 }, { digit: "2" }, { waitPrompts: 2 }, { silence: 16 }, { waitPrompts: 3 }, { silence: 20 }, { sleep: 1500 }, { hangup: true }] });
+  expect(quiet.prompts).toBe(3);
+});

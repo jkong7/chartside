@@ -57,6 +57,7 @@ export const LINES = {
   anythingElse: "Anything else? Say ready when it looks right.",
   notHeard: "Sorry, I didn't catch that.",
   limit: "This visit has reached the recording limit, so I'm ending it now.",
+  lowAudio: "I can barely hear the room. Move the phone closer, face up, between you and your patient.",
   stillWriting: "Still writing.",
   almostThere: "Almost there.",
   summaryQueued: "I'll text your patient their visit summary as soon as you sign the note.",
@@ -301,6 +302,12 @@ export class ScribeCall {
     } finally {
       this.busy = false;
     }
+  }
+
+  async onQuiet() {
+    if (this.state !== "recording" || this.busy) return;
+    this.deps.log("call.low_audio");
+    await this.say(LINES.lowAudio);
   }
 
   async onLimit() {
