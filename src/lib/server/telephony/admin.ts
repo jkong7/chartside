@@ -105,3 +105,32 @@ export async function lineRoster(orgId: string) {
     ready: !!r.verified && !!r.pin,
   }));
 }
+
+export async function lineCallLog(orgId: string | null, limit = 25) {
+  const calls = await all<{ user_id: string | null; detail: string; created_at: string; name: string | null }>(
+    `SELECT a.user_id, a.detail, a.created_at, u.name FROM audit a LEFT JOIN users u ON u.id = a.user_id WHERE a.action IN ('phone.call', 'phone.sim_call') ${orgId ? "AND a.org_id = ?" : ""} ORDER BY a.created_at DESC LIMIT ?`,
+    ...(orgId ? [orgId, limit] : [limit]),
+  );
+  const out = [];
+  for (const c of calls) {
+    const d = JSON.parse(c.detail || "{}") as { callSid?: string; guest?: boolean };
+    const sid = d.callSid ?? "";
+    const like = `%"callSid":"${sid.replace(/[%_"]/g, "")}"%`;
+    const consent = sid ? await all<{ encounter_id: string | null; detail: string }>("SELECT encounter_id, detail FROM audit WHERE action = 'phone.consent' AND detail LIKE ? LIMIT 1", like) : [];
+    const declined = sid ? await all<{ n: number }>("SELECT COUNT(*) AS n FROM audit WHERE action = 'phone.consent_declined' AND detail LIKE ?", like) : [];
+    const encId = consent[0]?.encounter_id ?? null;
+    const events = encId ? (await all<{ action: string }>("SELECT action FROM audit WHERE encounter_id = ?", encId)).map((e) => e.action) : [];
+    const verifiedBy = consent[0] ? ((JSON.parse(consent[0].detail || "{}") as { verifiedBy?: string }).verifiedBy ?? null) : d.guest ? "guest" : null;
+    const outcome = Number(declined[0]?.n ?? 0) ? "declined" : !encId ? (events.length ? "recorded" : "no visit") : events.includes("capture.discarded") ? "deleted" : events.includes("phone.ready_to_sign") ? "marked ready" : events.includes("capture.drafted") || events.includes("note.generated") ? "note drafted" : events.includes("capture.recovered") ? "recovered after drop" : "recorded";
+    out.push({
+      at: c.created_at,
+      caller: d.guest ? "First-time caller" : c.name ?? "Unknown",
+      simulator: sid.startsWith("CAsim"),
+      verifiedBy,
+      outcome,
+      texted: events.includes("phone.texted"),
+      summaryQueued: events.includes("phone.summary_queued"),
+    });
+  }
+  return out;
+}
