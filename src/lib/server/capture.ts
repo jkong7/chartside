@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import { pushToUser } from "./push";
 import { noteToText } from "../engine/note";
 import { ALL_PARTY_STATES, STATE_NAMES } from "../engine/lexicon";
 import type { CodingResult, ConsentRecord, Encounter, PatientSummary } from "../types";
@@ -138,6 +139,8 @@ async function draft(user: User, enc: Encounter, opts: Record<string, string>) {
       const r = await processEncounter(user, enc.id, { templateId: opts.templateId || undefined, detail, model: phone ? process.env.CHARTSIDE_PHONE_NOTE_MODEL || undefined : undefined });
       await artifacts.set(enc.id, "capture_origin", { ...origin, finishedAt: new Date().toISOString(), warnings: r.warnings });
       await audit.log(user, enc.id, "capture.drafted", { tokenId: origin.tokenId, warnings: r.warnings.length });
+      const at = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: process.env.CHARTSIDE_TZ || "America/Chicago" }).format(new Date(enc.startedAt ?? enc.scheduledAt));
+      await pushToUser(user.id, { title: "Note ready", body: `Your ${at} visit is written. Tap to review and sign.`, url: `/go/stack?focus=${enc.id}`, tag: enc.id }).catch(() => undefined);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not draft the note";
       await encounters.update(user, enc.id, { status: "paused" });

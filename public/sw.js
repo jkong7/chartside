@@ -1,4 +1,4 @@
-const VERSION = "chartside-v1";
+const VERSION = "chartside-v2";
 const OFFLINE = "/offline.html";
 
 self.addEventListener("install", (event) => {
@@ -21,4 +21,29 @@ self.addEventListener("fetch", (event) => {
   if (req.mode === "navigate") {
     event.respondWith(fetch(req).catch(async () => (await caches.match(OFFLINE)) || new Response("Offline", { status: 503 })));
   }
+});
+
+self.addEventListener("push", (event) => {
+  let data = { title: "Chartside", body: "Something is ready for you.", url: "/go/stack" };
+  try {
+    data = { ...data, ...event.data.json() };
+  } catch {}
+  event.waitUntil(self.registration.showNotification(data.title, { body: data.body, tag: data.tag, icon: "/icon-192.png", badge: "/icon-192.png", data: { url: data.url } }));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || "/go/stack", self.location.origin);
+  if (url.origin !== self.location.origin) return;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if (new URL(c.url).origin === url.origin && "focus" in c) {
+          c.navigate(url.href);
+          return c.focus();
+        }
+      }
+      return self.clients.openWindow(url.href);
+    }),
+  );
 });
