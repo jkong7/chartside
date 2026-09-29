@@ -93,10 +93,10 @@ async function signCards(u: User): Promise<Decision[]> {
     const rec = await notes.latest(q.id);
     const origin = await artifacts.get<{ channel?: string }>(q.id, "capture_origin");
     const ready = await artifacts.get<{ at: string; callSid?: string }>(q.id, "phone_ready");
-    const call = await artifacts.get<{ verifiedBy?: string }>(q.id, "phone_call");
+    const call = await artifacts.get<{ verifiedBy?: string; scheduledVisit?: boolean }>(q.id, "phone_call");
     const summaryOnSign = await artifacts.get<{ at: string }>(q.id, "summary_on_sign");
     const unverified = call?.verifiedBy === "caller-id";
-    const discardable = !!origin && enc.status !== "signed";
+    const discardable = !!origin && !call?.scheduledVisit && (enc.status === "review" || (enc.status === "paused" && !!(origin as { error?: string }).error));
     return {
       id: `sign:${q.id}`,
       kind: "note.sign" as const,
@@ -428,6 +428,9 @@ export async function actOnDecision(u: User, id: string, action: DecisionAction,
       const origin = await artifacts.get<{ channel?: string }>(ref, "capture_origin");
       if (!origin) throw new Invalid("Only quick captures can be deleted from the stack. Open the visit to change it.");
       if (enc.status === "signed") throw new Invalid("This note is signed. Add an addendum instead.");
+      const originErr = (origin as { error?: string }).error;
+      if (!(enc.status === "review" || (enc.status === "paused" && originErr))) throw new Invalid("This visit is still being recorded or written. Try again when the note is ready.");
+      if ((await artifacts.get<{ scheduledVisit?: boolean }>(ref, "phone_call"))?.scheduledVisit) throw new Invalid("This was a scheduled visit. Open it to change or clear the note.");
       if (enc.userId !== u.id) throw new Forbidden("Only the clinician who recorded this visit can delete it");
       await deleteAudio(u, ref, "discarded_from_stack");
       await run("DELETE FROM encounters WHERE id = ?", ref);

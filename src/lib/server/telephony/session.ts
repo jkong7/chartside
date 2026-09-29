@@ -42,6 +42,7 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
   let wroteHeader = false;
   let chain: Promise<unknown> = Promise.resolve();
   let pinOk = false;
+  let scheduledVisit = false;
   const history: AgentTurn[] = [];
   const askHistory: AgentTurn[] = [];
   let startedAt = Date.now();
@@ -92,6 +93,7 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
     nextVisit: () => nextVisitFor(user),
     startNext: () => {
       encId = null;
+      scheduledVisit = false;
       pending = [];
       pendingSamples = 0;
       totalSamples = 0;
@@ -103,8 +105,9 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
       startedAt = Date.now();
       const r = await captureAudio(user, { options: { consent: "granted", method: "verbal", state: user.prefs.state || "IL", finish: false, channel: claims.sim ? "phone-sim" : "phone", reason: "", ...(lang ? { lang } : {}), ...(encounterId ? { encounterId } : {}) } as never });
       encId = r.encounterId;
+      scheduledVisit = !!encounterId;
       const verifiedBy = user.guestUntil ? "guest" : pinOk ? "pin" : "caller-id";
-      await artifacts.set(encId, "phone_call", { callSid: claims.callSid, sim: claims.sim, verifiedBy, phone: claims.phone, startedAt: new Date(startedAt).toISOString() });
+      await artifacts.set(encId, "phone_call", { callSid: claims.callSid, sim: claims.sim, verifiedBy, phone: claims.phone, scheduledVisit, startedAt: new Date(startedAt).toISOString() });
       await audit.log(user, encId, "phone.consent", { callSid: claims.callSid, sim: claims.sim, verifiedBy });
     },
     flush: () => flush(),
@@ -187,6 +190,13 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
     },
     abandon: async () => {
       if (!encId || wroteHeader) return;
+      if (scheduledVisit) {
+        await run("UPDATE encounters SET status = 'scheduled', started_at = NULL WHERE id = ?", encId);
+        await run("DELETE FROM artifacts WHERE encounter_id = ? AND kind IN ('capture_origin', 'phone_call')", encId);
+        await audit.log(user, encId, "phone.abandoned", { callSid: claims.callSid, scheduled: true });
+        encId = null;
+        return;
+      }
       await run("DELETE FROM encounters WHERE id = ?", encId);
       await audit.log(user, null, "phone.abandoned", { callSid: claims.callSid });
       encId = null;
