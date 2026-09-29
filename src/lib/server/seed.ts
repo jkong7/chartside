@@ -1,6 +1,6 @@
 import { DEMO_PATIENTS, type DemoPatient } from "../demo/scripts";
 import type { Note } from "../types";
-import { encounters, notes, orders, patients, utterances, type User } from "./repo";
+import { encounters, notes, orders, patients, utterances, type User, users } from "./repo";
 import { processEncounter, recordConsent, saveNoteEdits, signEncounter } from "./pipeline";
 import { claimAction } from "./revenue";
 import { audit, claims, orgs } from "./repo";
@@ -187,6 +187,7 @@ export async function seedDemo(user: User, opts: { archive?: boolean } = {}) {
   const org = await orgs.get(user.orgId);
   if (org && !org.settings.billing?.npi) await orgs.update(org.id, { settings: { ...org.settings, billing: { ...(org.settings.billing ?? {}), npi: "1234567893", tin: "12-3456789", demoIdentifiers: true } } });
   await seedSchedule(user);
+  await users.update(user.id, { prefs: { ...user.prefs, sampleDay: true } });
   if (opts.archive !== false) {
     await seedArchive(user);
     await seedMessages(user);

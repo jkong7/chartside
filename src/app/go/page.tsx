@@ -14,8 +14,7 @@ export default async function GoPage({ searchParams }: { searchParams: Promise<{
   const { shared } = await searchParams;
   const user = await currentUser().catch(() => null);
   const counts = user ? await decisionCounts(user).catch(() => null) : null;
-  const { orgs } = await import("@/lib/server/repo");
-  const sample = user ? (await orgs.get(user.orgId))?.settings.billing?.demoIdentifiers : false;
+  const sample = !!user?.prefs.sampleDay;
   const pin = user && !user.guestUntil ? await hasPhonePin(user.id).catch(() => false) : false;
   return (
     <main className="min-h-screen bg-paper">

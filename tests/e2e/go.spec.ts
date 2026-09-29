@@ -59,7 +59,7 @@ test("a signed-in clinician sees what's waiting and records into their own stack
   await expect(page.getByTestId("go-review")).toHaveText("Review and sign", { timeout: 45000 });
   await page.getByTestId("go-review").click();
   await expect(page.getByTestId("stack-card").first()).toBeVisible();
-  await expect(page.getByTestId("stack-sample")).toContainText("They aren't real people");
+  await expect(page.getByTestId("stack-sample")).toContainText("example patients aren't real people");
 });
 
 test("the browser phone runs a whole call: consent, sample visit, read-back, and the text-back link", async ({ page }) => {

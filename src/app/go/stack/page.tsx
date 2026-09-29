@@ -12,7 +12,6 @@ export default async function StackPage({ searchParams }: { searchParams: Promis
   const here = `/go/stack${sp.focus ? `?focus=${encodeURIComponent(sp.focus)}` : ""}`;
   if (!user) redirect(`/login?next=${encodeURIComponent(here)}`);
   const decisions = await listDecisions(user);
-  const { orgs } = await import("@/lib/server/repo");
-  const sample = !!(await orgs.get(user.orgId))?.settings.billing?.demoIdentifiers;
+  const sample = !!user.prefs.sampleDay;
   return <Stack initial={decisions} user={publicUser(user)} focus={sp.focus ?? null} justClaimed={sp.claimed === "1"} sample={sample} />;
 }

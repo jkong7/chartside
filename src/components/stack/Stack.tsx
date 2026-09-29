@@ -147,7 +147,7 @@ export default function Stack({ initial, user, focus, justClaimed = false, sampl
         <HomeScreenTip />
         {sample && (
           <p className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-2" data-testid="stack-sample">
-            <span className="font-medium text-ink">Sample clinic day.</span> Your account came with example patients so you can try everything. They aren&apos;t real people.
+            <span className="font-medium text-ink">Sample clinic day.</span> Your account came with example patients so you can try everything. Those example patients aren&apos;t real people.
           </p>
         )}
         {!user.guestUntil && <NotifyToggle />}
@@ -207,7 +207,7 @@ export default function Stack({ initial, user, focus, justClaimed = false, sampl
                 )}
               </div>
               {top.kind === "note.sign" && !claimed && (
-                <button className="mt-2 w-full text-center text-sm font-medium text-brand underline" onClick={() => { const el = document.querySelector<HTMLInputElement>("[data-testid=claim-email]"); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.focus(); }} data-testid="stack-save-hint">
+                <button className="mt-2 w-full text-center text-sm font-medium text-brand underline" onClick={() => { const el = document.querySelector<HTMLInputElement>("[data-testid=claim-code], [data-testid=claim-email]"); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.focus(); }} data-testid="stack-save-hint">
                   Add your email above to keep this note and sign it
                 </button>
               )}
