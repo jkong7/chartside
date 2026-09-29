@@ -1,0 +1,28 @@
+import Link from "next/link";
+import GoRecorder from "@/components/ghost/GoRecorder";
+import { currentUser } from "@/lib/server/auth";
+import { decisionCounts } from "@/lib/server/decisions";
+
+export const dynamic = "force-dynamic";
+export const metadata = { title: "Record a visit · Chartside", description: "One tap to record a visit. Chartside writes the note." };
+
+export default async function GoPage() {
+  const user = await currentUser().catch(() => null);
+  const counts = user ? await decisionCounts(user).catch(() => null) : null;
+  return (
+    <main className="min-h-screen bg-paper">
+      <header className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4 text-sm">
+        <Link href="/line" className="flex items-center gap-2 font-semibold text-ink">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand text-white">C</span>
+          Chartside
+        </Link>
+        <nav className="flex gap-1">
+          <Link href="/go/phone" className="btn-ghost">Call instead</Link>
+          {user && <Link href="/go/stack" className="btn-ghost">Stack</Link>}
+          {user && <Link href="/go/ask" className="btn-ghost">Ask</Link>}
+        </nav>
+      </header>
+      <GoRecorder signedIn={!!user} guest={!!user?.guestUntil} waiting={counts?.total ?? 0} />
+    </main>
+  );
+}

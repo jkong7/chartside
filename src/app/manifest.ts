@@ -18,6 +18,8 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
     shortcuts: [
+      { name: "Record visit", url: "/go" },
+      { name: "Your stack", url: "/go/stack" },
       { name: "Today", url: "/today" },
       { name: "Inbox", url: "/inbox" },
       { name: "Hospital", url: "/hospital" },
