@@ -154,3 +154,17 @@ test("sharing a recording from another app asks for consent before anything is k
   const bad = await page.request.post("/go/share", { multipart: { audio: { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hello") } }, maxRedirects: 0 });
   expect(bad.headers().location).toContain("/go?shared=");
 });
+
+test("iPhone Safari visitors get a one-time Add to Home Screen tip on the stack", async ({ browser }) => {
+  const ctx = await browser.newContext({ userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1", viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  await register(page);
+  await page.goto("/go/stack");
+  await expect(page.getByTestId("home-tip")).toContainText("Add to Home Screen");
+  await page.getByTestId("home-tip-close").click();
+  await expect(page.getByTestId("home-tip")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId("stack-count")).toBeVisible();
+  await expect(page.getByTestId("home-tip")).toHaveCount(0);
+  await ctx.close();
+});
