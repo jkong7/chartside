@@ -85,3 +85,23 @@ export async function lineStats(orgId: string | null, days = 7) {
     byChannel,
   };
 }
+
+export async function lineRoster(orgId: string) {
+  const rows = await all<{ id: string; name: string; role: string; phone: string | null; verified: string | null; pin: string | null; last_call: string | null; calls: number }>(
+    `SELECT u.id, u.name, m.role, u.phone, u.phone_verified_at AS verified, u.phone_pin_hash AS pin,
+      (SELECT MAX(a.created_at) FROM audit a WHERE a.user_id = u.id AND a.action IN ('phone.call', 'phone.sim_call')) AS last_call,
+      (SELECT COUNT(*) FROM audit a WHERE a.user_id = u.id AND a.action IN ('phone.call', 'phone.sim_call')) AS calls
+    FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.org_id = ? AND m.status = 'active' AND m.role IN ('owner', 'admin', 'clinician', 'nurse', 'scribe') ORDER BY u.name`,
+    orgId,
+  );
+  return rows.map((r) => ({
+    userId: r.id,
+    name: r.name,
+    role: r.role,
+    phone: r.verified && r.phone ? r.phone.replace(/\d(?=\d{4})/g, "•") : null,
+    pin: !!r.pin,
+    calls: Number(r.calls ?? 0),
+    lastCall: r.last_call,
+    ready: !!r.verified && !!r.pin,
+  }));
+}
