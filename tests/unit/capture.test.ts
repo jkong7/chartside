@@ -168,6 +168,21 @@ describe("capture API", () => {
     await expect(cap.captureAudio(stranger, { bytes: audio, mime: "audio/webm", options: { consent: "granted", patientId: scheduled.patientId! } })).rejects.toThrow("Patient not found");
   });
 
+  it("lets a device key upload and check status but not read the note", async () => {
+    const { root, one, note } = await routes();
+    const { settleCaptures } = await import("@/lib/server/capture");
+    const { mintCaptureToken } = await import("@/lib/server/captureTokens");
+    const doc = await newMember("Dr. Device Reader");
+    const { token } = await mintCaptureToken(doc, { source: "session", device: true, label: "iPhone Shortcut" });
+    const r = await call(root.POST, "/api/capture?consent=granted", { method: "POST", token, body: audio, headers: { "content-type": "audio/mp4" } });
+    const id = r.json.encounterId as string;
+    await settleCaptures();
+    expect((await call(one.GET, `/api/capture/${id}`, { token }, { id })).json.status).toBe("ready");
+    const n = await call(note.GET, `/api/capture/${id}/note`, { token }, { id });
+    expect(n.status).toBe(403);
+    expect(n.json.error).toMatch(/Device keys/);
+  });
+
   it("scopes a token to the captures it created", async () => {
     const { root, one, note } = await routes();
     const { settleCaptures } = await import("@/lib/server/capture");

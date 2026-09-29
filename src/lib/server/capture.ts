@@ -50,6 +50,7 @@ export interface CaptureInput {
 export interface CaptureAuth {
   user: User;
   tokenId: string | null;
+  device?: boolean;
 }
 
 interface CaptureOrigin {
@@ -283,6 +284,7 @@ export async function captureStatus(auth: CaptureAuth, encId: string) {
 }
 
 export async function captureNote(auth: CaptureAuth, encId: string) {
+  if (auth.device) throw new Forbidden("Device keys can upload and check status. Open the note in the app to read it.");
   const s = await captureStatus(auth, encId);
   if (s.status !== "ready" && s.status !== "signed") throw new Invalid(s.status === "failed" ? `Drafting failed: ${s.error}` : "The note isn't ready yet");
   const rec = await notes.latest(encId);
@@ -311,7 +313,7 @@ export function captureRoute<P = Record<string, never>>(handler: (req: Request, 
       const viaToken = await captureActor(req);
       const user = viaToken?.user ?? (await currentUser().catch(() => null));
       if (!user) return fail("Sign in, or send Authorization: Bearer cs_cap_…", 401);
-      return await handler(req, { user, tokenId: viaToken?.tokenId ?? null }, (await ctx.params) ?? ({} as P));
+      return await handler(req, { user, tokenId: viaToken?.tokenId ?? null, device: viaToken?.device ?? false }, (await ctx.params) ?? ({} as P));
     } catch (err) {
       if (err instanceof CaptureAuthError) return fail(err.message, err.status);
       const message = err instanceof Error ? err.message : "Unexpected error";

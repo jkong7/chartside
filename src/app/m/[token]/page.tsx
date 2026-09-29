@@ -2,7 +2,7 @@ import MagicContinue from "@/components/MagicContinue";
 import { linkInfo } from "@/lib/server/magic";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Sign in · Chartside", robots: { index: false } };
+export const metadata = { title: "Sign in · Chartside", robots: { index: false }, referrer: "no-referrer" as const };
 
 export default async function MagicLinkPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;

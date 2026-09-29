@@ -6,8 +6,10 @@ import { attributeReferral, REF_COOKIE } from "@/lib/server/growth";
 import { recordSignup, touchFromCookies } from "@/lib/server/loops";
 import { Forbidden } from "@/lib/server/policy";
 import { createChallenge, mfaStatus } from "@/lib/server/security";
+import { clientIp, limited, tooMany } from "@/lib/server/ratelimit";
 
 export async function POST(req: Request) {
+  if (limited(`magicv:${clientIp(req)}`, 2 * Number(process.env.CHARTSIDE_AUTH_RATE ?? 30), 3600000)) return tooMany();
   const b = await body<{ token?: string; email?: string; code?: string }>(req);
   if (!b.token && !(b.email && b.code)) return fail("Send the link token, or the email and code");
   const current = await currentUser();

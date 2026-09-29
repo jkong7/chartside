@@ -1,8 +1,10 @@
 import { currentUser } from "@/lib/server/auth";
 import { body, fail, json } from "@/lib/server/http";
 import { requestEmailSignIn, SsoRequired } from "@/lib/server/magic";
+import { clientIp, limited, tooMany } from "@/lib/server/ratelimit";
 
 export async function POST(req: Request) {
+  if (limited(`magic:${clientIp(req)}`, Number(process.env.CHARTSIDE_AUTH_RATE ?? 30), 3600000)) return tooMany();
   const b = await body<{ email?: string; next?: string }>(req);
   const current = await currentUser();
   try {
