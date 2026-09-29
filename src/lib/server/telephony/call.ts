@@ -1,6 +1,6 @@
 import { affirmative, negative, reviewIntent, wakeCommand } from "./intents";
 
-export type CallState = "greeting" | "confirmPatient" | "consent" | "recording" | "paused" | "drafting" | "review" | "ended";
+export type CallState = "greeting" | "pin" | "confirmPatient" | "consent" | "recording" | "paused" | "drafting" | "review" | "ended";
 
 export interface NextVisit {
   encounterId: string;
@@ -14,7 +14,8 @@ export interface NoteBrief {
 export interface CallDeps {
   say(text: string): Promise<void>;
   hangup(): void;
-  caller: { name: string | null; guest: boolean };
+  caller: { name: string | null; guest: boolean; hasPin: boolean };
+  verifyPin(pin: string): Promise<boolean>;
   nextVisit(): Promise<NextVisit | null>;
   open(input: { encounterId?: string }): Promise<void>;
   flush(): Promise<void>;
@@ -37,8 +38,11 @@ export const LINES = {
   declined: "Understood. Nothing was recorded. You can call back any time. Goodbye.",
   reviewPrompt: "Say ready, and I'll put it at the top of your stack to sign. Tell me anything to change. Or hang up, and I'll text you the link.",
   ready: "Done. It's at the top of your stack. I'm texting you the link to review and sign. Goodbye.",
+  readyGuest: "Done. I'm texting you a link to read it and save it, free. Goodbye.",
   later: "Okay. I'm texting you the link now. Goodbye.",
   slow: "This one is taking longer than usual. I'll text you as soon as it's ready. Goodbye.",
+  pinAsk: "Enter your phone PIN, then pound, to hear your schedule. Or press star to just record.",
+  pinBad: "That PIN didn't match. You can still record, and I'll match the patient afterward.",
   anythingElse: "Anything else? Say ready when it looks right.",
   notHeard: "Sorry, I didn't catch that.",
 } as const;
@@ -50,6 +54,7 @@ export class ScribeCall {
   private lastSpoken = "";
   private reviewTurns = 0;
   private pendingVisit: NextVisit | null = null;
+  private pinDigits = "";
 
   constructor(private deps: CallDeps) {}
 
@@ -58,19 +63,36 @@ export class ScribeCall {
   }
 
   async start() {
-    const who = this.deps.caller.guest ? "" : this.deps.caller.name ? ` ${this.deps.caller.name}` : "";
+    const who = this.deps.caller.name ? ` ${this.deps.caller.name}` : "";
     const intro = this.deps.caller.guest
       ? "Hi, this is Chartside, an AI scribe, on a recorded line. I'll write the note for your next visit. It's free, and there's nothing to sign up for."
       : `Hi${who}. This is your Chartside scribe, on a recorded line.`;
-    const next = this.deps.caller.guest ? null : await this.deps.nextVisit().catch(() => null);
-    if (next) {
-      this.pendingVisit = next;
-      this.state = "confirmPatient";
-      await this.say(`${intro} ${next.spoken} Is that who you're seeing?`);
+    if (!this.deps.caller.guest && this.deps.caller.hasPin) {
+      this.state = "pin";
+      await this.say(`${intro} ${LINES.pinAsk}`);
       return;
     }
     this.state = "consent";
     await this.say(`${intro} ${LINES.consentAsk}`);
+  }
+
+  private async afterPin(ok: boolean) {
+    this.pinDigits = "";
+    if (!ok) {
+      this.state = "consent";
+      await this.say(`${LINES.pinBad} ${LINES.consentAsk}`);
+      return;
+    }
+    this.deps.log("call.pin_ok");
+    const next = await this.deps.nextVisit().catch(() => null);
+    if (next) {
+      this.pendingVisit = next;
+      this.state = "confirmPatient";
+      await this.say(`Thanks. ${next.spoken} Is that who you're seeing?`);
+      return;
+    }
+    this.state = "consent";
+    await this.say(`Thanks. I don't see a scheduled visit right now, so I'll match the patient afterward. ${LINES.consentAsk}`);
   }
 
   private async say(text: string) {
@@ -122,7 +144,7 @@ export class ScribeCall {
         if (intent.kind === "ready") {
           await this.deps.markReady();
           await this.deps.textLink("ready");
-          await this.say(LINES.ready);
+          await this.say(this.deps.caller.guest ? LINES.readyGuest : LINES.ready);
           return this.close();
         }
         if (intent.kind === "later") {
@@ -142,6 +164,19 @@ export class ScribeCall {
     if (this.busy || this.state === "ended") return;
     this.busy = true;
     try {
+      if (this.state === "pin") {
+        if (d === "*") {
+          this.pinDigits = "";
+          this.state = "consent";
+          return await this.say(LINES.consentAsk);
+        }
+        if (d === "#") return await this.afterPin(this.pinDigits.length >= 4 && (await this.deps.verifyPin(this.pinDigits).catch(() => false)));
+        if (/^\d$/.test(d)) {
+          this.pinDigits += d;
+          if (this.pinDigits.length >= 6) return await this.afterPin(await this.deps.verifyPin(this.pinDigits).catch(() => false));
+        }
+        return;
+      }
       if (this.state === "confirmPatient") {
         if (d === "1") {
           this.state = "consent";
