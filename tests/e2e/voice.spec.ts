@@ -85,6 +85,15 @@ test("the caller can hang up mid-visit and still gets a text when the note is re
   expect((await texts(request, from)).at(-1)!.body).toContain("is ready");
 });
 
+test("pressing a key while the line is talking cuts it off and acts right away", async ({ baseURL, request }) => {
+  const from = randomPhone();
+  const started = Date.now();
+  const call = await dial({ base: baseURL!, from, twilioToken: "test-twilio", mockDeepgram: MOCK_DG, frameMs: 1, realtimeMarks: true, steps: [{ sleep: 400 }, { digit: "2" }, { waitPrompts: 1, timeoutMs: 10000 }, { hangup: true }] });
+  expect(call.clears).toBeGreaterThan(0);
+  expect(Date.now() - started).toBeLessThan(6000);
+  expect((await spoken(request)).some((s) => s.startsWith("Thanks. I'm listening"))).toBe(true);
+});
+
 test("a declined consent records nothing and texts nothing", async ({ baseURL, request }) => {
   const from = randomPhone();
   const call = await dial({ base: baseURL!, from, twilioToken: "test-twilio", mockDeepgram: MOCK_DG, frameMs: 1, steps: [{ waitPrompts: 1 }, { digit: "0" }, { waitClose: true }] });

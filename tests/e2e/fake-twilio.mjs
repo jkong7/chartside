@@ -49,7 +49,7 @@ export function twilioSignature(token, url, params) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export async function dial({ base, from = "+15550100000", sim = false, cookie, twilioToken, steps = [], mockDeepgram, deepgramKey, frameMs = 20, log = () => {} }) {
+export async function dial({ base, from = "+15550100000", sim = false, cookie, twilioToken, steps = [], mockDeepgram, deepgramKey, frameMs = 20, realtimeMarks = false, log = () => {} }) {
   const callSid = `CA${randomBytes(16).toString("hex")}`;
   let callToken;
   let streamUrl;
@@ -86,6 +86,8 @@ export async function dial({ base, from = "+15550100000", sim = false, cookie, t
     let outboundBytes = 0;
     let closed = false;
     let closeCode = null;
+    let clears = 0;
+    const pendingMarks = new Set();
     const waiters = [];
     ws.on("message", (data) => {
       const m = JSON.parse(data.toString());
@@ -93,15 +95,24 @@ export async function dial({ base, from = "+15550100000", sim = false, cookie, t
       if (m.event === "chartside.heard") log(`heard: ${m.text}`);
       if (m.event === "chartside.caption") log(`said: ${m.text.slice(0, 90)}`);
       if (m.event === "chartside.state") log(`state: ${m.state}`);
+      if (m.event === "clear") {
+        clears++;
+        outboundBytes = 0;
+        for (const t of pendingMarks) clearTimeout(t);
+        pendingMarks.clear();
+        log("clear");
+      }
       if (m.event === "mark") {
         const playMs = Math.min(outboundBytes / 8, 30000);
         outboundBytes = 0;
-        setTimeout(() => {
+        const timer = setTimeout(() => {
+          pendingMarks.delete(timer);
           if (ws.readyState === 1) ws.send(JSON.stringify({ event: "mark", streamSid, sequenceNumber: "1", mark: { name: m.mark.name } }));
           prompts++;
           log(`prompt ${prompts}`);
           for (const w of [...waiters]) w();
-        }, mockDeepgram ? 5 : playMs);
+        }, mockDeepgram && !realtimeMarks ? 5 : playMs);
+        pendingMarks.add(timer);
       }
     });
     ws.on("close", (code) => {
@@ -173,6 +184,6 @@ export async function dial({ base, from = "+15550100000", sim = false, cookie, t
       send({ event: "stop", streamSid });
       ws.close();
     }
-    return { connected: true, callSid: sid, prompts, closeCode, phone, inboxKey };
+    return { connected: true, callSid: sid, prompts, closeCode, phone, inboxKey, clears };
   }
 }

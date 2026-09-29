@@ -79,7 +79,7 @@ const server = createServer((req, res) => {
     if (req.method === "POST" && url.pathname === "/v1/speak") {
       if (url.searchParams.get("encoding") !== "mulaw" || url.searchParams.get("sample_rate") !== "8000") return res.writeHead(400).end(JSON.stringify({ err_msg: "phone audio must be mulaw 8000" }));
       stats.spoken.push(speakText);
-      return res.writeHead(200, { "content-type": "audio/basic" }).end(Buffer.alloc(Math.min(4000, Math.max(160, speakText.length * 8)), 0xff));
+      return res.writeHead(200, { "content-type": "audio/basic" }).end(Buffer.alloc(Math.min(40000, Math.max(160, speakText.length * 80)), 0xff));
     }
     if (req.method === "POST" && url.pathname === "/v1/listen") {
       if (!/^audio\//.test(req.headers["content-type"] || "") || size < 1000 || url.searchParams.get("diarize") !== "true" || url.searchParams.get("utterances") !== "true") {
