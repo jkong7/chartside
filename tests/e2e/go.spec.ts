@@ -226,3 +226,9 @@ test("the pocket card shows the keypad and a QR code for the line", async ({ pag
   const scan = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(scan.violations.map((v) => v.id)).toEqual([]);
 });
+
+test("settings says when this week's numbers include the sample clinic day", async ({ page }) => {
+  await register(page);
+  await page.goto("/go/settings");
+  await expect(page.getByTestId("receipt-sample")).toContainText("sample clinic day");
+});

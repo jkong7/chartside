@@ -134,12 +134,13 @@ function Npi({ initial }: { initial: Props["growth"]["npi"] }) {
   );
 }
 
-function Receipt({ stats }: { stats: Props["receipt"] }) {
+function Receipt({ stats, sample = false }: { stats: Props["receipt"]; sample?: boolean }) {
   const [url, setUrl] = useState<string | null>(null);
   const a = useAction();
   return (
     <Section id="receipt" title="This week" hint="A card you can share. It never includes patient information.">
       <p className="text-sm" data-testid="receipt-summary">{stats.notesSigned} charts closed · {stats.hoursBack} hours back · {stats.closedSameDay} before leaving clinic</p>
+      {sample && <p className="text-xs text-ink-3" data-testid="receipt-sample">These numbers include your sample clinic day.</p>}
       {url ? <a className="block break-all text-sm font-medium text-brand" href={new URL(url).pathname} data-testid="receipt-link">{url}</a> : <button className="btn-outline w-full" disabled={a.busy} onClick={() => a.run(async () => { const r = await api<{ url: string }>("/growth/receipt", { method: "POST" }); setUrl(r.url); return "Share link ready"; })} data-testid="receipt-create">{a.busy && <Spinner />} Make a share card</button>}
       {a.note}
     </Section>
@@ -202,7 +203,7 @@ export default function GoSettings(p: Props) {
         <Nudge initial={p.user.prefs?.clinicNudgeHour ?? null} hasPhone={!!phone} />
         <Devices initial={p.devices} />
         <Npi initial={p.growth.npi} />
-        <Receipt stats={p.receipt} />
+        <Receipt stats={p.receipt} sample={!!(p.user as { prefs?: { sampleDay?: boolean } }).prefs?.sampleDay} />
         <Referral growth={p.growth} />
       </div>
     </main>
