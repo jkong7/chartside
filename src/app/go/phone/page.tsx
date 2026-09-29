@@ -3,9 +3,15 @@ import PhoneSim from "@/components/ghost/PhoneSim";
 import { currentUser } from "@/lib/server/auth";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Call your scribe · Chartside", description: "Call Chartside before a visit, set the phone down, and your note is waiting when you hang up." };
+export const metadata = {
+  title: "Call your scribe · Chartside",
+  description: "Call Chartside before a visit, set the phone down, and your note is waiting when you hang up.",
+  openGraph: { title: "Call your scribe from this page", description: "Play a sample visit, hear the note read back, and get the text.", type: "website" as const },
+  twitter: { card: "summary_large_image" as const, title: "Call your scribe from this page", description: "Play a sample visit, hear the note read back, and get the text." },
+};
 
-export default async function PhonePage() {
+export default async function PhonePage({ searchParams }: { searchParams: Promise<{ autopilot?: string; ff?: string }> }) {
+  const sp = await searchParams;
   const user = await currentUser().catch(() => null);
   const line = process.env.CHARTSIDE_LINE_DISPLAY || "Demo line";
   return (
@@ -26,7 +32,7 @@ export default async function PhonePage() {
             {user ? <Link href="/go/stack" className="btn-ghost">Your stack</Link> : <Link href="/login?next=/go/phone" className="btn-ghost">Sign in</Link>}
           </div>
         </section>
-        <PhoneSim lineNumber={line} signedInAs={user && !user.guestUntil ? user.name : null} />
+        <PhoneSim lineNumber={line} signedInAs={user && !user.guestUntil ? user.name : null} autopilot={sp.autopilot === "1"} fastForward={sp.ff === "1"} />
       </div>
     </main>
   );

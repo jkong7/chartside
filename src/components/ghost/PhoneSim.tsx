@@ -50,7 +50,9 @@ function linkify(body: string) {
   );
 }
 
-export default function PhoneSim({ lineNumber, signedInAs }: { lineNumber: string; signedInAs: string | null }) {
+export default function PhoneSim({ lineNumber, signedInAs, autopilot = false, fastForward = false }: { lineNumber: string; signedInAs: string | null; autopilot?: boolean; fastForward?: boolean }) {
+  const [pilot, setPilot] = useState(autopilot);
+  const [sampleFinished, setSampleFinished] = useState(false);
   const [tab, setTab] = useState<Tab>("phone");
   const [state, setState] = useState<CallState>("idle");
   const [caption, setCaption] = useState<string>("");
@@ -124,6 +126,7 @@ export default function PhoneSim({ lineNumber, signedInAs }: { lineNumber: strin
   useEffect(() => () => cleanup(), [cleanup]);
 
   const dial = async () => {
+    setSampleFinished(false);
     setError(null);
     setCaption("");
     setHeard("");
@@ -194,6 +197,7 @@ export default function PhoneSim({ lineNumber, signedInAs }: { lineNumber: strin
       const chunk = cur.bytes.subarray(cur.pos, cur.pos + 1600);
       if (!chunk.length) {
         stopSample();
+        setSampleFinished(true);
         return;
       }
       for (let off = 0; off < chunk.length; off += 160) send({ event: "media", streamSid: streamSid.current, media: { track: "inbound", payload: toB64(chunk.subarray(off, off + 160)) } });
@@ -209,6 +213,7 @@ export default function PhoneSim({ lineNumber, signedInAs }: { lineNumber: strin
     const rest = cur.bytes.subarray(cur.pos);
     for (let off = 0; off < rest.length; off += 160) send({ event: "media", streamSid: streamSid.current, media: { track: "inbound", payload: toB64(rest.subarray(off, off + 160)) } });
     stopSample();
+    setSampleFinished(true);
   };
 
   const shareLine = async () => {
@@ -231,6 +236,28 @@ export default function PhoneSim({ lineNumber, signedInAs }: { lineNumber: strin
     await navigator.clipboard.writeText(`${text} ${url}`).catch(() => {});
     setShared("Link copied. Paste it to a colleague.");
   };
+
+  useEffect(() => {
+    if (!pilot) return;
+    let t = 0;
+    if (state === "consent") t = window.setTimeout(() => press("2"), 1500);
+    else if (state === "recording" && !sampleRef.current && !sampleFinished) {
+      if (audio.current) audio.current.muted = true;
+      t = window.setTimeout(() => {
+        void playSample().then(() => {
+          if (fastForward) window.setTimeout(skipSample, 2500);
+        });
+      }, 800);
+    } else if (state === "recording" && sampleFinished) t = window.setTimeout(() => press("5"), 1200);
+    else if (state === "review") {
+      const wait = () => {
+        if (audio.current?.speaking) t = window.setTimeout(wait, 500);
+        else t = window.setTimeout(() => press("1"), 1500);
+      };
+      t = window.setTimeout(wait, 1000);
+    } else if (state === "ended" && texts.length) t = window.setTimeout(() => setTab("messages"), 1200);
+    return () => window.clearTimeout(t);
+  }, [pilot, state, sampleFinished, texts.length]);
 
   const toggleMute = () => {
     const next = !muted;
@@ -278,6 +305,11 @@ export default function PhoneSim({ lineNumber, signedInAs }: { lineNumber: strin
 
         {tab === "phone" && inCall && (
           <div className="flex h-[664px] flex-col items-center px-6 pb-14 pt-8" data-testid="sim-incall" data-state={state}>
+            {pilot && (
+              <button onClick={() => { setPilot(false); if (audio.current) audio.current.muted = false; }} className="mb-2 rounded-full bg-[#2fbf61]/20 px-3 py-1 text-[11px] font-medium text-[#8ff0b0]" data-testid="sim-autopilot">
+                Autopilot is playing the visit · tap to take over
+              </button>
+            )}
             <div className="flex w-full min-h-0 flex-1 flex-col items-center overflow-y-auto">
             <p className="text-sm text-white/60">{state === "connecting" ? "Calling" : clock(secs)}</p>
             <h2 className="mt-1 text-2xl font-semibold">Chartside</h2>
