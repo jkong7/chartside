@@ -3,6 +3,8 @@ const EM_LEVEL: Record<string, string> = { "99212": "level 2", "99213": "level 3
 export function speakable(text: string) {
   return text
     .replace(/\*\*\*/g, "blank")
+    .replace(/\s*&\s*/g, " and ")
+    .replace(/\s+—\s+/g, ", ")
     .replace(/[#*_`>|]/g, "")
     .replace(/\[[^\]]*\]/g, "")
     .replace(/\(([A-Z]\d{2}(\.\d+)?)\)/g, "")

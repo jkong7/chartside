@@ -1,6 +1,6 @@
 import { appendCaptureAudio, captureAudio, captureNote, captureStatus, finishCaptureFor } from "../capture";
 import { hasPhonePin, mintLoginLink, verifyPhonePin } from "../magic";
-import { assist } from "../pipeline";
+import { runAgent, type AgentTurn } from "../agent";
 import { actorFor, artifacts, audit, type User } from "../repo";
 import { spokenBrief, speakable } from "./brief";
 import type { CallDeps } from "./call";
@@ -39,6 +39,8 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
   let totalSamples = 0;
   let wroteHeader = false;
   let chain: Promise<unknown> = Promise.resolve();
+  let pinOk = false;
+  const history: AgentTurn[] = [];
   const startedAt = Date.now();
 
   const flushNow = async () => {
@@ -77,7 +79,7 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
 
   const deps: PhoneSession["deps"] = {
     caller: { name: user.guestUntil ? null : user.name, guest: !!user.guestUntil, hasPin: !user.guestUntil && !claims.guest && (await hasPhonePin(user.id)) },
-    verifyPin: (pin) => verifyPhonePin(user.id, pin),
+    verifyPin: async (pin) => (pinOk = await verifyPhonePin(user.id, pin)),
     nextVisit: () => nextVisitFor(user),
     open: async ({ encounterId }) => {
       const r = await captureAudio(user, { options: { consent: "granted", method: "verbal", state: user.prefs.state || "IL", finish: false, channel: claims.sim ? "phone-sim" : "phone", reason: "", ...(encounterId ? { encounterId } : {}) } as never });
@@ -99,8 +101,11 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
     },
     converse: async (text) => {
       if (!encId) return "There's no note to change yet.";
-      const r = await assist(user, encId, text);
-      return speakable(String(r.reply ?? "Done.")).split(/(?<=[.!?])\s+/).slice(0, 3).join(" ");
+      history.push({ role: "user", content: text });
+      const r = await runAgent(user, history.slice(-8), { channel: "voice", phiScope: pinOk ? "full" : "call", encounterId: encId });
+      history.push({ role: "assistant", content: r.reply });
+      await audit.log(user, encId, "phone.agent_turn", { proposals: r.proposals.length, engine: r.engine });
+      return speakable(r.reply);
     },
     markReady: async () => {
       if (!encId) return;
