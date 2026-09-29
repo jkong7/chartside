@@ -13,7 +13,7 @@ gcloud run deploy "$SERVICE" --project "$PROJECT" --region "$REGION" --image "$I
   --service-account "chartside-run@$PROJECT.iam.gserviceaccount.com" \
   --allow-unauthenticated --port 8080 --memory 2Gi --cpu 2 --no-cpu-throttling \
   --min-instances 0 --max-instances 1 --concurrency 80 --timeout 3600 --session-affinity \
-  --set-secrets "ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,DEEPGRAM_API_KEY=DEEPGRAM_API_KEY:latest,CHARTSIDE_SECRET=CHARTSIDE_SECRET:latest" \
+  --set-secrets "ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,DEEPGRAM_API_KEY=DEEPGRAM_API_KEY:latest,CHARTSIDE_SECRET=CHARTSIDE_SECRET:latest,CHARTSIDE_VAPID_PUBLIC=CHARTSIDE_VAPID_PUBLIC:latest,CHARTSIDE_VAPID_PRIVATE=CHARTSIDE_VAPID_PRIVATE:latest,CHARTSIDE_CRON_SECRET=CHARTSIDE_CRON_SECRET:latest" \
   --set-env-vars "LITESTREAM_BUCKET=$BUCKET,CHARTSIDE_TZ=America/Chicago,CHARTSIDE_LINE_DISPLAY=Demo line${URL:+,CHARTSIDE_PUBLIC_URL=$URL}"
 URL="$(gcloud run services describe "$SERVICE" --project "$PROJECT" --region "$REGION" --format 'value(status.url)')"
 gcloud run services update "$SERVICE" --project "$PROJECT" --region "$REGION" --update-env-vars "CHARTSIDE_PUBLIC_URL=$URL" >/dev/null

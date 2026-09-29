@@ -181,7 +181,7 @@ NODE_ENV=production npx tsx server.ts        # http://localhost:3100, with /api/
 
 `npm run dev` still serves every page and API except the phone WebSocket. For a real number, expose the server publicly (for example `cloudflared tunnel --url http://localhost:3100`), set `CHARTSIDE_PUBLIC_URL` to that address, and point the Twilio number's voice webhook at `/api/voice/incoming` and its messaging webhook at `/api/sms/incoming`. **Admin → Line** can set both on the number in one step for an operator.
 
-On Google Cloud Run, run `deploy/gcp-grant.sh` once (it creates the `chartside-run` service account, grants it the three secrets, and creates the Litestream bucket), then `deploy/gcp-deploy.sh` for each release.
+On Google Cloud Run, run `deploy/gcp-grant.sh` once. It creates the `chartside-run` service account, grants it the app's secrets (keys, the encryption secret, push keys and the cron secret), and creates the Litestream bucket. Then run `deploy/gcp-deploy.sh` for each release, and `deploy/gcp-scheduler.sh` once to call the nudge job hourly.
 
 To place a call without a phone, use the fake Twilio caller:
 
