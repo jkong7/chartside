@@ -246,6 +246,12 @@ test("Admin → Line shows setup and call stats, and an operator points the Twil
   await page.click("button[type=submit]");
   await page.waitForURL("**/today");
   await page.goto("/admin?tab=line");
+  await expect(page.getByTestId("line-panel")).toContainText("A Chartside operator connects the phone number");
+  expect((await page.request.post("/api/auth/magic", { data: { email: "operator@chartside.test" } })).ok()).toBe(true);
+  const mail = (await (await request.get("http://localhost:3295/messages?to=operator%40chartside.test")).json()) as { body: string }[];
+  const code = /\b(\d{6})\b/.exec(mail.at(-1)!.body)![1];
+  expect((await page.request.post("/api/auth/magic/verify", { data: { email: "operator@chartside.test", code } })).ok()).toBe(true);
+  await page.goto("/admin?tab=line");
   const panel = page.getByTestId("line-panel");
   await expect(panel).toBeVisible();
   await expect(panel.locator('[data-check="speech"]')).toHaveAttribute("data-ok", "true");
@@ -462,4 +468,12 @@ test("a clinician sets a PIN on the call and turns it on from the texted link", 
   await other.getByTestId("pin-input").fill("5937");
   await other.getByTestId("pin-confirm-go").click();
   await expect(other.getByTestId("pin-confirm").getByRole("alert")).toContainText("already have a phone PIN");
+});
+
+test("the media stream closes sockets that never start a call and ignores junk keypresses", async ({ baseURL }) => {
+  const code = await new Promise<number>((resolve) => {
+    const ws = new WebSocket(`${baseURL!.replace(/^http/, "ws")}/api/voice/stream`);
+    ws.onclose = (e) => resolve(e.code);
+  });
+  expect(code).toBe(1008);
 });

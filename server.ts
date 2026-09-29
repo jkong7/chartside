@@ -22,13 +22,35 @@ const sweep = async () => {
 };
 setTimeout(sweep, 30_000).unref();
 setInterval(sweep, 5 * 60_000).unref();
-const wss = new WebSocketServer({ noServer: true, maxPayload: 1 << 20 });
+const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
+const openByIp = new Map<string, number>();
+let openTotal = 0;
+const MAX_PER_IP = Number(process.env.CHARTSIDE_WS_PER_IP || 8);
+const MAX_TOTAL = Number(process.env.CHARTSIDE_WS_TOTAL || 60);
+const hopsFor = (h: string | string[] | undefined) => (Array.isArray(h) ? h.join(",") : h ?? "").split(",").map((x) => x.trim()).filter(Boolean);
 
 const server = createServer((req, res) => handle(req, res));
 server.on("upgrade", (req, socket, head) => {
   const path = (req.url || "/").split("?")[0];
   if (path === "/api/voice/stream") {
-    wss.handleUpgrade(req, socket, head, (ws) => handleMediaStream(ws));
+    const hops = hopsFor(req.headers["x-forwarded-for"]);
+    const ip = hops[Math.max(0, hops.length - Math.max(1, Number(process.env.CHARTSIDE_PROXY_HOPS || 1)))] || req.socket.remoteAddress || "local";
+    if (openTotal >= MAX_TOTAL || (openByIp.get(ip) ?? 0) >= MAX_PER_IP) {
+      socket.write("HTTP/1.1 429 Too Many Requests\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      openTotal++;
+      openByIp.set(ip, (openByIp.get(ip) ?? 0) + 1);
+      ws.on("close", () => {
+        openTotal--;
+        const n = (openByIp.get(ip) ?? 1) - 1;
+        if (n <= 0) openByIp.delete(ip);
+        else openByIp.set(ip, n);
+      });
+      handleMediaStream(ws);
+    });
     return;
   }
   upgrade(req, socket, head);

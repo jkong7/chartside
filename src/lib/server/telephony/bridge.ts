@@ -26,7 +26,15 @@ export interface BridgeOptions {
   pollMs?: number;
 }
 
+const START_DEADLINE_MS = 5000;
+const MAX_CALL_MS = Number(process.env.CHARTSIDE_MAX_CALL_MIN || 90) * 60_000;
+const MAX_SIM_CALL_MS = Number(process.env.CHARTSIDE_MAX_SIM_CALL_MIN || 20) * 60_000;
+
 export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
+  const startDeadline = setTimeout(() => {
+    if (!call) ws.close(1008, "no start");
+  }, START_DEADLINE_MS);
+  let wallClock: NodeJS.Timeout | null = null;
   let streamSid = "";
   let call: ScribeCall | null = null;
   let listener: LiveListener | null = null;
@@ -137,6 +145,8 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
   };
 
   const teardown = async () => {
+    clearTimeout(startDeadline);
+    if (wallClock) clearTimeout(wallClock);
     if (liveSid) endCall(liveSid);
     listener?.close();
     for (const r of marks.values()) r();
@@ -158,6 +168,7 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
         return;
       }
       sim = claims.sim;
+      clearTimeout(startDeadline);
       try {
         session = await phoneSession(claims, opts);
       } catch (err) {
@@ -167,6 +178,14 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
       }
       if (hungUp) return;
       call = new ScribeCall({ ...session.deps, say, hangup });
+      const limitMs = claims.sim || claims.guest ? Math.min(MAX_SIM_CALL_MS, MAX_CALL_MS) : MAX_CALL_MS;
+      const endingCall = call;
+      wallClock = setTimeout(() => {
+        void endingCall
+          .onLimit()
+          .catch(() => undefined)
+          .finally(() => setTimeout(() => ws.close(1000, "call length limit"), 60_000));
+      }, limitMs);
       liveSid = claims.callSid;
       const c = call;
       registerCall({
@@ -246,6 +265,7 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
       return;
     }
     if (msg.event === "dtmf" && msg.dtmf) {
+      if (!/^[0-9*#]$/.test(String(msg.dtmf.digit)) || digits.length >= 24) return;
       digits.push(msg.dtmf.digit);
       interrupt();
       if (!draining) void drainDigits();

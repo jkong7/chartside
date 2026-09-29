@@ -119,7 +119,9 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
       await flush();
       if (!encId) return;
       if (!wroteHeader) return;
-      await finishCaptureFor(user, encId, { durationS: Math.max(1, Math.round(totalSamples / 8000)) }).catch((err) => console.error("phone finish failed", err));
+      await finishCaptureFor(user, encId, { durationS: Math.max(1, Math.round(totalSamples / 8000)) }).catch((err) => {
+        if (!/already being drafted|is signed/.test(err instanceof Error ? err.message : "")) console.error("phone finish failed", err);
+      });
     },
     waitForNote: async () => {
       const id = await waitReady(opts.waitMs ?? 75_000);
