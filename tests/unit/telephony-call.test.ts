@@ -346,6 +346,31 @@ describe("scribe call", () => {
     expect(call.state).toBe("review");
   });
 
+  it("moves on to the next patient on the same call", async () => {
+    let resets = 0;
+    const visits = [{ encounterId: "enc_2", spoken: "Your 3:00 is Ana Ruiz." }];
+    const { call, said, events } = harness({
+      caller: { name: "Dr. Kong", guest: false, hasPin: true },
+      nextVisit: async () => visits.shift() ?? null,
+      startNext: () => void resets++,
+    });
+    await call.start();
+    await call.onDigit("*");
+    await call.onDigit("2");
+    await call.onDigit("5");
+    expect(call.state).toBe("review");
+    await call.onTranscript("next patient");
+    expect(resets).toBe(1);
+    expect(events).toEqual(expect.arrayContaining(["ready", "text:ready"]));
+    expect(call.state).toBe("consent");
+    expect(said.at(-1)).toContain("Next patient.");
+    await call.onDigit("2");
+    expect(call.state).toBe("recording");
+    await call.onDigit("5");
+    await call.onDigit("8");
+    expect(resets).toBe(2);
+  });
+
   it("repeats the last line on request", async () => {
     const { call, said } = harness();
     await call.start();

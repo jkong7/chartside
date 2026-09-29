@@ -34,11 +34,12 @@ export function wakeCommand(text: string): WakeCommand {
   return null;
 }
 
-export type ReviewIntent = { kind: "ready" } | { kind: "later" } | { kind: "repeat" } | { kind: "summary" } | { kind: "other"; text: string };
+export type ReviewIntent = { kind: "ready" } | { kind: "later" } | { kind: "repeat" } | { kind: "summary" } | { kind: "next" } | { kind: "other"; text: string };
 
 export function reviewIntent(text: string): ReviewIntent {
   const t = norm(text);
   if (/\b(repeat|say that again|again please|come again|what was that)\b/.test(t)) return { kind: "repeat" };
+  if (/\b(next patient|next visit|another patient|new patient|new visit|keep going)\b/.test(t)) return { kind: "next" };
   if (/\b(text|send|share|message)\b.*\b(patient|summary|her summary|his summary|their summary|visit summary)\b/.test(t)) return { kind: "summary" };
   if (/\b(sign|ready to sign|looks good|looks great|that's good|that's perfect|perfect|good to go|approve|ready)\b/.test(t) && !/\b(don't|not|change|but)\b/.test(t)) return { kind: "ready" };
   if (/^(no|nope|nothing|that's all|that's it|all set|done|bye|goodbye|thanks|thank you|later|text me|send it|send me the link)\b/.test(t) || /\b(text me|send me the link|i'll review later|review later|hang up)\b/.test(t)) return { kind: "later" };

@@ -203,6 +203,7 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
       if (call.capturing) {
         call.onAudio();
         session.pushAudio(mulawDecode(bytes));
+        if (limitFired && session.recordedSeconds() < capSeconds) limitFired = false;
         if (!limitFired && session.recordedSeconds() >= capSeconds) {
           limitFired = true;
           const c = call;

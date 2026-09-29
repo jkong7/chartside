@@ -44,7 +44,7 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
   let pinOk = false;
   const history: AgentTurn[] = [];
   const askHistory: AgentTurn[] = [];
-  const startedAt = Date.now();
+  let startedAt = Date.now();
 
   const flushNow = async () => {
     if (!encId || !pendingSamples) return;
@@ -90,7 +90,17 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
     caller: { name: user.guestUntil ? null : user.name, guest: !!user.guestUntil, hasPin: !user.guestUntil && !claims.guest && (await hasPhonePin(user.id)) },
     verifyPin: async (pin) => (pinOk = await verifyPhonePin(user.id, pin)),
     nextVisit: () => nextVisitFor(user),
+    startNext: () => {
+      encId = null;
+      pending = [];
+      pendingSamples = 0;
+      totalSamples = 0;
+      wroteHeader = false;
+      poller = null;
+      history.length = 0;
+    },
     open: async ({ encounterId, lang }) => {
+      startedAt = Date.now();
       const r = await captureAudio(user, { options: { consent: "granted", method: "verbal", state: user.prefs.state || "IL", finish: false, channel: claims.sim ? "phone-sim" : "phone", reason: "", ...(lang ? { lang } : {}), ...(encounterId ? { encounterId } : {}) } as never });
       encId = r.encounterId;
       const verifiedBy = user.guestUntil ? "guest" : pinOk ? "pin" : "caller-id";

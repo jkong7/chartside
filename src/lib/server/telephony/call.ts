@@ -25,6 +25,7 @@ export interface CallDeps {
   ask?(text: string): Promise<string>;
   markReady(): Promise<void>;
   queueSummary?(): Promise<"queued" | "unmatched" | "none">;
+  startNext?(): void;
   textLink(reason: "ready" | "processing"): Promise<boolean>;
   declined(): Promise<void>;
   abandon(): Promise<void>;
@@ -42,7 +43,8 @@ export const LINES = {
   resumed: "Listening again.",
   drafting: "Got it. Writing your note now. Stay on the line to hear it, or hang up and I'll text you when it's ready.",
   declined: "Understood. Nothing was recorded. You can call back any time. Goodbye.",
-  reviewPrompt: "Say ready to put it on your stack, or tell me what to change. Press 7 to text the patient after you sign.",
+  reviewPrompt: "Say ready, or next patient to keep going, or tell me what to change. Press 7 to text the patient after you sign.",
+  nextPatient: "It's on your stack. Next patient.",
   ready: "Done. It's at the top of your stack. I'm texting you the link to review and sign. Goodbye.",
   readyGuest: "Done. I'm texting you a link to read it and save it, free. Goodbye.",
   readyNoText: "Done. It's at the top of your stack. I couldn't send you a text, so open Chartside to review and sign. Goodbye.",
@@ -147,7 +149,7 @@ export class ScribeCall {
     }
   }
 
-  private async handleTranscript(text: string) {
+  private async handleTranscript(text: string): Promise<void> {
     switch (this.state) {
       case "confirmPatient": {
         if (affirmative(text)) {
@@ -200,6 +202,10 @@ export class ScribeCall {
         }
         const intent = reviewIntent(text.replace(/^\s*chart ?side[,.!]?\s*/i, ""));
         if (intent.kind === "repeat") return this.say(this.lastSpoken);
+        if (intent.kind === "next") {
+          if (this.deps.startNext) return this.nextPatient();
+          return this.handleTranscript("ready");
+        }
         if (intent.kind === "summary") {
           const r = this.deps.queueSummary ? await this.deps.queueSummary().catch(() => "none" as const) : "none";
           return this.say(`${r === "queued" ? LINES.summaryQueued : LINES.summaryUnmatched} ${LINES.anythingElse}`);
@@ -275,6 +281,7 @@ export class ScribeCall {
         if (d === "1") return await this.handleTranscript("ready");
         if (d === "9") return await this.say(this.lastSpoken);
         if (d === "7") return await this.handleTranscript("text the patient their summary");
+        if (d === "8") return await this.handleTranscript("next patient");
         if (d === "5" || d === "#") return await this.handleTranscript("text me");
       }
     } finally {
@@ -334,6 +341,27 @@ export class ScribeCall {
     this.deps.log("call.consent_granted", { scheduled: !!this.pendingVisit });
     this.state = "recording";
     await this.say(LINES.recording);
+  }
+
+  private async nextPatient() {
+    await this.deps.markReady();
+    await this.deps.textLink("ready").catch(() => false);
+    this.deps.startNext!();
+    this.deps.log("call.next_patient");
+    this.hasAudio = false;
+    this.pendingVisit = null;
+    this.spanish = false;
+    this.askedPatientAt = 0;
+    this.reviewTurns = 0;
+    const next = this.pinVerified ? await this.deps.nextVisit().catch(() => null) : null;
+    if (next) {
+      this.pendingVisit = next;
+      this.state = "confirmPatient";
+      await this.say(`${LINES.nextPatient} ${next.spoken} Is that who you're seeing?`);
+      return;
+    }
+    this.state = "consent";
+    await this.say(`${LINES.nextPatient} ${LINES.consentAsk}`);
   }
 
   private async failOpen(err: unknown) {

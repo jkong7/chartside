@@ -28,7 +28,7 @@ const HINTS: Partial<Record<CallState, string[]>> = {
   recording: ["Talk with your patient normally", "Say “Chartside, end visit” or press 5", "Press 4 to pause"],
   paused: ["Say “Chartside, resume” or press 2"],
   drafting: ["Stay on to hear it, or hang up and get a text"],
-  review: ["Say “ready” or press 1", "Ask for a change: “make the plan shorter”", "Hang up and we'll text you"],
+  review: ["Say “ready” or press 1", "Next patient on this call: say it or press 8", "Ask for a change: “make the plan shorter”", "Press 7 to text the patient after you sign"],
 };
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];

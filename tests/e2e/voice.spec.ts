@@ -407,3 +407,26 @@ test("Admin → Line lists recent calls with outcomes and no patient details", a
   await expect(rows.nth(1)).toContainText("sent");
   await expect(page.getByTestId("line-calls-log")).not.toContainText(/Gonzalez|cough|respiratory/i);
 });
+
+test("one call can cover two patients in a row", async ({ page, baseURL, request }) => {
+  await register(page, "Dr. Two Rooms");
+  const phone = await verifiedPhone(page);
+  const before = ((await (await page.request.get("/api/decisions")).json()).decisions as { kind: string }[]).filter((d) => d.kind === "note.sign").length;
+  const call = await dial({
+    base: baseURL!,
+    from: phone,
+    twilioToken: "test-twilio",
+    mockDeepgram: MOCK_DG,
+    frameMs: 1,
+    steps: [
+      { waitPrompts: 1 }, { digit: "2" }, { waitPrompts: 2 }, { wav: "tests/e2e/fixtures/visit.wav" }, { digit: "5" }, { waitPrompts: 4, timeoutMs: 60000 },
+      { digit: "8" }, { waitPrompts: 5 }, { digit: "2" }, { waitPrompts: 6 }, { wav: "tests/e2e/fixtures/visit.wav" }, { digit: "5" }, { waitPrompts: 8, timeoutMs: 60000 },
+      { digit: "1" }, { waitClose: true },
+    ],
+  });
+  expect(call.closeCode).toBe(1000);
+  await expect.poll(async () => (await texts(request, phone)).filter((t) => t.body.includes("Review and sign")).length, { timeout: 20000 }).toBe(2);
+  const after = ((await (await page.request.get("/api/decisions")).json()).decisions as { kind: string; detail: { markedReady?: unknown } }[]).filter((d) => d.kind === "note.sign");
+  expect(after.length - before).toBe(2);
+  expect(after.filter((d) => d.detail.markedReady).length).toBe(2);
+});
