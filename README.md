@@ -101,7 +101,12 @@ The full web app is the back office. The ghost interface is the front door: reco
 | **The Stack** | `/go/stack` | One card per pending decision: sign a note (with the full note on screen), co-sign, answer a coding question, match a recording to a patient, reply to a patient, finish a task, apply a suggestion. Swipe right to approve, left for later. |
 | **Ask** | `/go/ask`, `POST /api/agent` | Claude with tools over the chart. It answers from the chart and only proposes changes, which land in the Stack. Without an API key a small local router answers common questions. |
 | **Settings** | `/go/settings` | Phone verification, call PIN, connected devices, NPI, the weekly receipt, referral link and credits. |
-| **Landing** | `/line`, `/line/contact.vcf` | The public page for the number, with an "invited by" state for referral links. |
+| **Text the line** | Twilio messaging webhook `{PUBLIC}/api/sms/incoming` | STATUS for what's waiting, LINK for a sign-in link, HELP, STOP and START, and "nudge 5" for a daily end-of-clinic text at 5 PM (12 to 8 PM). Replies never carry patient details. Unknown numbers get the line's pitch. |
+| **EHR side panel** | `extension/` (Chrome, Manifest V3) | Record visit beside any web EHR, then fill each note section into the mapped EHR field in one click. A one-time page grants the microphone. |
+| **Android share** | Web app share target `/go/share` | Share a recording from any Android recorder to the installed web app. The file is held in memory for 10 minutes until the clinician confirms the patient agreed, then drafted. |
+| **Live call banner** | `/go`, `/go/stack` and the web app | While you're on a call, any of your signed-in screens shows the call's state and last captions, with Pause, Resume and End visit. |
+| **Landing** | `/line`, `/line/contact.vcf` | The public page for the number: a real sped-up call, "Watch a call play itself" (`/go/phone?autopilot=1`), save to contacts, an FAQ, and "invited by" and patient-recap variants. |
+| **Admin → Line** | `/admin?tab=line` | Setup checks, the webhook addresses, calls and texts by door, the team roster (phone, PIN, calls) with a setup link the admin texts themselves, and one-step Twilio number connection for operators. |
 
 For developers, `POST /api/capture` is the one capture endpoint behind every door. It takes raw or multipart audio (webm, m4a, mp4, wav, ogg, mp3 or aac, up to 100 MB) with `consent=granted`, authenticated by the session cookie or a `Bearer cs_cap_…` capture token. It drafts in the background, with `GET /api/capture/{id}` for status and `GET /api/capture/{id}/note` for the note. Mint a token with `POST /api/capture/token` (session) or `POST /api/v1/capture/token` (API key with `encounters:write`).
 
@@ -115,7 +120,11 @@ For developers, `POST /api/capture` is the one capture endpoint behind every doo
 
 - **What carries patient data:** voice calls may. Text messages never do: they carry only a time, a count and a sign-in link. Emails carry only codes and links. The page behind the link carries the PHI.
 - **Nothing is signed, ordered, billed or sent from voice, text or the agent.** Those channels can only snooze or propose. Approvals happen on screen, and a sign of a note over 300 words in under 20 seconds is flagged for QA.
-- **Caller ID can be spoofed.** Without a PIN a call can only record and hear back the note it just made.
+- **Caller ID can be spoofed.** Without a PIN a call can only record and hear back the note it just made. Those visits are marked "Caller ID only" on the Stack with a delete button. Chart questions on a call need the PIN and the wake word ("Chartside, what's left today?"), so ask them before you're in the room.
+- **Consent must be explicit.** On the line, recording starts only on "they agreed" (or similar), the keypad, or the patient's own yes right after Chartside asks them (3, or 9 in Spanish). Questions and small talk never count, and the line ignores its own prompts heard back through the speaker.
+- **The line only acts on what's aimed at it.** During the read-back, room conversation is ignored. It responds to the wake word, clear commands and the keypad.
+- **Deepgram model improvement is off.** Every Deepgram request sends `mip_opt_out=true`.
+- **Recordings stop at the cap.** A call or a one-tap recording ends and drafts at `CHARTSIDE_MAX_RECORDING_MIN` (default 120).
 - **Consent comes first.** Consent is recorded before audio is kept, in the same consent ledger as the web app. All-party states ask about others in the room.
 - **Audio at rest is encrypted** with AES-256-GCM under `CHARTSIDE_SECRET`.
 - **Growth loops never include patient data.** The weekly receipt, share footers and referral links are built from counts only, and e2e tests scan them against every demo patient.
@@ -142,6 +151,10 @@ For developers, `POST /api/capture` is the one capture endpoint behind every doo
 | `CHARTSIDE_LINE_DISPLAY` | The label for the browser phone at `/go/phone` (default `Demo line`) |
 | `CHARTSIDE_TZ` | The time zone for spoken times and the schedule-aware greeting (default `America/Chicago`) |
 | `CHARTSIDE_PHONE_VOICE` | The Deepgram Aura voice for prompts (default `aura-2-thalia-en`) |
+| `CHARTSIDE_PHONE_VOICE_ES` | The Spanish voice for the patient consent script (default `aura-2-celeste-es`) |
+| `CHARTSIDE_CRON_SECRET` | Bearer secret for `POST /api/cron/nudges`. Schedule it hourly, for example with Cloud Scheduler, to send end-of-clinic texts. |
+| `CHARTSIDE_SHARE_RATE` | Recordings shared to `/go/share` allowed per IP per hour (default 30) |
+| `CHARTSIDE_MAX_RECORDING_MIN` | Recording cap for every door (default 120) |
 | `CHARTSIDE_SKIP_WARM` | Skip pre-rendering the fixed phone prompts at startup |
 | `CHARTSIDE_PHONE_DEBUG` | Log call state-machine events |
 | `DEEPGRAM_API_KEY` | Speech to text for the web app and the phone line, plus text to speech on calls |
@@ -164,7 +177,9 @@ npm run build
 NODE_ENV=production npx tsx server.ts        # http://localhost:3100, with /api/voice/stream
 ```
 
-`npm run dev` still serves every page and API except the phone WebSocket. For a real number, expose the server publicly (for example `cloudflared tunnel --url http://localhost:3100`), set `CHARTSIDE_PUBLIC_URL` to that address, and point the Twilio number's webhook at `/api/voice/incoming`.
+`npm run dev` still serves every page and API except the phone WebSocket. For a real number, expose the server publicly (for example `cloudflared tunnel --url http://localhost:3100`), set `CHARTSIDE_PUBLIC_URL` to that address, and point the Twilio number's voice webhook at `/api/voice/incoming` and its messaging webhook at `/api/sms/incoming`. **Admin → Line** can set both on the number in one step for an operator.
+
+On Google Cloud Run, run `deploy/gcp-grant.sh` once (it creates the `chartside-run` service account, grants it the three secrets, and creates the Litestream bucket), then `deploy/gcp-deploy.sh` for each release.
 
 To place a call without a phone, use the fake Twilio caller:
 
