@@ -97,7 +97,7 @@ export interface ProcessResult {
   warnings: string[];
 }
 
-export async function processEncounter(user: User, encId: string, opts: { templateId?: string; engine?: "local" | "auto"; detail?: "concise" | "standard" | "detailed" } = {}): Promise<ProcessResult> {
+export async function processEncounter(user: User, encId: string, opts: { templateId?: string; engine?: "local" | "auto"; detail?: "concise" | "standard" | "detailed"; model?: string } = {}): Promise<ProcessResult> {
   let enc = await encounters.get(user, encId);
   if (!enc) throw new Error("Encounter not found");
   if (opts.templateId && opts.templateId !== enc.templateId) enc = (await encounters.update(user, encId, { templateId: opts.templateId }))!;
@@ -126,9 +126,9 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   const useLlm = llmEnabled() && opts.engine !== "local";
   if (useLlm && utts.length) {
     try {
-      note = await generateNoteWithClaude({ utterances: utts, patient, template, reason: enc.reason, visitType: enc.visitType, rules });
+      note = await generateNoteWithClaude({ utterances: utts, patient, template, reason: enc.reason, visitType: enc.visitType, rules, model: opts.model });
     } catch (err) {
-      warnings.push(`Claude (${llmModel()}) was unavailable (${err instanceof Error ? err.message : "error"}); used the on-device engine instead.`);
+      warnings.push(`Claude (${opts.model || llmModel()}) was unavailable (${err instanceof Error ? err.message : "error"}); used the on-device engine instead.`);
     }
   }
   const sessionMinutes = Math.round((enc.durationS || (utts.at(-1)?.tEnd ?? 0)) / 60);

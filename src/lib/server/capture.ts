@@ -134,7 +134,8 @@ async function draft(user: User, enc: Encounter, opts: Record<string, string>) {
   await artifacts.set(enc.id, "capture_origin", { ...origin, error: undefined, finishedAt: new Date().toISOString() });
   background(async () => {
     try {
-      const r = await processEncounter(user, enc.id, { templateId: opts.templateId || undefined, detail });
+      const phone = origin.channel === "phone" || origin.channel === "phone-sim";
+      const r = await processEncounter(user, enc.id, { templateId: opts.templateId || undefined, detail, model: phone ? process.env.CHARTSIDE_PHONE_NOTE_MODEL || undefined : undefined });
       await artifacts.set(enc.id, "capture_origin", { ...origin, finishedAt: new Date().toISOString(), warnings: r.warnings });
       await audit.log(user, enc.id, "capture.drafted", { tokenId: origin.tokenId, warnings: r.warnings.length });
     } catch (err) {

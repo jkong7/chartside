@@ -62,6 +62,7 @@ export async function generateNoteWithClaude(input: {
   reason: string;
   visitType: string;
   rules: StyleRule[];
+  model?: string;
 }): Promise<Note> {
   const { utterances, patient, template, rules } = input;
   const sectionSpec = template.sections
@@ -79,7 +80,7 @@ Transcript:
 ${transcriptBlock(utterances)}`;
 
   const response = await anthropic().messages.parse({
-    model: llmModel(),
+    model: input.model || llmModel(),
     max_tokens: 16000,
     system: SYSTEM,
     messages: [{ role: "user", content: user }],
@@ -107,7 +108,7 @@ ${transcriptBlock(utterances)}`;
         })),
       };
     }),
-    meta: { engine: "claude", model: llmModel(), templateId: template.id, generatedAt: new Date().toISOString() },
+    meta: { engine: "claude", model: input.model || llmModel(), templateId: template.id, generatedAt: new Date().toISOString() },
   };
 }
 
