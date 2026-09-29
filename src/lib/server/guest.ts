@@ -55,7 +55,7 @@ export async function convertGuest(guestId: string, email: string) {
 export async function mergeGuest(guestId: string, targetUserId: string) {
   const target = await actorFor(targetUserId);
   if (!target) throw new Forbidden("Your access to Chartside has been disabled");
-  const guest = await get<{ phone: string | null; phone_verified_at: string | null }>("SELECT phone, phone_verified_at FROM users WHERE id = ? AND guest_expires_at IS NOT NULL", guestId);
+  const guest = await get<{ phone: string | null; phone_verified_at: string | null }>("SELECT phone, phone_verified_at FROM users WHERE id = ? AND guest_expires_at IS NOT NULL AND guest_expires_at > ?", guestId, now());
   if (!guest) return 0;
   const guestOrgs = await ownedOrgs(guestId);
   let moved = 0;
@@ -79,7 +79,7 @@ export async function mergeGuest(guestId: string, targetUserId: string) {
 
 export async function touchGuest(userId: string) {
   const until = new Date(Date.now() + guestHours() * 3600000).toISOString();
-  await run("UPDATE users SET guest_expires_at = ? WHERE id = ? AND guest_expires_at IS NOT NULL AND guest_expires_at < ?", until, userId, until);
+  await run("UPDATE users SET guest_expires_at = ? WHERE id = ? AND guest_expires_at IS NOT NULL AND guest_expires_at > ? AND guest_expires_at < ?", until, userId, now(), until);
 }
 
 export async function purgeGuests(at = now()) {
@@ -92,11 +92,11 @@ export async function purgeGuests(at = now()) {
   const purged: string[] = [];
   for (const g of expired) {
     if (liveCallsFor(g.id).length) continue;
+    const claimed = await run("UPDATE users SET guest_expires_at = ? WHERE id = ? AND guest_expires_at IS NOT NULL AND guest_expires_at < ?", "1970-01-01T00:00:00.000Z", g.id, at);
+    if (!claimed.changes) continue;
     const encs = await all<{ id: string; org_id: string }>("SELECT id, org_id FROM encounters WHERE user_id = ?", g.id);
     for (const e of encs) await deleteAudio({ id: g.id, orgId: e.org_id } as User, e.id, "unclaimed guest visit expired");
     const guestOrgs = await ownedOrgs(g.id);
-    const still = await get<{ id: string }>("SELECT id FROM users WHERE id = ? AND guest_expires_at IS NOT NULL AND guest_expires_at < ?", g.id, at);
-    if (!still) continue;
     await tx(async () => {
       await run("DELETE FROM encounters WHERE user_id = ?", g.id);
       await run("DELETE FROM patients WHERE user_id = ?", g.id);
