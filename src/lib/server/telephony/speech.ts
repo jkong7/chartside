@@ -13,6 +13,11 @@ export function phoneSpeechReady() {
 }
 
 const cache = new Map<string, Buffer>();
+const cacheable = new Set<string>();
+
+export function allowCache(lines: string[]) {
+  for (const l of lines) cacheable.add(l);
+}
 
 export function voiceFor(lang: "en" | "es" = "en") {
   return lang === "es" ? process.env.CHARTSIDE_PHONE_VOICE_ES || "aura-2-celeste-es" : process.env.CHARTSIDE_PHONE_VOICE || "aura-2-thalia-en";
@@ -28,7 +33,7 @@ export async function synthesize(text: string, onChunk?: (audio: Buffer) => void
     onChunk?.(hit);
     return hit;
   }
-  const res = await fetch(`${base()}/v1/speak?model=${encodeURIComponent(model)}&encoding=mulaw&sample_rate=8000&container=none`, {
+  const res = await fetch(`${base()}/v1/speak?model=${encodeURIComponent(model)}&encoding=mulaw&sample_rate=8000&container=none&mip_opt_out=true`, {
     method: "POST",
     headers: { Authorization: `Token ${k}`, "Content-Type": "application/json" },
     body: JSON.stringify({ text }),
@@ -42,20 +47,18 @@ export async function synthesize(text: string, onChunk?: (audio: Buffer) => void
     onChunk?.(b);
   }
   const audio = Buffer.concat(parts);
-  if (text.length < 400) {
-    if (cache.size > 200) cache.delete(cache.keys().next().value!);
-    cache.set(ck, audio);
-  }
+  if (cacheable.has(text)) cache.set(ck, audio);
   return audio;
 }
 
 export async function warmPhrases(lines: string[]) {
+  allowCache(lines);
   for (const l of lines) await synthesize(l, undefined, /[¿¡ñáéíóú]/.test(l) ? "es" : "en").catch(() => null);
 }
 
 export function listenUrl() {
   const ws = (process.env.DEEPGRAM_WS_URL || "wss://api.deepgram.com/v1/listen").replace(/\/$/, "");
-  const q = new URLSearchParams({ model: "nova-3", language: "multi", encoding: "mulaw", sample_rate: "8000", channels: "1", punctuate: "true", smart_format: "true", interim_results: "false", endpointing: "500", tag: "chartside-phone" });
+  const q = new URLSearchParams({ model: "nova-3", language: "multi", encoding: "mulaw", sample_rate: "8000", channels: "1", punctuate: "true", smart_format: "true", interim_results: "false", endpointing: "500", tag: "chartside-phone", mip_opt_out: "true" });
   for (const term of ["Chartside", "pause", "resume", "end visit"]) q.append("keyterm", term);
   return `${ws}?${q}`;
 }

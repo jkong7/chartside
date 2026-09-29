@@ -37,6 +37,22 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
   let sim = false;
   let interrupted = false;
   let limitFired = false;
+  const digits: string[] = [];
+  let draining = false;
+  const drainDigits = async () => {
+    draining = true;
+    try {
+      while (digits.length && call && !hungUp) {
+        const c = call;
+        for (let i = 0; i < 1200 && c.isBusy && !hungUp; i++) await new Promise((r) => setTimeout(r, 50));
+        const d = digits.shift()!;
+        await c.onDigit(d).catch((err) => console.error("phone digit failed", err));
+        emitState();
+      }
+    } finally {
+      draining = false;
+    }
+  };
   const capSeconds = recordingMinutesFromEnv() * 60;
   let lastState = "";
 
@@ -143,6 +159,7 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
         ws.close(1011, "session");
         return;
       }
+      if (hungUp) return;
       call = new ScribeCall({ ...session.deps, say, hangup });
       liveSid = claims.callSid;
       const c = call;
@@ -155,7 +172,11 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
         lines: [],
         control: async (action) => {
           interrupt();
-          await c.remote(action);
+          const done = c
+            .remote(action)
+            .then(emitState)
+            .catch((err) => console.error("phone remote failed", err));
+          await Promise.race([done, new Promise((r) => setTimeout(r, 1200))]);
           emitState();
         },
       });
@@ -194,14 +215,9 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
       return;
     }
     if (msg.event === "dtmf" && msg.dtmf) {
-      const digit = msg.dtmf.digit;
-      const c = call;
+      digits.push(msg.dtmf.digit);
       interrupt();
-      void (async () => {
-        for (let i = 0; i < 200 && c.isBusy; i++) await new Promise((r) => setTimeout(r, 100));
-        await c.onDigit(digit);
-        emitState();
-      })().catch((err) => console.error("phone digit failed", err));
+      if (!draining) void drainDigits();
       return;
     }
     if (msg.event === "mark" && msg.mark) {
