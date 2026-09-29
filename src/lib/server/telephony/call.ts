@@ -167,7 +167,7 @@ export class ScribeCall {
           this.wakePrimedAt = Date.now();
           return;
         }
-        const primed = this.wakePrimedAt && Date.now() - this.wakePrimedAt < 4000;
+        const primed = this.wakePrimedAt && Date.now() - this.wakePrimedAt < 6000;
         this.wakePrimedAt = 0;
         const cmd = wakeCommand(primed ? `chartside ${text}` : text);
         if (cmd === "pause" && this.state === "recording") return this.pause();

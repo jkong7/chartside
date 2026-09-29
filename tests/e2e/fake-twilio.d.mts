@@ -1,5 +1,5 @@
 export type Step = { waitPrompts: number; timeoutMs?: number } | { digit: string } | { say: string; voice?: string } | { wav: string } | { ulaw: string } | { silence: number } | { sleep: number } | { hangup: true } | { ulaw: string } | { waitClose: true; timeoutMs?: number };
 export interface DialResult { connected: boolean; callSid?: string; prompts?: number; closeCode?: number | null; phone?: string; inboxKey?: string | null; twiml?: string; clears?: number }
-export function dial(opts: { base: string; from?: string; sim?: boolean; cookie?: string; twilioToken?: string; steps?: Step[]; mockDeepgram?: string; deepgramKey?: string; frameMs?: number; realtimeMarks?: boolean; log?: (m: string) => void }): Promise<DialResult>;
+export function dial(opts: { base: string; from?: string; sim?: boolean; cookie?: string; twilioToken?: string; steps?: Step[]; mockDeepgram?: string; deepgramKey?: string; frameMs?: number; realtimeMarks?: boolean; continuous?: boolean; log?: (m: string) => void }): Promise<DialResult>;
 export function twilioSignature(token: string, url: string, params: Record<string, string>): string;
 export function wavToMulaw8k(file: string): Buffer;

@@ -49,7 +49,7 @@ export function twilioSignature(token, url, params) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export async function dial({ base, from = "+15550100000", sim = false, cookie, twilioToken, steps = [], mockDeepgram, deepgramKey, frameMs = 20, realtimeMarks = false, log = () => {} }) {
+export async function dial({ base, from = "+15550100000", sim = false, cookie, twilioToken, steps = [], mockDeepgram, deepgramKey, frameMs = 20, realtimeMarks = false, continuous, log = () => {} }) {
   const callSid = `CA${randomBytes(16).toString("hex")}`;
   let callToken;
   let streamUrl;
@@ -142,7 +142,21 @@ export async function dial({ base, from = "+15550100000", sim = false, cookie, t
         waiters.push(check);
         check();
       });
+    let streaming = 0;
+    const idle = (continuous ?? !mockDeepgram)
+      ? setInterval(() => {
+          if (!streaming && !closed) send({ event: "media", streamSid, media: { track: "inbound", payload: Buffer.alloc(160, 0xff).toString("base64") } });
+        }, 20)
+      : null;
     const stream = async (bytes) => {
+      streaming++;
+      try {
+        await streamFrames(bytes);
+      } finally {
+        streaming--;
+      }
+    };
+    const streamFrames = async (bytes) => {
       const frame = 160;
       for (let off = 0; off < bytes.length && !closed; off += frame) {
         send({ event: "media", streamSid, media: { track: "inbound", chunk: String(off / frame), timestamp: String(off / 8), payload: bytes.subarray(off, off + frame).toString("base64") } });
@@ -161,6 +175,7 @@ export async function dial({ base, from = "+15550100000", sim = false, cookie, t
       await stream(Buffer.from(await r.arrayBuffer()));
       await stream(Buffer.alloc(8000 * 1.5, 0xff));
     };
+    try {
     for (const step of steps) {
       if (closed) break;
       if (step.waitPrompts) {
@@ -179,6 +194,9 @@ export async function dial({ base, from = "+15550100000", sim = false, cookie, t
         const ok = await waitFor(() => closed, step.timeoutMs ?? 30000);
         if (!ok) throw new Error("call did not end");
       }
+    }
+    } finally {
+      if (idle) clearInterval(idle);
     }
     if (!closed) {
       send({ event: "stop", streamSid });
