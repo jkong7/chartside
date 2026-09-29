@@ -67,7 +67,22 @@ interface CaptureOrigin {
   lastSeq?: number;
 }
 
-const cleanCid = (v: string | undefined) => (v && /^[A-Za-z0-9_-]{8,64}$/.test(v) ? v : undefined);
+const cleanCid = (v: string | undefined) => (v && /^[A-Za-z0-9-]{8,64}$/.test(v) ? v : undefined);
+
+const g = globalThis as unknown as { __chartsideCaptureLocks?: Map<string, Promise<unknown>> };
+const locks = (g.__chartsideCaptureLocks ??= new Map<string, Promise<unknown>>());
+
+async function serialized<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const prev = locks.get(key) ?? Promise.resolve();
+  const run = prev.catch(() => undefined).then(fn);
+  const tail = run.catch(() => undefined);
+  locks.set(key, tail);
+  try {
+    return await run;
+  } finally {
+    if (locks.get(key) === tail) locks.delete(key);
+  }
+}
 const seqOf = (v: string | undefined) => (v !== undefined && /^\d{1,6}$/.test(v) ? Number(v) : undefined);
 
 export async function readCaptureRequest(req: Request): Promise<CaptureInput> {
@@ -172,6 +187,11 @@ async function targetEncounter(user: User, o: Record<string, string>, startedAt:
 }
 
 export async function startCapture(auth: CaptureAuth, input: CaptureInput) {
+  const cid = cleanCid(input.opts.cid);
+  return cid ? serialized(`cid:${auth.user.id}:${cid}`, () => startCaptureNow(auth, input)) : startCaptureNow(auth, input);
+}
+
+async function startCaptureNow(auth: CaptureAuth, input: CaptureInput) {
   const { user, tokenId } = auth;
   assertCan(user, "clinical.capture");
   const cid = cleanCid(input.opts.cid);
@@ -194,7 +214,7 @@ export async function startCapture(auth: CaptureAuth, input: CaptureInput) {
   const startedAt = new Date(Date.now() - (durationS ?? 0) * 1000).toISOString();
   const enc = await targetEncounter(user, o, startedAt, lang);
   await encounters.update(user, enc.id, { status: "recording", startedAt, ...(durationS ? { durationS } : {}), ...(o.templateId ? { templateId: o.templateId } : {}) });
-  await artifacts.set(enc.id, "capture_origin", { tokenId, userId: user.id, channel: (o.channel || (tokenId ? "token" : "session")).slice(0, 30), createdAt: new Date().toISOString(), ...(cid ? { cid, lastSeq: seqOf(o.seq) ?? 0 } : {}) } satisfies CaptureOrigin);
+  await artifacts.set(enc.id, "capture_origin", { tokenId, userId: user.id, channel: (o.channel || (tokenId ? "token" : "session")).slice(0, 30), createdAt: new Date().toISOString(), ...(cid ? { cid, lastSeq: input.audio && seqOf(o.seq) !== undefined ? seqOf(o.seq) : -1 } : {}) } satisfies CaptureOrigin);
   await recordConsent(user, enc, { decision: "granted", method, state, othersPresent });
   const bytes = input.audio ? await storeAudio(enc.id, input.audio, input.mime!, durationS) : 0;
   await audit.log(user, enc.id, "capture.started", { tokenId, bytes, finish });
@@ -217,6 +237,10 @@ async function reachable(auth: CaptureAuth, encId: string) {
 }
 
 export async function appendCapture(auth: CaptureAuth, encId: string, input: CaptureInput) {
+  return serialized(`enc:${encId}`, () => appendCaptureNow(auth, encId, input));
+}
+
+async function appendCaptureNow(auth: CaptureAuth, encId: string, input: CaptureInput) {
   const { enc } = await reachable(auth, encId);
   assertCan(auth.user, "clinical.capture");
   if (enc.status !== "recording" && enc.status !== "paused") throw new Invalid(enc.status === "signed" ? "This visit is signed" : "This visit is already being drafted");

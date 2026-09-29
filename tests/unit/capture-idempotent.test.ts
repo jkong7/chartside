@@ -34,4 +34,18 @@ describe("retried uploads", () => {
     const theirs = await startCapture({ user: other, tokenId: null }, { audio: chunk(4), mime: "audio/webm", opts: opts(0) });
     expect(theirs.encounterId).not.toBe(a.encounterId);
   });
+
+  it("creates one visit when the same first chunk arrives twice at once, and keeps chunk 0 after an empty start", async () => {
+    const { startCapture, appendCapture } = await import("@/lib/server/capture");
+    const repo = await import("@/lib/server/repo");
+    const doc = await newMember("Dr. Racing Retry");
+    const auth = { user: doc, tokenId: null };
+    const opts = { consent: "granted", finish: "false", channel: "go", cid: "race-abc-12345678", seq: "0" };
+    const [a, b] = await Promise.all([startCapture(auth, { audio: Buffer.alloc(3000, 1), mime: "audio/webm", opts }), startCapture(auth, { audio: Buffer.alloc(3000, 1), mime: "audio/webm", opts })]);
+    expect(a.encounterId).toBe(b.encounterId);
+    expect((await repo.audioChunks.list(a.encounterId)).reduce((n, c) => n + c.bytes, 0)).toBe(3000);
+    const empty = await startCapture(auth, { audio: null, mime: null, opts: { consent: "granted", finish: "false", cid: "empty-start-1234", seq: "0" } });
+    await appendCapture(auth, empty.encounterId, { audio: Buffer.alloc(2000, 2), mime: "audio/webm", opts: { seq: "0" } });
+    expect((await repo.audioChunks.list(empty.encounterId)).reduce((n, c) => n + c.bytes, 0)).toBe(2000);
+  });
 });
