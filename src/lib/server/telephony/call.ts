@@ -30,6 +30,7 @@ export interface CallDeps {
   abandon(): Promise<void>;
   log(event: string, data?: Record<string, unknown>): void;
   echoWindowMs?: number;
+  fillerMs?: number;
 }
 
 export const LINES = {
@@ -54,6 +55,8 @@ export const LINES = {
   anythingElse: "Anything else? Say ready when it looks right.",
   notHeard: "Sorry, I didn't catch that.",
   limit: "This visit has reached the recording limit, so I'm ending it now.",
+  stillWriting: "Still writing.",
+  almostThere: "Almost there.",
   summaryQueued: "I'll text your patient their visit summary as soon as you sign the note.",
   summaryUnmatched: "Once you match this visit to a patient, you can send their summary from your stack.",
   askNeedsPin: "I can answer questions about your chart once you've entered your phone PIN at the start of a call.",
@@ -366,7 +369,18 @@ export class ScribeCall {
     this.state = "drafting";
     await this.say(LINES.drafting);
     await this.deps.finish();
-    const note = await this.deps.waitForNote();
+    const pending = this.deps.waitForNote();
+    const every = this.deps.fillerMs ?? 9000;
+    let note: NoteBrief | null | undefined;
+    for (let i = 0; note === undefined; i++) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const tick = new Promise<"tick">((r) => (timer = setTimeout(() => r("tick"), every)));
+      const r = await Promise.race([pending, tick]);
+      clearTimeout(timer);
+      if (r !== "tick") note = r;
+      else if (this.state === "drafting") await this.say(i % 2 ? LINES.almostThere : LINES.stillWriting);
+      else note = null;
+    }
     if (this.state !== "drafting") return;
     if (!note) {
       await this.deps.textLink("processing");

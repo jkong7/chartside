@@ -336,6 +336,16 @@ describe("scribe call", () => {
     expect(open.said.at(-1)).toBe(LINES.askNeedsPin);
   });
 
+  it("fills a long wait for the note with short cues so the line never goes silent", async () => {
+    const { call, said } = harness({ fillerMs: 20, waitForNote: () => new Promise((r) => setTimeout(() => r({ spoken: "Here's your note." }), 70)) });
+    await call.start();
+    await call.onDigit("2");
+    await call.onDigit("5");
+    expect(said.filter((x) => x === LINES.stillWriting || x === LINES.almostThere).length).toBeGreaterThanOrEqual(2);
+    expect(said.at(-1)).toContain("Here's your note.");
+    expect(call.state).toBe("review");
+  });
+
   it("repeats the last line on request", async () => {
     const { call, said } = harness();
     await call.start();
