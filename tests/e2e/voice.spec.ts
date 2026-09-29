@@ -183,6 +183,8 @@ test("a verified clinician with a PIN hears their next patient, speaks commands,
   expect(sms.replace(/https?:\/\/\S+/, "")).not.toMatch(PHI);
   const enc = await (await page.request.get(`/api/encounters/${scheduledId}`)).json();
   expect(enc.encounter.status).toBe("review");
+  const art = await (await page.request.get(`/api/encounters/${scheduledId}`)).json();
+  expect(JSON.stringify(art)).toContain('"verifiedBy":"pin"');
   const d = await (await page.request.get("/api/decisions")).json();
   const card = d.decisions.find((x: { id: string }) => x.id === `sign:${scheduledId}`);
   expect(card.detail.markedReady.label).toMatch(/^Marked ready on a call at/);
