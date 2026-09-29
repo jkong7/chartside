@@ -235,6 +235,18 @@ describe("scribe call", () => {
     expect(asked).toBe("What code did you pick?");
   });
 
+  it("ends and drafts the visit when the recording limit is reached", async () => {
+    const { call, said, events } = harness();
+    await call.start();
+    await call.onDigit("2");
+    await call.onLimit();
+    expect(said).toContain(LINES.limit);
+    expect(events).toContain("finish");
+    expect(call.state).toBe("review");
+    await call.onLimit();
+    expect(said.filter((x) => x === LINES.limit)).toHaveLength(1);
+  });
+
   it("repeats the last line on request", async () => {
     const { call, said } = harness();
     await call.start();

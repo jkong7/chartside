@@ -1,5 +1,6 @@
 import type WebSocket from "ws";
 import { ScribeCall } from "./call";
+import { recordingMinutesFromEnv } from "../../engine/limits";
 import { mulawDecode } from "./mulaw";
 import { phoneSession } from "./session";
 import { LiveListener, synthesize } from "./speech";
@@ -34,6 +35,8 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
   let hungUp = false;
   let sim = false;
   let interrupted = false;
+  let limitFired = false;
+  const capSeconds = recordingMinutesFromEnv() * 60;
   let lastState = "";
 
   const emitState = () => {
@@ -159,6 +162,14 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
       if (call.capturing) {
         call.onAudio();
         session.pushAudio(mulawDecode(bytes));
+        if (!limitFired && session.recordedSeconds() >= capSeconds) {
+          limitFired = true;
+          const c = call;
+          void c
+            .onLimit()
+            .then(emitState)
+            .catch((err) => console.error("phone limit failed", err));
+        }
       }
       return;
     }

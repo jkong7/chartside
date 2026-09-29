@@ -46,6 +46,7 @@ export const LINES = {
   pinBad: "That PIN didn't match. You can still record, and I'll match the patient afterward.",
   anythingElse: "Anything else? Say ready when it looks right.",
   notHeard: "Sorry, I didn't catch that.",
+  limit: "This visit has reached the recording limit, so I'm ending it now.",
 } as const;
 
 export class ScribeCall {
@@ -218,6 +219,19 @@ export class ScribeCall {
         if (d === "9") return await this.say(this.lastSpoken);
         if (d === "5" || d === "#") return await this.handleTranscript("text me");
       }
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  async onLimit() {
+    for (let i = 0; i < 50 && this.busy; i++) await new Promise((r) => setTimeout(r, 100));
+    if (this.state !== "recording" && this.state !== "paused") return;
+    this.busy = true;
+    try {
+      this.deps.log("call.limit");
+      await this.say(LINES.limit);
+      await this.endVisit();
     } finally {
       this.busy = false;
     }

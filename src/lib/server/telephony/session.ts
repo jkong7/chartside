@@ -27,6 +27,7 @@ export interface PhoneSession {
   deps: Omit<CallDeps, "say" | "hangup">;
   pushAudio(pcm: Int16Array): void;
   encounterId(): string | null;
+  recordedSeconds(): number;
   user: User;
 }
 
@@ -144,6 +145,7 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
     deps,
     user,
     encounterId: () => encId,
+    recordedSeconds: () => totalSamples / 8000,
     pushAudio(pcm) {
       if (!encId) return;
       pending.push(pcm);
