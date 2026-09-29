@@ -164,7 +164,11 @@ export default function AuthForm({ mode, next, invite, error: initialError }: { 
               </div>
               <div>
                 <label className="label" htmlFor="specialty">Specialty</label>
-                <input className="input" id="specialty" name="specialty" placeholder="Family Medicine" defaultValue="Family Medicine" />
+                <select className="input" id="specialty" name="specialty" defaultValue="Family Medicine">
+                  {["Family Medicine", "Internal Medicine", "Pediatrics", "Psychiatry", "Psychotherapy", "Physical Therapy", "Occupational Therapy", "Speech-Language Pathology", "Chiropractic", "Emergency Medicine", "Hospital Medicine", "Oncology", "Obstetrics and Gynecology", "Urgent Care", "Other"].map((sp) => (
+                    <option key={sp} value={sp}>{sp}</option>
+                  ))}
+                </select>
               </div>
               {!invite && (
                 <div>
