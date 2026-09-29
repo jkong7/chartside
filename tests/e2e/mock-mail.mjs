@@ -5,6 +5,7 @@ const KEY = "test-sendgrid";
 const messages = [];
 const faxes = [];
 const texts = [];
+const numbers = [{ sid: "PN0000000000000000000000000000beef", phone_number: "+13125550199", voice_url: "", sms_url: "" }];
 
 createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
@@ -16,6 +17,23 @@ createServer((req, res) => {
     if (req.method === "GET" && url.pathname === "/messages") {
       const to = url.searchParams.get("to");
       return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(messages.filter((m) => !to || m.to === to)));
+    }
+    const twilioAuth = req.headers.authorization === `Basic ${Buffer.from("ACtest:test-twilio").toString("base64")}`;
+    if (url.pathname === "/numbers" && req.method === "GET") return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(numbers));
+    if (/^\/2010-04-01\/Accounts\/[^/]+\/IncomingPhoneNumbers\.json$/.test(url.pathname) && req.method === "GET") {
+      if (!twilioAuth) return res.writeHead(401).end("{}");
+      const want = url.searchParams.get("PhoneNumber");
+      return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ incoming_phone_numbers: numbers.filter((n) => !want || n.phone_number === want) }));
+    }
+    const pn = /^\/2010-04-01\/Accounts\/[^/]+\/IncomingPhoneNumbers\/(PN\w+)\.json$/.exec(url.pathname);
+    if (pn && req.method === "POST") {
+      if (!twilioAuth) return res.writeHead(401).end("{}");
+      const n = numbers.find((x) => x.sid === pn[1]);
+      if (!n) return res.writeHead(404).end("{}");
+      const f = new URLSearchParams(raw);
+      n.voice_url = f.get("VoiceUrl") ?? n.voice_url;
+      n.sms_url = f.get("SmsUrl") ?? n.sms_url;
+      return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(n));
     }
     if (req.method === "GET" && url.pathname === "/texts") {
       const to = url.searchParams.get("to");

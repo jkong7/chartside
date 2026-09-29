@@ -207,3 +207,35 @@ test("the nudge job refuses callers without the cron secret", async ({ request }
   expect(ok.status()).toBe(200);
   expect(await ok.json()).toMatchObject({ sent: expect.any(Number) });
 });
+
+test("Admin → Line shows setup and call stats, and an operator points the Twilio number at Chartside", async ({ page, request }) => {
+  await page.goto("/register");
+  await page.fill("#name", "Operator Olu");
+  await page.fill("#email", "operator@chartside.test");
+  await page.fill("#password", "correct-horse-9");
+  await page.click("button[type=submit]");
+  await page.waitForURL("**/today");
+  await page.goto("/admin?tab=line");
+  const panel = page.getByTestId("line-panel");
+  await expect(panel).toBeVisible();
+  await expect(panel.locator('[data-check="speech"]')).toHaveAttribute("data-ok", "true");
+  await expect(panel.locator('[data-check="twilio"]')).toHaveAttribute("data-ok", "true");
+  await expect(panel).toContainText("http://localhost:3200/api/voice/incoming");
+  await page.getByTestId("line-number-input").fill("+1 (312) 555-0199");
+  await page.getByTestId("line-connect").click();
+  await expect(page.getByTestId("line-connected")).toContainText("+13125550199 now answers with Chartside");
+  const nums = (await (await request.get("http://localhost:3295/numbers")).json()) as { voice_url: string; sms_url: string }[];
+  expect(nums[0].voice_url).toBe("http://localhost:3200/api/voice/incoming");
+  expect(nums[0].sms_url).toBe("http://localhost:3200/api/sms/incoming");
+  await page.getByTestId("line-number-input").fill("+13125550100");
+  await page.getByTestId("line-connect").click();
+  await expect(page.getByTestId("line-panel").getByRole("alert")).toContainText("isn't on this Twilio account");
+});
+
+test("an org admin who isn't an operator can see the line but not repoint the number", async ({ page }) => {
+  await register(page, "Dr. Admin Only");
+  await page.goto("/admin?tab=line");
+  await expect(page.getByTestId("line-panel")).toContainText("A Chartside operator connects the phone number");
+  const r = await page.request.post("/api/admin/line", { data: { number: "+13125550199" } });
+  expect(r.status()).toBe(403);
+});
