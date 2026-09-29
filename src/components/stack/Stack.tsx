@@ -239,7 +239,14 @@ function label(d: Decision) {
 
 function Body({ d, choice, setChoice, text, setText }: { d: Decision; choice: string | null; setChoice: (v: string) => void; text: string; setText: (v: string) => void }) {
   if (d.kind === "note.sign") {
-    return <pre className="mt-4 max-h-[55vh] overflow-y-auto whitespace-pre-wrap rounded-lg bg-sunken p-3 font-sans text-sm leading-relaxed text-ink-2" data-noswipe data-testid="stack-note">{String(d.detail.text ?? "")}</pre>;
+    return (
+      <>
+        <pre className="mt-4 max-h-[55vh] overflow-y-auto whitespace-pre-wrap rounded-lg bg-sunken p-3 font-sans text-sm leading-relaxed text-ink-2" data-noswipe data-testid="stack-note">{String(d.detail.text ?? "")}</pre>
+        <a className="mt-2 inline-block text-sm font-medium text-brand underline" href={d.openUrl} data-noswipe data-testid="stack-sources">
+          Check any line against the recording
+        </a>
+      </>
+    );
   }
   if (d.kind === "coding.query") {
     const opts = (d.detail.options as { code: string | null; label: string }[]) ?? [];
