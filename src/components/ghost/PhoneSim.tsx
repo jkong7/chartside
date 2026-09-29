@@ -154,6 +154,7 @@ export default function PhoneSim({ lineNumber, signedInAs }: { lineNumber: strin
       sock.onmessage = (ev) => {
         const m = JSON.parse(ev.data as string);
         if (m.event === "media") audio.current?.play(fromB64(m.media.payload));
+        else if (m.event === "clear") audio.current?.clear();
         else if (m.event === "mark") audio.current?.whenPlayed(() => send({ event: "mark", streamSid: streamSid.current, mark: { name: m.mark.name } }));
         else if (m.event === "chartside.caption") setCaption(m.text);
         else if (m.event === "chartside.heard") setHeard(m.text);

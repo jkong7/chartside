@@ -92,6 +92,16 @@ export class PhoneAudio {
     setTimeout(cb, ms + 30);
   }
 
+  clear() {
+    for (const s of this.sources) {
+      try {
+        s.stop();
+      } catch {}
+    }
+    this.sources.clear();
+    this.nextTime = 0;
+  }
+
   get speaking() {
     return this.nextTime > this.ctx.currentTime;
   }

@@ -33,6 +33,7 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
   let ended = false;
   let hungUp = false;
   let sim = false;
+  let interrupted = false;
   let lastState = "";
 
   const emitState = () => {
@@ -45,13 +46,23 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
     if (ws.readyState === 1) ws.send(JSON.stringify(obj));
   };
 
+  const interrupt = () => {
+    if (speakingUntil !== Number.POSITIVE_INFINITY) return;
+    interrupted = true;
+    send({ event: "clear", streamSid });
+    for (const r of marks.values()) r();
+    marks.clear();
+  };
+
   const say = async (text: string) => {
     if (hungUp) return;
+    interrupted = false;
     speakingUntil = Number.POSITIVE_INFINITY;
     if (sim) send({ event: "chartside.caption", streamSid, text });
     let pending = Buffer.alloc(0);
     let total = 0;
     const flushOut = (final: boolean) => {
+      if (interrupted) return;
       const n = final ? pending.length : pending.length - (pending.length % FRAME);
       if (!n) return;
       send({ event: "media", streamSid, media: { payload: pending.subarray(0, n).toString("base64") } });
@@ -67,6 +78,10 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
     } catch (err) {
       console.error("phone tts failed", err);
       speakingUntil = Date.now();
+      return;
+    }
+    if (interrupted) {
+      speakingUntil = Date.now() + ECHO_GUARD_MS;
       return;
     }
     const name = `m${++markSeq}`;
@@ -143,10 +158,14 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
       return;
     }
     if (msg.event === "dtmf" && msg.dtmf) {
-      void call
-        .onDigit(msg.dtmf.digit)
-        .then(emitState)
-        .catch((err) => console.error("phone digit failed", err));
+      const digit = msg.dtmf.digit;
+      const c = call;
+      interrupt();
+      void (async () => {
+        for (let i = 0; i < 30 && c.isBusy; i++) await new Promise((r) => setTimeout(r, 100));
+        await c.onDigit(digit);
+        emitState();
+      })().catch((err) => console.error("phone digit failed", err));
       return;
     }
     if (msg.event === "mark" && msg.mark) {

@@ -58,6 +58,10 @@ export class ScribeCall {
 
   constructor(private deps: CallDeps) {}
 
+  get isBusy() {
+    return this.busy;
+  }
+
   get capturing() {
     return this.state === "recording";
   }
