@@ -17,7 +17,7 @@ export default async function PhonePage({ searchParams }: { searchParams: Promis
   return (
     <main className="min-h-screen bg-[#f2efe8] px-4 py-8 sm:py-12">
       <div className="mx-auto flex max-w-5xl flex-col items-center gap-10 lg:flex-row lg:items-start lg:justify-between">
-        <section className="max-w-md pt-2 lg:pt-16">
+        <section className="order-last max-w-md pt-2 lg:order-none lg:pt-16">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">Chartside Line</p>
           <h1 className="mt-3 font-serif text-4xl font-semibold leading-tight text-ink sm:text-5xl">Your scribe is a phone number.</h1>
           <p className="mt-4 text-lg leading-relaxed text-ink-2">Call before a visit and set the phone down. Chartside listens quietly, writes the note, and texts you a link when you hang up. No app, no login, nothing to set up.</p>
@@ -32,6 +32,7 @@ export default async function PhonePage({ searchParams }: { searchParams: Promis
             {user ? <Link href="/go/stack" className="btn-ghost">Your stack</Link> : <Link href="/login?next=/go/phone" className="btn-ghost">Sign in</Link>}
           </div>
         </section>
+        <p className="text-center font-serif text-2xl font-semibold text-ink lg:hidden">Your scribe is a phone number. Tap call.</p>
         <PhoneSim lineNumber={line} signedInAs={user && !user.guestUntil ? user.name : null} autopilot={sp.autopilot === "1"} fastForward={sp.ff === "1"} />
       </div>
     </main>
