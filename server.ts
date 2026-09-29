@@ -6,11 +6,14 @@ const dev = process.argv.includes("--dev");
 const port = Number(process.env.PORT || 3100);
 const hostname = process.env.HOSTNAME_BIND || "0.0.0.0";
 
-const app = next({ dev, port, hostname });
+const app = next({ dev, port });
 await app.prepare();
 const handle = app.getRequestHandler();
 const upgrade = app.getUpgradeHandler();
 const { handleMediaStream } = await import("./src/lib/server/telephony/bridge");
+const { LINES } = await import("./src/lib/server/telephony/call");
+const { phoneSpeechReady, warmPhrases } = await import("./src/lib/server/telephony/speech");
+if (phoneSpeechReady() && !process.env.CHARTSIDE_SKIP_WARM) void warmPhrases(Object.values(LINES));
 const wss = new WebSocketServer({ noServer: true, maxPayload: 1 << 20 });
 
 const server = createServer((req, res) => handle(req, res));
