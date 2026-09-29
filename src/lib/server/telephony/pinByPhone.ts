@@ -1,6 +1,6 @@
 import { seal, unseal } from "../../fhir/crypto";
 import { run } from "../../db";
-import { hashPassword } from "../auth";
+import { hashPassword, verifyPassword } from "../auth";
 import { hasPhonePin, pinProblem } from "../magic";
 import { audit, users } from "../repo";
 
@@ -9,12 +9,12 @@ const TTL_MS = 15 * 60_000;
 export function pinOfferToken(userId: string, phone: string, pin: string) {
   const problem = pinProblem(pin);
   if (problem) throw new Error(problem);
-  return seal(JSON.stringify({ userId, phone, pinHash: hashPassword(pin), exp: Date.now() + TTL_MS }));
+  return seal(JSON.stringify({ userId, phone, pinHash: hashPassword(pin), at: Date.now(), exp: Date.now() + TTL_MS }));
 }
 
 export function readPinOffer(token: string | null | undefined) {
   try {
-    const t = JSON.parse(unseal(token ?? "")) as { userId: string; phone: string; pinHash: string; exp: number };
+    const t = JSON.parse(unseal(token ?? "")) as { userId: string; phone: string; pinHash: string; at?: number; exp: number };
     if (!t.userId || !t.pinHash || t.exp < Date.now()) return null;
     return t;
   } catch {
@@ -22,9 +22,13 @@ export function readPinOffer(token: string | null | undefined) {
   }
 }
 
-export async function confirmPinOffer(token: string) {
+export async function confirmPinOffer(token: string, pin: string) {
   const t = readPinOffer(token);
   if (!t) return { ok: false as const, reason: "This link expired. Set your PIN on your next call, or in Chartside settings." };
+  if (!/^\d{4,6}$/.test(pin ?? "") || !verifyPassword(pin, t.pinHash)) {
+    await audit.log({ id: t.userId, orgId: null }, null, "phone.pin_confirm_mismatch", {});
+    return { ok: false as const, reason: "That isn't the PIN chosen on the call. If you didn't set a PIN on a call just now, someone else may have used your number. Ignore this link." };
+  }
   const u = await users.byId(t.userId);
   if (!u || !u.phone || u.phone !== t.phone) return { ok: false as const, reason: "This link doesn't match your verified phone anymore." };
   if (await hasPhonePin(t.userId)) return { ok: false as const, reason: "You already have a phone PIN. Change it in Chartside settings." };
