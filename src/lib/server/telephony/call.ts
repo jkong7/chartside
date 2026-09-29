@@ -1,4 +1,4 @@
-import { affirmative, bareWake, consentGiven, consentRefused, directAnswer, directedAtScribe, echoOf, negative, reviewIntent, wakeCommand } from "./intents";
+import { affirmative, bareWake, chartQuestion, consentGiven, consentRefused, directAnswer, directedAtScribe, echoOf, negative, reviewIntent, wakeCommand } from "./intents";
 
 export type CallState = "greeting" | "pin" | "newPin" | "newPinAgain" | "confirmPatient" | "consent" | "recording" | "paused" | "drafting" | "review" | "ended";
 
@@ -187,19 +187,19 @@ export class ScribeCall {
         return;
       }
       case "consent": {
-        const asked = /^\s*chart ?side[,.!]?\s+(.+)$/i.exec(text.trim());
-        if (asked && directedAtScribe(asked[1]) && !wakeCommand(text)) {
+        if (consentRefused(raw)) return this.decline();
+        if (consentGiven(raw)) return this.beginRecording();
+        if (this.askedPatientAt && Date.now() - this.askedPatientAt < 25_000) {
+          const a = directAnswer(raw);
+          if (a === "no") return this.decline();
+          if (a === "yes") return this.beginRecording();
+        }
+        const asked = /^\s*chart ?side[,.!?]?\s+(.+)$/i.exec(text.trim());
+        if (asked && chartQuestion(asked[1]) && !wakeCommand(text)) {
           if (!this.pinVerified || !this.deps.ask) return this.say(LINES.askNeedsPin);
           this.deps.log("call.chart_question");
           const answer = await this.deps.ask(asked[1]).catch(() => "Sorry, I couldn't look that up right now.");
           return this.say(`${answer} ${LINES.askMore}`);
-        }
-        if (consentRefused(text)) return this.decline();
-        if (consentGiven(text)) return this.beginRecording();
-        if (this.askedPatientAt && Date.now() - this.askedPatientAt < 25_000) {
-          const a = directAnswer(text);
-          if (a === "no") return this.decline();
-          if (a === "yes") return this.beginRecording();
         }
         return;
       }

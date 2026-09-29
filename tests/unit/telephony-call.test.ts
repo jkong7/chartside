@@ -159,6 +159,18 @@ describe("scribe call", () => {
     expect(events).toContain("open:new:multi");
   });
 
+  it("still hears the patient's no after a stray Chartside", async () => {
+    let asked = "";
+    const { call, events } = harness({ caller: { name: "Dr. Kong", guest: false, hasPin: true }, ask: async (t) => ((asked = t), "answer") });
+    await call.start();
+    for (const d of "4812#") await call.onDigit(d);
+    await call.onDigit("3");
+    await call.onTranscript("Chartside?");
+    await call.onTranscript("No, I'd rather not.");
+    expect(events).toContain("declined");
+    expect(asked).toBe("");
+  });
+
   it("hears a Spanish no as a decline", async () => {
     const { call, events } = harness();
     await call.start();

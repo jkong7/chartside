@@ -92,3 +92,8 @@ export function bareWake(text: string) {
   const t = norm(text);
   return WAKE.test(t) && t.replace(WAKE, "").trim().length === 0;
 }
+
+export function chartQuestion(text: string) {
+  const t = norm(text);
+  return /^(please |can you |could you |would you )?(what|what's|whats|when|when's|who|who's|how many|how much|which|is there|are there|do i have|did|does|tell me|show me|list|read|summarize|find|look up)\b/.test(t);
+}
