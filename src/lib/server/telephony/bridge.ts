@@ -58,6 +58,7 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
     if (hungUp) return;
     interrupted = false;
     speakingUntil = Number.POSITIVE_INFINITY;
+    emitState();
     if (sim) send({ event: "chartside.caption", streamSid, text });
     let pending = Buffer.alloc(0);
     let total = 0;
