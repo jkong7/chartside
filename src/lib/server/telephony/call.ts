@@ -42,7 +42,7 @@ export const LINES = {
   resumed: "Listening again.",
   drafting: "Got it. Writing your note now. Stay on the line to hear it, or hang up and I'll text you when it's ready.",
   declined: "Understood. Nothing was recorded. You can call back any time. Goodbye.",
-  reviewPrompt: "Say ready, and I'll put it at the top of your stack to sign. Tell me anything to change, or press 7 to text the patient their summary after you sign. Or hang up, and I'll text you the link.",
+  reviewPrompt: "Say ready to put it on your stack, or tell me what to change. Press 7 to text the patient after you sign.",
   ready: "Done. It's at the top of your stack. I'm texting you the link to review and sign. Goodbye.",
   readyGuest: "Done. I'm texting you a link to read it and save it, free. Goodbye.",
   readyNoText: "Done. It's at the top of your stack. I couldn't send you a text, so open Chartside to review and sign. Goodbye.",
