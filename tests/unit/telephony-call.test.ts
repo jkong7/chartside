@@ -6,12 +6,12 @@ function harness(over: Partial<CallDeps> = {}) {
   const said: string[] = [];
   const events: string[] = [];
   const deps: CallDeps = {
-    say: async (t) => void said.push(t),
+    say: async (t, lang) => void said.push(lang === "es" ? `[es] ${t}` : t),
     hangup: () => void events.push("hangup"),
     caller: { name: "Dr. Kong", guest: false, hasPin: false },
     verifyPin: async (p) => p === "4812",
     nextVisit: async () => null,
-    open: async (i) => void events.push(`open:${i.encounterId ?? "new"}`),
+    open: async (i) => void events.push(`open:${i.encounterId ?? "new"}${i.lang ? `:${i.lang}` : ""}`),
     flush: async () => void events.push("flush"),
     finish: async () => void events.push("finish"),
     waitForNote: async () => ({ spoken: "Assessment: hypertension, at goal." }),
@@ -42,6 +42,7 @@ describe("phone intents", () => {
     expect(wakeCommand("chart side pause")).toBe("pause");
     expect(wakeCommand("Chartside resume please")).toBe("resume");
     expect(wakeCommand("chartside what's up")).toBeNull();
+    expect(wakeCommand("Chartside and visit.")).toBe("end");
   });
 
   it("classifies review replies", () => {
@@ -136,6 +137,24 @@ describe("scribe call", () => {
     expect(said.at(-1)).toBe(LINES.consentScript);
     await call.onTranscript("Yes, that's fine");
     expect(call.state).toBe("recording");
+  });
+
+  it("asks the patient in Spanish on 9 and records the visit as multilingual", async () => {
+    const { call, said, events } = harness();
+    await call.start();
+    await call.onDigit("9");
+    expect(said.at(-1)).toBe(`[es] ${LINES.consentScriptEs}`);
+    await call.onTranscript("Sí, está bien.");
+    expect(call.state).toBe("recording");
+    expect(events).toContain("open:new:multi");
+  });
+
+  it("hears a Spanish no as a decline", async () => {
+    const { call, events } = harness();
+    await call.start();
+    await call.onDigit("9");
+    await call.onTranscript("No, prefiero que no.");
+    expect(events).toContain("declined");
   });
 
   it("stops and records nothing when the patient declines", async () => {

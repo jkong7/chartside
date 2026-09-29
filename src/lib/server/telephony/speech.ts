@@ -14,15 +14,20 @@ export function phoneSpeechReady() {
 
 const cache = new Map<string, Buffer>();
 
-export async function synthesize(text: string, onChunk?: (audio: Buffer) => void): Promise<Buffer> {
+export function voiceFor(lang: "en" | "es" = "en") {
+  return lang === "es" ? process.env.CHARTSIDE_PHONE_VOICE_ES || "aura-2-celeste-es" : process.env.CHARTSIDE_PHONE_VOICE || "aura-2-thalia-en";
+}
+
+export async function synthesize(text: string, onChunk?: (audio: Buffer) => void, lang: "en" | "es" = "en"): Promise<Buffer> {
   const k = key();
   if (!k) throw new Error("Deepgram is not configured");
-  const hit = cache.get(text);
+  const model = voiceFor(lang);
+  const ck = `${model}:${text}`;
+  const hit = cache.get(ck);
   if (hit) {
     onChunk?.(hit);
     return hit;
   }
-  const model = process.env.CHARTSIDE_PHONE_VOICE || "aura-2-thalia-en";
   const res = await fetch(`${base()}/v1/speak?model=${encodeURIComponent(model)}&encoding=mulaw&sample_rate=8000&container=none`, {
     method: "POST",
     headers: { Authorization: `Token ${k}`, "Content-Type": "application/json" },
@@ -39,18 +44,18 @@ export async function synthesize(text: string, onChunk?: (audio: Buffer) => void
   const audio = Buffer.concat(parts);
   if (text.length < 400) {
     if (cache.size > 200) cache.delete(cache.keys().next().value!);
-    cache.set(text, audio);
+    cache.set(ck, audio);
   }
   return audio;
 }
 
 export async function warmPhrases(lines: string[]) {
-  for (const l of lines) await synthesize(l).catch(() => null);
+  for (const l of lines) await synthesize(l, undefined, /[¿¡ñáéíóú]/.test(l) ? "es" : "en").catch(() => null);
 }
 
 export function listenUrl() {
   const ws = (process.env.DEEPGRAM_WS_URL || "wss://api.deepgram.com/v1/listen").replace(/\/$/, "");
-  const q = new URLSearchParams({ model: "nova-3", language: "en", encoding: "mulaw", sample_rate: "8000", channels: "1", punctuate: "true", smart_format: "true", interim_results: "false", endpointing: "500", tag: "chartside-phone" });
+  const q = new URLSearchParams({ model: "nova-3", language: "multi", encoding: "mulaw", sample_rate: "8000", channels: "1", punctuate: "true", smart_format: "true", interim_results: "false", endpointing: "500", tag: "chartside-phone" });
   for (const term of ["Chartside", "pause", "resume", "end visit"]) q.append("keyterm", term);
   return `${ws}?${q}`;
 }

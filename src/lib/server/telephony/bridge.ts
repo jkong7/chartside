@@ -54,7 +54,7 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
     marks.clear();
   };
 
-  const say = async (text: string) => {
+  const say = async (text: string, lang: "en" | "es" = "en") => {
     if (hungUp) return;
     interrupted = false;
     speakingUntil = Number.POSITIVE_INFINITY;
@@ -69,11 +69,15 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
       pending = pending.subarray(n);
     };
     try {
-      await synthesize(text, (chunk) => {
+      await synthesize(
+        text,
+        (chunk) => {
         total += chunk.length;
         pending = Buffer.concat([pending, chunk]);
         if (pending.length >= FRAME * 25) flushOut(false);
-      });
+        },
+        lang,
+      );
       flushOut(true);
     } catch (err) {
       console.error("phone tts failed", err);

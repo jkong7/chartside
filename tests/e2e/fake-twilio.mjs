@@ -149,14 +149,14 @@ export async function dial({ base, from = "+15550100000", sim = false, cookie, t
         if (frameMs) await sleep(frameMs);
       }
     };
-    const speak = async (text) => {
+    const speak = async (text, voice = "aura-2-orion-en") => {
       if (mockDeepgram) {
         await sleep(900);
         await fetch(`${mockDeepgram}/phone/say?text=${encodeURIComponent(text)}`, { method: "POST" });
         await stream(Buffer.alloc(160 * 3, 0xff));
         return;
       }
-      const r = await fetch(`https://api.deepgram.com/v1/speak?model=aura-2-orion-en&encoding=mulaw&sample_rate=8000&container=none`, { method: "POST", headers: { Authorization: `Token ${deepgramKey}`, "content-type": "application/json" }, body: JSON.stringify({ text }) });
+      const r = await fetch(`https://api.deepgram.com/v1/speak?model=${voice}&encoding=mulaw&sample_rate=8000&container=none`, { method: "POST", headers: { Authorization: `Token ${deepgramKey}`, "content-type": "application/json" }, body: JSON.stringify({ text }) });
       if (!r.ok) throw new Error(`tts ${r.status}`);
       await stream(Buffer.from(await r.arrayBuffer()));
       await stream(Buffer.alloc(8000 * 1.5, 0xff));
@@ -167,7 +167,7 @@ export async function dial({ base, from = "+15550100000", sim = false, cookie, t
         const ok = await waitFor(() => prompts >= step.waitPrompts || closed, step.timeoutMs ?? 20000);
         if (!ok) throw new Error(`timed out waiting for prompt ${step.waitPrompts} (have ${prompts})`);
       } else if (step.digit) send({ event: "dtmf", streamSid, dtmf: { track: "inbound_track", digit: step.digit } });
-      else if (step.say) await speak(step.say);
+      else if (step.say) await speak(step.say, step.voice);
       else if (step.wav) await stream(wavToMulaw8k(step.wav));
       else if (step.ulaw) await stream(readFileSync(step.ulaw));
       else if (step.silence) await stream(Buffer.alloc(Math.round(step.silence * 8000), 0xff));

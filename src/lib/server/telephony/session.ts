@@ -81,8 +81,8 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
     caller: { name: user.guestUntil ? null : user.name, guest: !!user.guestUntil, hasPin: !user.guestUntil && !claims.guest && (await hasPhonePin(user.id)) },
     verifyPin: async (pin) => (pinOk = await verifyPhonePin(user.id, pin)),
     nextVisit: () => nextVisitFor(user),
-    open: async ({ encounterId }) => {
-      const r = await captureAudio(user, { options: { consent: "granted", method: "verbal", state: user.prefs.state || "IL", finish: false, channel: claims.sim ? "phone-sim" : "phone", reason: "", ...(encounterId ? { encounterId } : {}) } as never });
+    open: async ({ encounterId, lang }) => {
+      const r = await captureAudio(user, { options: { consent: "granted", method: "verbal", state: user.prefs.state || "IL", finish: false, channel: claims.sim ? "phone-sim" : "phone", reason: "", ...(lang ? { lang } : {}), ...(encounterId ? { encounterId } : {}) } as never });
       encId = r.encounterId;
       await audit.log(user, encId, "phone.consent", { callSid: claims.callSid, sim: claims.sim });
     },

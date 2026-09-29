@@ -1,5 +1,7 @@
 const norm = (s: string) =>
   s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[’']/g, "'")
     .replace(/[^a-z0-9' ]+/g, " ")
@@ -11,12 +13,12 @@ const WAKE = /\b(chart ?side|chart ?sides|charts ?ide|hart ?side)\b/;
 export function affirmative(text: string) {
   const t = norm(text);
   if (!t || negative(text)) return false;
-  return /\b(yes|yeah|yep|yup|sure|ok|okay|fine|agreed|agree|consent|consents|consented|go ahead|of course|absolutely|that's right|correct|it is|that's her|that's him|that's them|please do|no problem)\b/.test(t);
+  return /\b(yes|yeah|yep|yup|sure|ok|okay|fine|agreed|agree|consent|consents|consented|go ahead|of course|absolutely|that's right|correct|it is|that's her|that's him|that's them|please do|no problem|s[ií]|claro|est[aá] bien|de acuerdo|vale|por supuesto|con gusto|adelante)\b/.test(t);
 }
 
 export function negative(text: string) {
   const t = norm(text);
-  return /\b(no|nope|nah|not okay|not ok|don't|do not|declined|declines|decline|refused|refuses|rather not|i'd rather you didn't|not comfortable|wrong)\b/.test(t) && !/\bno problem\b/.test(t);
+  return /\b(no|nope|nah|not okay|not ok|don't|do not|declined|declines|decline|refused|refuses|rather not|i'd rather you didn't|not comfortable|wrong|prefiero que no|mejor no)\b/.test(t) && !/\bno problem\b/.test(t);
 }
 
 export type WakeCommand = "pause" | "resume" | "end" | null;
@@ -28,7 +30,7 @@ export function wakeCommand(text: string): WakeCommand {
   const rest = t.slice(m.index + m[0].length);
   if (/\b(pause|hold|hold on|stop listening|mute)\b/.test(rest)) return "pause";
   if (/\b(resume|continue|unpause|start again|keep going|go on)\b/.test(rest)) return "resume";
-  if (/\b(end|stop|done|finish|finished|wrap|that's it|end visit|end the visit)\b/.test(rest)) return "end";
+  if (/\b(end|stop|done|finish|finished|wrap|that's it|end visit|end the visit|and visit|and the visit)\b/.test(rest)) return "end";
   return null;
 }
 

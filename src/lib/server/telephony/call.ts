@@ -12,12 +12,12 @@ export interface NoteBrief {
 }
 
 export interface CallDeps {
-  say(text: string): Promise<void>;
+  say(text: string, lang?: "en" | "es"): Promise<void>;
   hangup(): void;
   caller: { name: string | null; guest: boolean; hasPin: boolean };
   verifyPin(pin: string): Promise<boolean>;
   nextVisit(): Promise<NextVisit | null>;
-  open(input: { encounterId?: string }): Promise<void>;
+  open(input: { encounterId?: string; lang?: "en" | "multi" }): Promise<void>;
   flush(): Promise<void>;
   finish(): Promise<void>;
   waitForNote(): Promise<NoteBrief | null>;
@@ -29,7 +29,8 @@ export interface CallDeps {
 }
 
 export const LINES = {
-  consentAsk: "When your patient agrees to be recorded, say they agreed, or press 2. Press 3, and I'll ask them for you.",
+  consentAsk: "When your patient agrees to be recorded, say they agreed, or press 2. Press 3, and I'll ask them for you. For Spanish, press 9.",
+  consentScriptEs: "Hola, soy Chartside, un asistente de inteligencia artificial que ayuda a su médico a escribir la nota de la visita. Su médico revisa todo, y la grabación se borra después. ¿Está bien si escucho? Puede decir sí, o no.",
   consentScript: "Hi, I'm Chartside, an AI assistant that helps your clinician write the visit note. They review everything, and the recording is deleted afterward. Is it okay if I listen? You can say yes, or no.",
   recording: "Thanks. I'm listening and I'll stay quiet. Say Chartside, pause, or Chartside, end visit, any time. Or just hang up when you're done.",
   paused: "Paused. Nothing is being recorded. Say Chartside, resume, or press 2 to keep going.",
@@ -55,6 +56,7 @@ export class ScribeCall {
   private reviewTurns = 0;
   private pendingVisit: NextVisit | null = null;
   private pinDigits = "";
+  private spanish = false;
 
   constructor(private deps: CallDeps) {}
 
@@ -194,6 +196,12 @@ export class ScribeCall {
       }
       if (this.state === "consent") {
         if (d === "3") return await this.say(LINES.consentScript);
+        if (d === "9") {
+          this.spanish = true;
+          this.deps.log("call.spanish");
+          this.lastSpoken = LINES.consentScriptEs;
+          return await this.deps.say(LINES.consentScriptEs, "es");
+        }
         if (d === "2" || d === "1") return await this.beginRecording();
         if (d === "0") return await this.decline();
         return;
@@ -216,7 +224,7 @@ export class ScribeCall {
   }
 
   private async beginRecording() {
-    await this.deps.open({ encounterId: this.pendingVisit?.encounterId });
+    await this.deps.open({ encounterId: this.pendingVisit?.encounterId, lang: this.spanish ? "multi" : undefined });
     this.deps.log("call.consent_granted", { scheduled: !!this.pendingVisit });
     await this.say(LINES.recording);
     this.state = "recording";

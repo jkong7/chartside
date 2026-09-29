@@ -24,7 +24,7 @@ const STATUS: Record<CallState, string> = {
 const HINTS: Partial<Record<CallState, string[]>> = {
   pin: ["Enter your PIN, then #", "Press * to skip"],
   confirmPatient: ["Say “yes”, or press 1", "Say “no”, or press 0"],
-  consent: ["Patient agreed? Say “they agreed” or press 2", "Declined? Press 0"],
+  consent: ["Patient agreed? Say “they agreed” or press 2", "Press 3 to have Chartside ask them, 9 in Spanish", "Declined? Press 0"],
   recording: ["Talk with your patient normally", "Say “Chartside, end visit” or press 5", "Press 4 to pause"],
   paused: ["Say “Chartside, resume” or press 2"],
   drafting: ["Stay on to hear it, or hang up and get a text"],
