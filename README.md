@@ -156,8 +156,8 @@ For developers, `POST /api/capture` is the one capture endpoint behind every doo
 | `CHARTSIDE_GUEST_CALLS_PER_NUMBER` / `CHARTSIDE_GUEST_CALL_DAILY_CAP` | Free calls from numbers Chartside doesn't know: per number per day (default 5) and across all numbers per day (default 200). Verified clinicians aren't limited. |
 | `CHARTSIDE_VAPID_PUBLIC`, `CHARTSIDE_VAPID_PRIVATE`, `CHARTSIDE_VAPID_SUBJECT` | Web Push keys for "Note ready" notifications to installed web apps. Generate them with `npx web-push generate-vapid-keys`. Notifications carry only the visit time. |
 | `CHARTSIDE_PROXY_HOPS` | How many proxies add to `X-Forwarded-For` in front of the app (default 1 for Cloud Run; 2 behind a load balancer). Rate limits use the address the last trusted proxy saw. |
-| `CHARTSIDE_WS_PER_IP` / `CHARTSIDE_WS_TOTAL` | Phone media sockets allowed per address and in total (defaults 8 and 60). A socket that doesn't start a call within 5 seconds is closed. |
-| `CHARTSIDE_MAX_CALL_MIN` / `CHARTSIDE_MAX_SIM_CALL_MIN` | Hard length limit for a call (default 90 minutes), and for browser-phone and guest calls (default 20). |
+| `CHARTSIDE_WS_PER_IP` / `CHARTSIDE_WS_TOTAL` | Phone media sockets allowed per address and in total (defaults 30 and 60). A socket that doesn't start a call within 5 seconds is closed. |
+| `CHARTSIDE_MAX_CALL_MIN` / `CHARTSIDE_MAX_SIM_CALL_MIN` | Hard length limit for a call (default 240 minutes, enough for a clinic session with "next patient"), and for browser-phone and guest calls (default 20). |
 | `CHARTSIDE_SHARE_MEMORY_MB` | Memory held for shared recordings awaiting consent (default 300), with at most 4 uploads in flight. |
 | `CHARTSIDE_PUSH_HOSTS` | Extra push-service hosts to accept besides FCM, Apple, Mozilla and Windows. |
 | `CHARTSIDE_SHARE_RATE` | Recordings shared to `/go/share` allowed per IP per hour (default 30) |

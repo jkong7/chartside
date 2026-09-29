@@ -25,7 +25,7 @@ setInterval(sweep, 5 * 60_000).unref();
 const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
 const openByIp = new Map<string, number>();
 let openTotal = 0;
-const MAX_PER_IP = Number(process.env.CHARTSIDE_WS_PER_IP || 8);
+const MAX_PER_IP = Number(process.env.CHARTSIDE_WS_PER_IP || 30);
 const MAX_TOTAL = Number(process.env.CHARTSIDE_WS_TOTAL || 60);
 const hopsFor = (h: string | string[] | undefined) => (Array.isArray(h) ? h.join(",") : h ?? "").split(",").map((x) => x.trim()).filter(Boolean);
 

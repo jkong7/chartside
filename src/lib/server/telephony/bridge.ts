@@ -27,7 +27,7 @@ export interface BridgeOptions {
 }
 
 const START_DEADLINE_MS = 5000;
-const MAX_CALL_MS = Number(process.env.CHARTSIDE_MAX_CALL_MIN || 90) * 60_000;
+const MAX_CALL_MS = Number(process.env.CHARTSIDE_MAX_CALL_MIN || 240) * 60_000;
 const MAX_SIM_CALL_MS = Number(process.env.CHARTSIDE_MAX_SIM_CALL_MIN || 20) * 60_000;
 
 export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
@@ -181,10 +181,10 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
       const limitMs = claims.sim || claims.guest ? Math.min(MAX_SIM_CALL_MS, MAX_CALL_MS) : MAX_CALL_MS;
       const endingCall = call;
       wallClock = setTimeout(() => {
-        void endingCall
-          .onLimit()
+        const wasCapturing = endingCall.state === "recording" || endingCall.state === "paused";
+        void (wasCapturing ? endingCall.onLimit() : say("This call has reached its time limit. Please call back. Goodbye."))
           .catch(() => undefined)
-          .finally(() => setTimeout(() => ws.close(1000, "call length limit"), 60_000));
+          .finally(() => setTimeout(() => ws.close(1000, "call length limit"), wasCapturing ? 60_000 : 1500));
       }, limitMs);
       liveSid = claims.callSid;
       const c = call;
