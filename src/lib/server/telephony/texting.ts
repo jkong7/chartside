@@ -17,7 +17,7 @@ const KIND_WORDS: Record<string, [string, string]> = {
 };
 
 export function queueLine(counts: { total: number; urgent: number; byKind: Partial<Record<string, number>> }) {
-  if (!counts.total) return "Your stack is clear. Nothing is waiting on you.";
+  if (!counts.total) return "Nothing is waiting on you.";
   const parts = Object.entries(counts.byKind)
     .filter(([, n]) => n)
     .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
@@ -31,7 +31,7 @@ async function link(u: User, path = "/go/stack") {
   return (await mintLoginLink(u.id, path, 30)).url;
 }
 
-const HELP = "Reply STATUS for what's waiting, SCHEDULE for today, LINK to open your stack, NUDGE 5 or BRIEF 7 for daily texts, or call this number before a visit to scribe it. Texts never include patient details.";
+const HELP = "Reply STATUS for what's waiting, SCHEDULE for today, LINK to open what needs your review, NUDGE 5 or BRIEF 7 for daily texts, or call this number before a visit to scribe it. Texts never include patient details.";
 
 function offsetMinutes(at: Date, tz: string) {
   const name = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "shortOffset" }).formatToParts(at).find((p) => p.type === "timeZoneName")?.value ?? "GMT";
@@ -83,7 +83,7 @@ export async function inboundText(fromRaw: string, bodyRaw: string, origin: stri
     return say("Texts are back on. Reply HELP for commands.");
   }
   if (/^(help|info|\?|commands)$/.test(body)) return say(HELP);
-  if (/^(link|stack|open|sign)$/.test(body)) return say(`Your stack: ${await link(user)}`);
+  if (/^(link|stack|open|sign)$/.test(body)) return say(`Your notes to review: ${await link(user)}`);
   if (/^(schedule|today|day|my day)$/.test(body)) {
     const d = await dayLine(user);
     return say(`Chartside: ${d.text}${d.count ? ` Call the line and enter your PIN to hear them, or open: ${(await mintLoginLink(user.id, "/today", 30)).url}` : ""}`);

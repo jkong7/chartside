@@ -26,7 +26,7 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     shortcuts: [
       { name: "Record visit", url: "/go" },
-      { name: "Your stack", url: "/go/stack" },
+      { name: "To review", url: "/go/stack" },
       { name: "Today", url: "/today" },
       { name: "Inbox", url: "/inbox" },
       { name: "Hospital", url: "/hospital" },

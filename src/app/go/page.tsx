@@ -25,7 +25,7 @@ export default async function GoPage({ searchParams }: { searchParams: Promise<{
         </Link>
         <nav className="flex gap-1">
           <Link href="/go/phone" className="btn-ghost">Call instead</Link>
-          {user && <Link href="/go/stack" className="btn-ghost">Stack</Link>}
+          {user && <Link href="/go/stack" className="btn-ghost">To review</Link>}
           {user && <Link href="/go/ask" className="btn-ghost">Ask</Link>}
         </nav>
       </header>

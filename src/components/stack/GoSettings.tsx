@@ -194,7 +194,7 @@ export default function GoSettings(p: Props) {
             <h1 className="text-sm font-semibold">Settings</h1>
             <p className="truncate text-xs text-ink-3">{p.user.name} · {p.user.email}</p>
           </div>
-          <a className="text-sm font-medium text-brand" href="/go/stack">Stack</a>
+          <a className="text-sm font-medium text-brand" href="/go/stack">To review</a>
         </div>
       </header>
       <div className="mx-auto max-w-xl space-y-4 px-4 pt-4">

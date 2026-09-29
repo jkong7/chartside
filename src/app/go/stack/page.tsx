@@ -4,7 +4,7 @@ import { currentUser, publicUser } from "@/lib/server/auth";
 import { listDecisions } from "@/lib/server/decisions";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Your stack · Chartside", robots: { index: false } };
+export const metadata = { title: "To review · Chartside", robots: { index: false } };
 
 export default async function StackPage({ searchParams }: { searchParams: Promise<{ focus?: string; claimed?: string }> }) {
   const sp = await searchParams;

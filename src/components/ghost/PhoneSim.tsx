@@ -407,7 +407,7 @@ export default function PhoneSim({ lineNumber, signedInAs, autopilot = false, fa
               {texts.length > 0 && (
                 <div className="pt-4 text-center">
                   <button onClick={shareLine} className="rounded-full bg-white px-4 py-2 text-[13px] font-medium text-black hover:bg-white/90" data-testid="sim-share">
-                    Show a colleague
+                    Send this demo to a colleague
                   </button>
                   {shared && <p className="mt-2 text-[12px] text-white/70" role="status" data-testid="sim-shared">{shared}</p>}
                 </div>

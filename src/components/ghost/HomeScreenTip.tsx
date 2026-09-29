@@ -30,7 +30,7 @@ export default function HomeScreenTip() {
   return (
     <aside className="flex items-start gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm" data-testid="home-tip">
       <p className="flex-1 text-ink-2">
-        <span className="font-medium text-ink">Keep Chartside one tap away.</span> Tap the Share button, then <span className="font-medium text-ink">Add to Home Screen</span>. Your stack opens like an app, with a Record visit shortcut.
+        <span className="font-medium text-ink">Keep Chartside one tap away.</span> Tap the Share button, then <span className="font-medium text-ink">Add to Home Screen</span>. Your notes open like an app, with a Record visit shortcut.
       </p>
       <button className="text-ink-3 hover:text-ink" onClick={close} aria-label="Dismiss tip" data-testid="home-tip-close">
         ✕

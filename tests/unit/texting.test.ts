@@ -41,7 +41,7 @@ async function pendingNote(user: import("@/lib/server/repo").User) {
 describe("texting the line", () => {
   it("summarizes a queue without patient details", async () => {
     const { queueLine } = await import("@/lib/server/telephony/texting");
-    expect(queueLine({ total: 0, urgent: 0, byKind: {} })).toBe("Your stack is clear. Nothing is waiting on you.");
+    expect(queueLine({ total: 0, urgent: 0, byKind: {} })).toBe("Nothing is waiting on you.");
     expect(queueLine({ total: 4, urgent: 1, byKind: { "note.sign": 3, "message.reply": 1 } })).toBe("3 notes to sign, 1 patient message. 1 marked urgent. About 5 min to clear.");
   });
 
@@ -61,7 +61,7 @@ describe("texting the line", () => {
     const status = await inboundText("(312) 555-0122", "STATUS", "https://line.test");
     expect(status).toMatch(/^Chartside: 1 note to sign\. About 1 min to clear\. Open: https:\/\/line\.test\/m\//);
     expect(status).not.toMatch(PHI);
-    expect(await inboundText("+13125550122", "link", "https://line.test")).toMatch(/^Your stack: https:\/\/line\.test\/m\//);
+    expect(await inboundText("+13125550122", "link", "https://line.test")).toMatch(/^Your notes to review: https:\/\/line\.test\/m\//);
     expect(await inboundText("+13125550122", "help", "https://line.test")).toContain("never include patient details");
     const other = await inboundText("+13125550122", "what was Ruth's blood pressure", "https://line.test");
     expect(other).toContain("can't read or send patient details by text");

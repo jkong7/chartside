@@ -59,7 +59,7 @@ export default function AskChat({ encounterId, offline }: { encounterId: string 
         <div className="mx-auto flex max-w-xl items-center gap-3">
           <Logo />
           <p className="flex-1 text-sm font-semibold">Ask your chart</p>
-          <a className="text-sm font-medium text-brand" href="/go/stack">Stack</a>
+          <a className="text-sm font-medium text-brand" href="/go/stack">To review</a>
         </div>
       </header>
       <section className="mx-auto w-full max-w-xl flex-1 space-y-3 px-4 py-4" aria-live="polite" data-testid="ask-thread">

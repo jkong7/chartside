@@ -29,7 +29,7 @@ export default async function PhonePage({ searchParams }: { searchParams: Promis
           </ul>
           <div className="mt-8 flex flex-wrap gap-3 text-sm">
             <Link href="/line" className="btn-outline">How it works</Link>
-            {user ? <Link href="/go/stack" className="btn-ghost">Your stack</Link> : <Link href="/login?next=/go/phone" className="btn-ghost">Sign in</Link>}
+            {user ? <Link href="/go/stack" className="btn-ghost">To review</Link> : <Link href="/login?next=/go/phone" className="btn-ghost">Sign in</Link>}
           </div>
         </section>
         <p className="text-center font-serif text-2xl font-semibold text-ink lg:hidden">Your scribe is a phone number. Tap call.</p>
