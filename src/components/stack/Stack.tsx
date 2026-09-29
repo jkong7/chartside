@@ -7,10 +7,13 @@ import { Alert, Check, Logo } from "../icons";
 import { Spinner } from "../ui";
 import ClaimBanner from "./ClaimBanner";
 import InviteCard from "./InviteCard";
+import NextTimeCard from "./NextTimeCard";
+import LiveCallBanner from "@/components/ghost/LiveCallBanner";
 
 interface StackUser {
   name: string;
   guestUntil: string | null;
+  phone?: string | null;
 }
 
 const SWIPE = 110;
@@ -22,7 +25,8 @@ function order(list: Decision[], focus: string | null) {
   return [...first, ...list.filter((d) => !hit(d))];
 }
 
-export default function Stack({ initial, user, focus }: { initial: Decision[]; user: StackUser; focus: string | null }) {
+export default function Stack({ initial, user, focus, justClaimed = false }: { initial: Decision[]; user: StackUser; focus: string | null; justClaimed?: boolean }) {
+  const [nextTime, setNextTime] = useState(justClaimed && !user.guestUntil);
   const [cards, setCards] = useState(() => order(initial, focus));
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ tone: "ok" | "rec"; text: string } | null>(null);
@@ -137,7 +141,9 @@ export default function Stack({ initial, user, focus }: { initial: Decision[]; u
         </div>
       </header>
       <div className="mx-auto max-w-xl space-y-4 px-4 pt-4">
+        {!user.guestUntil && <LiveCallBanner />}
         {!claimed && <ClaimBanner onClaimed={() => setClaimed(true)} />}
+        {nextTime && <NextTimeCard hasPhone={!!user.phone} onClose={() => setNextTime(false)} />}
         {invite && <InviteCard referral={invite.referral} signed={invite.signed} onClose={() => setInvite(null)} />}
         {note && <p className={`rounded-lg px-3 py-2 text-sm ${note.tone === "ok" ? "bg-ok-50 text-ok" : "bg-rec-50 text-rec"}`} role="status" data-testid="stack-toast">{note.text}</p>}
         {!top ? (
@@ -166,6 +172,12 @@ export default function Stack({ initial, user, focus }: { initial: Decision[]; u
               <h1 className="mt-1 text-lg font-semibold leading-snug" data-testid="stack-title">{top.title}</h1>
               <p className="mt-0.5 text-sm text-ink-3">{top.summary}</p>
               {typeof top.detail.markedReady === "object" && top.detail.markedReady && <p className="mt-2 inline-flex rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand" data-testid="stack-ready">{(top.detail.markedReady as { label: string }).label}</p>}
+              {typeof top.detail.unverifiedCaller === "object" && top.detail.unverifiedCaller && (
+                <p className="mt-2 inline-flex flex-wrap items-center gap-1.5 rounded-full bg-warn-50 px-2.5 py-0.5 text-xs font-medium text-warn" data-testid="stack-unverified" title={(top.detail.unverifiedCaller as { help: string }).help}>
+                  {(top.detail.unverifiedCaller as { label: string }).label}
+                  <span className="font-normal">· {(top.detail.unverifiedCaller as { help: string }).help}</span>
+                </p>
+              )}
               <Body d={top} choice={choice} setChoice={setChoice} text={text} setText={setText} />
               {blockers && (
                 <div className="mt-4 rounded-lg bg-warn-50 p-3 text-sm text-warn" data-testid="stack-blockers">

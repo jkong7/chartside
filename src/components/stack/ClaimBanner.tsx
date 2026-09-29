@@ -34,7 +34,9 @@ export default function ClaimBanner({ onClaimed }: { onClaimed: () => void }) {
         return;
       }
       onClaimed();
-      window.location.reload();
+      const u = new URL(window.location.href);
+      u.searchParams.set("claimed", "1");
+      window.location.assign(u.toString());
     } catch (err) {
       setError(err instanceof Error ? err.message : "That didn't work");
       setBusy(false);
