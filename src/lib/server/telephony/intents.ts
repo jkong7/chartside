@@ -8,7 +8,7 @@ const norm = (s: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
-const WAKE = /\b(chart ?side|chart ?sides|charts ?ide|hart ?side)\b/;
+const WAKE = /\b(chart ?side|chart ?sides|charts ?ide|hart ?side|short ?side|chart ?site|chart ?sight|charter ?side|shard ?side|cart ?side)\b/;
 
 export function affirmative(text: string) {
   const t = norm(text);
@@ -30,7 +30,7 @@ export function wakeCommand(text: string): WakeCommand {
   const rest = t.slice(m.index + m[0].length);
   if (/\b(pause|hold|hold on|stop listening|mute)\b/.test(rest)) return "pause";
   if (/\b(resume|continue|unpause|start again|keep going|go on)\b/.test(rest)) return "resume";
-  if (/\b(end|stop|done|finish|finished|wrap|that's it|end visit|end the visit|and visit|and the visit)\b/.test(rest)) return "end";
+  if (/\b(end|stop|done|finish|finished|wrap|that's it|end visit|end the visit|and visit|and the visit|pend visit|in visit|ends visit)\b/.test(rest)) return "end";
   return null;
 }
 

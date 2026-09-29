@@ -45,6 +45,8 @@ describe("phone intents", () => {
     expect(wakeCommand("Chartside resume please")).toBe("resume");
     expect(wakeCommand("chartside what's up")).toBeNull();
     expect(wakeCommand("Chartside and visit.")).toBe("end");
+    expect(wakeCommand("Shortside, pause.")).toBe("pause");
+    expect(wakeCommand("Chart side, pend visit.")).toBe("end");
   });
 
   it("classifies review replies", () => {
