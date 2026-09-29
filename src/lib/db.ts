@@ -687,6 +687,16 @@ CREATE TABLE IF NOT EXISTS magic_links (
   used_at TEXT,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  user_agent TEXT,
+  created_at TEXT NOT NULL,
+  last_sent_at TEXT
+);
 CREATE TABLE IF NOT EXISTS decision_proposals (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,
