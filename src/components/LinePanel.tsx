@@ -8,6 +8,7 @@ interface LineData {
   operator: boolean;
   scope: "org" | "all";
   config: { number: string | null; publicUrl: string | null; voiceUrl: string | null; smsUrl: string | null; checks: Record<"speech" | "twilio" | "publicUrl" | "notes" | "cron", boolean> };
+  roster: { userId: string; name: string; role: string; phone: string | null; pin: boolean; calls: number; lastCall: string | null; ready: boolean }[];
   stats: { days: number; calls: number; simCalls: number; consented: number; declined: number; readyOnCall: number; texted: number; agentTurns: number; textReplies: number; nudges: number; drafted: number; failed: number; byChannel: Record<string, number> };
 }
 
@@ -79,6 +80,32 @@ export default function LinePanel() {
             ))}
         </ul>
         <p className="mt-2 text-xs text-ink-3">{s.drafted} notes drafted · {s.failed} failed</p>
+      </section>
+      <section className="card overflow-x-auto p-4">
+        <h2 className="font-semibold">Your team on the line</h2>
+        <p className="text-xs text-ink-3">Each clinician verifies their phone and sets a PIN once in Chartside settings. Then they just call.</p>
+        <table className="mt-2 w-full text-sm" data-testid="line-roster">
+          <thead>
+            <tr className="text-left text-ink-3"><th className="py-1 font-medium">Name</th><th className="font-medium">Phone</th><th className="font-medium">PIN</th><th className="font-medium">Calls</th><th className="font-medium"><span className="sr-only">Invite</span></th></tr>
+          </thead>
+          <tbody>
+            {d.roster.map((m) => (
+              <tr key={m.userId} className="border-t border-line" data-testid="line-member" data-ready={m.ready}>
+                <td className="py-1.5">{m.name}<span className="ml-1 text-xs text-ink-3">{m.role}</span></td>
+                <td className="font-mono text-xs">{m.phone ?? <span className="text-warn">not verified</span>}</td>
+                <td>{m.pin ? <span className="text-ok">set</span> : <span className="text-ink-3">not set</span>}</td>
+                <td>{m.calls}</td>
+                <td className="text-right">
+                  {!m.ready && (
+                    <a className="text-xs font-medium text-brand underline" href={`sms:?&body=${encodeURIComponent(`Set up the Chartside line in two minutes: verify your phone and pick a PIN at ${d.config.publicUrl ?? ""}/go/settings. Then just call before a visit.`)}`} data-testid="line-invite">
+                      Text setup link
+                    </a>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
       <section className="card p-4">
         <h2 className="font-semibold">Setup</h2>

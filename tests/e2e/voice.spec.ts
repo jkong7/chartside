@@ -238,6 +238,9 @@ test("Admin → Line shows setup and call stats, and an operator points the Twil
   await expect(panel.locator('[data-check="speech"]')).toHaveAttribute("data-ok", "true");
   await expect(panel.locator('[data-check="twilio"]')).toHaveAttribute("data-ok", "true");
   await expect(panel).toContainText("http://localhost:3200/api/voice/incoming");
+  await expect(page.getByTestId("line-member")).toHaveCount(1);
+  await expect(page.getByTestId("line-member")).toHaveAttribute("data-ready", "false");
+  await expect(page.getByTestId("line-invite")).toHaveAttribute("href", /^sms:\?&body=.*go%2Fsettings/);
   await page.getByTestId("line-number-input").fill("+1 (312) 555-0199");
   await page.getByTestId("line-connect").click();
   await expect(page.getByTestId("line-connected")).toContainText("+13125550199 now answers with Chartside");
