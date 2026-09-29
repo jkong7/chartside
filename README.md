@@ -153,6 +153,7 @@ For developers, `POST /api/capture` is the one capture endpoint behind every doo
 | `CHARTSIDE_PHONE_VOICE` | The Deepgram Aura voice for prompts (default `aura-2-thalia-en`) |
 | `CHARTSIDE_PHONE_VOICE_ES` | The Spanish voice for the patient consent script (default `aura-2-celeste-es`) |
 | `CHARTSIDE_CRON_SECRET` | Bearer secret for `POST /api/cron/nudges`. Schedule it hourly, for example with Cloud Scheduler, to send end-of-clinic texts. |
+| `CHARTSIDE_GUEST_CALLS_PER_NUMBER` / `CHARTSIDE_GUEST_CALL_DAILY_CAP` | Free calls from numbers Chartside doesn't know: per number per day (default 5) and across all numbers per day (default 200). Verified clinicians aren't limited. |
 | `CHARTSIDE_SHARE_RATE` | Recordings shared to `/go/share` allowed per IP per hour (default 30) |
 | `CHARTSIDE_MAX_RECORDING_MIN` | Recording cap for every door (default 120) |
 | `CHARTSIDE_SKIP_WARM` | Skip pre-rendering the fixed phone prompts at startup |

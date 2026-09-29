@@ -87,6 +87,7 @@ export default defineConfig({
         TWILIO_BASE_URL: "http://localhost:3295",
         CHARTSIDE_CRON_SECRET: "test-cron",
         CHARTSIDE_SIM_RATE: "500",
+        CHARTSIDE_GUEST_CALL_DAILY_CAP: "500",
         CHARTSIDE_MAX_RECORDING_MIN: "5",
         CHARTSIDE_OPERATOR_EMAILS: "operator@chartside.test",
         CHARTSIDE_PUBLIC_URL: `http://localhost:${PORT}`,

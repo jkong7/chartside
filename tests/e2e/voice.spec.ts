@@ -43,6 +43,19 @@ test("the voice webhook rejects unsigned requests and answers signed ones with a
   expect(await hidden.text()).toContain("hidden number");
 });
 
+test("a first-time number gets a few free calls a day, then a polite no", async ({ request, baseURL }) => {
+  const from = randomPhone();
+  const url = `${baseURL}/api/voice/incoming`;
+  const call = async (i: number) => {
+    const params = { CallSid: `CAcap${Date.now()}${i}`, From: from, To: "+13125550199" };
+    return (await request.post("/api/voice/incoming", { form: params, headers: { "x-twilio-signature": twilioSignature("test-twilio", url, params) } })).text();
+  };
+  for (let i = 0; i < 5; i++) expect(await call(i)).toContain("<Stream");
+  const sixth = await call(6);
+  expect(sixth).toContain("at capacity");
+  expect(sixth).not.toContain("<Stream");
+});
+
 test("a first-time caller gets a free note by keypad and a PHI-free text to save it", async ({ page, baseURL, request }) => {
   const from = randomPhone();
   const call = await dial({
