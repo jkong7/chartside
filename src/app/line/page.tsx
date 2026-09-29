@@ -42,9 +42,9 @@ const CALL = [
   ["Chartside", "Thanks. I'm listening, and I'll stay quiet."],
   ["", "… the visit happens. Phone face down on the counter …"],
   ["You", "Chartside, end visit."],
-  ["Chartside", "Here's your note. Diabetes, improving on metformin. Plan: increase to 1,000 mg with dinner, eye exam, A1c in 3 months. Coding suggests a level 4 visit."],
+  ["Chartside", "Here's your note. Diabetes, improving on metformin. Plan: increase to 1,000 mg with dinner, eye exam, A1c in 3 months. Codes and the full note are in your link."],
   ["You", "Make the plan shorter."],
-  ["Chartside", "Done, it's on your stack to approve. Texting you the link now."],
+  ["Chartside", "Done. That change is waiting for your OK when you open the note. Texting you the link now."],
 ] as const;
 
 export default async function LinePage({ searchParams }: { searchParams: Promise<{ ref?: string; src?: string }> }) {
@@ -105,9 +105,11 @@ export default async function LinePage({ searchParams }: { searchParams: Promise
               <Link href="/go/phone?autopilot=1" className="btn-outline px-5 py-3 text-base" data-testid="line-watch">
                 Watch a call play itself
               </Link>
-              <a href="/line/contact.vcf" className="btn-outline px-5 py-3 text-base" data-testid="line-contact">
-                Save to contacts
-              </a>
+              {number && (
+                <a href="/line/contact.vcf" className="btn-outline px-5 py-3 text-base" data-testid="line-contact">
+                  Save to contacts
+                </a>
+              )}
             </div>
             <p className="mt-3 text-sm text-ink-3">
               Your first note is free. No account until you want to keep it.{" "}
