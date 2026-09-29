@@ -1,6 +1,8 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { get } from "@/lib/db";
 import { displayName, referrerFor } from "@/lib/server/growth";
+import { trackLineVisit } from "@/lib/server/loops";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -36,6 +38,7 @@ export default async function LinePage({ searchParams }: { searchParams: Promise
   const sp = await searchParams;
   const number = process.env.CHARTSIDE_LINE_NUMBER || "";
   const from = await inviter(sp.ref);
+  await trackLineVisit({ src: sp.src, ref: sp.ref, visitor: (await cookies()).get("cs_vid")?.value }).catch(() => {});
   return (
     <main className="min-h-screen bg-paper">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-5">
