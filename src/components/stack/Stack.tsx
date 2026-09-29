@@ -72,7 +72,8 @@ export default function Stack({ initial, user, focus }: { initial: Decision[]; u
         setText(String(r.detail?.draft ?? ""));
       } else {
         setNote({ tone: "ok", text: r.message });
-        setCards((c) => c.slice(1));
+        const signedEnc = action === "approve" && top.kind === "note.sign" ? top.encounterId : null;
+        setCards((c) => c.slice(1).filter((d) => !signedEnc || d.encounterId !== signedEnc || d.kind === "note.cosign"));
         if (action === "approve" && top.kind === "note.sign") checkGrowth();
       }
     } catch (err) {

@@ -94,7 +94,7 @@ The full web app is the back office. The ghost interface is the front door: reco
 
 | Door | Where | What it does |
 |---|---|---|
-| **Chartside Line** (call a number) | Twilio webhook `{PUBLIC}/api/voice/incoming`, media stream `/api/voice/stream` | The call is the recorder. Consent by voice or keypad, then silence until "Chartside, end visit" or hang-up. A read-back of the note, spoken edits that become proposals, and a text with a sign-in link. A number Chartside hasn't seen before gets a free note as a guest. A verified phone plus PIN unlocks a schedule-aware greeting ("Your 2:40 is…") and chart questions. |
+| **Chartside Line** (call a number) | Twilio webhook `{PUBLIC}/api/voice/incoming`, media stream `/api/voice/stream` | The call is the recorder. Consent by voice or keypad, then silence until "Chartside, end visit" or hang-up. A read-back of the note. Spoken edits go through the chart agent and become suggestion cards in the Stack, never direct changes. Then a text with a sign-in link. A number Chartside hasn't seen before gets a free note as a guest. A verified phone plus PIN unlocks a schedule-aware greeting ("Your 2:40 is…") and chart questions. |
 | **Browser phone** | `/go/phone` | The same call bridge in the browser, with captions, a keypad, a sample visit and a Messages tab. No Twilio account is needed. |
 | **One-tap recorder** | `/go` | A single button, a consent sheet, 5-second chunks to `/api/capture`, a wake lock, and a floating picture-in-picture recorder. It works for guests too. |
 | **iPhone Shortcut** | `/go/shortcut` | Record in Voice Memos, share to "Send to Chartside". A one-time 30-day device key, step-by-step build instructions, and a test `curl`. |
