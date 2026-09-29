@@ -51,3 +51,42 @@ export function directedAtScribe(text: string) {
   if (reviewIntent(text).kind !== "other") return true;
   return /^(please |can you |could you |would you |go ahead and |i want you to |let's )?(make|change|add|remove|delete|drop|shorten|lengthen|expand|fix|update|rewrite|replace|include|put|move|mention|note that|document|code|switch|use|list|read|explain|what|what's|whats|why|how|did|does|is there|are there|which|who|when|tell me|show me|summarize)\b/.test(t);
 }
+
+function isQuestion(text: string) {
+  return /\?\s*$/.test(text.trim()) || /^(is|are|do|does|can|could|would|will|may|shall|okay if|ok if|mind if|es|esta|puedo|le parece)\b/.test(norm(text));
+}
+
+export function consentGiven(text: string) {
+  if (isQuestion(text)) return false;
+  const t = norm(text);
+  if (/\b(say they agreed|or press|when your patient)\b/.test(t)) return false;
+  return /\b((she|he|they|patient|pt|the patient|mom|dad|parent|guardian|everyone|we both|both) (agreed|agrees|consented|consents|said yes|said ok|said okay|is okay with it|is fine with it|is ok with it)|consent (given|granted|obtained)|we have consent|got consent|go ahead and record|start recording|you can record|begin recording|dio su consentimiento|acepto|acepta|aceptaron)\b/.test(t);
+}
+
+export function consentRefused(text: string) {
+  if (isQuestion(text)) return false;
+  const t = norm(text);
+  return /\b((she|he|they|patient|the patient|parent|guardian) (declined|declines|refused|refuses|said no|doesn't want|does not want|would rather not|isn't comfortable|is not comfortable)|no consent|consent (declined|refused)|don't record|do not record|no grabe|no quiere)\b/.test(t);
+}
+
+export function directAnswer(text: string): "yes" | "no" | null {
+  if (isQuestion(text)) return null;
+  if (negative(text)) return "no";
+  if (affirmative(text)) return "yes";
+  return null;
+}
+
+export function echoOf(text: string, spoken: string[], justSpoke = false) {
+  const words = norm(text).split(" ").filter(Boolean);
+  if (words.length < 2) return false;
+  return spoken.some((line) => {
+    const pool = new Set(norm(line).split(" "));
+    const ratio = words.filter((w) => pool.has(w)).length / words.length;
+    return (words.length >= 5 && ratio >= 0.75) || (justSpoke && ratio >= 0.7);
+  });
+}
+
+export function bareWake(text: string) {
+  const t = norm(text);
+  return WAKE.test(t) && t.replace(WAKE, "").trim().length === 0;
+}

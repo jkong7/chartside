@@ -17,9 +17,11 @@ function harness(over: Partial<CallDeps> = {}) {
     waitForNote: async () => ({ spoken: "Assessment: hypertension, at goal." }),
     converse: async (t) => `Changed: ${t}.`,
     markReady: async () => void events.push("ready"),
-    textLink: async (r) => void events.push(`text:${r}`),
+    textLink: async (r) => (events.push(`text:${r}`), true),
+    abandon: async () => void events.push("abandon"),
     declined: async () => void events.push("declined"),
     log: (e) => void events.push(e),
+    echoWindowMs: 0,
     ...over,
   };
   return { call: new ScribeCall(deps), said, events };
@@ -63,7 +65,11 @@ describe("scribe call", () => {
     call.onAudio();
     await call.onTranscript("um hello");
     expect(call.state).toBe("consent");
-    await call.onTranscript("Yes that's okay");
+    await call.onTranscript("Is it okay if I record our visit?");
+    expect(call.state).toBe("consent");
+    await call.onTranscript("Okay, have a seat.");
+    expect(call.state).toBe("consent");
+    await call.onTranscript("She agreed.");
     expect(call.state).toBe("recording");
     expect(events).toContain("open:new");
     call.onAudio();
@@ -125,7 +131,7 @@ describe("scribe call", () => {
     await call.start();
     for (const d of "4812#") await call.onDigit(d);
     await call.onTranscript("no, someone else");
-    await call.onTranscript("they agreed");
+    await call.onTranscript("They agreed.");
     expect(events).toContain("open:new");
   });
 
@@ -135,6 +141,8 @@ describe("scribe call", () => {
     expect(said[0].split(/\s+/).length).toBeLessThan(40);
     await call.onDigit("3");
     expect(said.at(-1)).toBe(LINES.consentScript);
+    await call.onTranscript("You can say yes, or no.");
+    expect(call.state).toBe("consent");
     await call.onTranscript("Yes, that's fine");
     expect(call.state).toBe("recording");
   });
@@ -160,7 +168,9 @@ describe("scribe call", () => {
   it("stops and records nothing when the patient declines", async () => {
     const { call, said, events } = harness();
     await call.start();
-    await call.onTranscript("No, I don't want that");
+    await call.onTranscript("No, I don't think so, let me check the chart");
+    expect(call.state).toBe("consent");
+    await call.onTranscript("She declined.");
     expect(events).toEqual(expect.arrayContaining(["declined", "hangup"]));
     expect(events).not.toContain("open:new");
     expect(said.at(-1)).toBe(LINES.declined);
@@ -245,6 +255,66 @@ describe("scribe call", () => {
     expect(call.state).toBe("review");
     await call.onLimit();
     expect(said.filter((x) => x === LINES.limit)).toHaveLength(1);
+  });
+
+  it("never takes its own prompt heard through the speaker as consent", async () => {
+    const { call } = harness();
+    await call.start();
+    await call.onTranscript("When your patient agrees to be recorded, say they agreed, or press 2.");
+    expect(call.state).toBe("consent");
+  });
+
+  it("joins a wake word and command split across two transcripts", async () => {
+    const { call } = harness();
+    await call.start();
+    await call.onDigit("2");
+    await call.onTranscript("Chartside,");
+    expect(call.state).toBe("recording");
+    await call.onTranscript("end visit.");
+    expect(call.state).toBe("review");
+  });
+
+  it("tells the caller when the text couldn't be sent instead of going silent", async () => {
+    const { call, said } = harness({ textLink: async () => false });
+    await call.start();
+    await call.onDigit("2");
+    await call.onDigit("5");
+    await call.onTranscript("ready");
+    expect(said.at(-1)).toBe(LINES.readyNoText);
+    expect(call.state).toBe("ended");
+  });
+
+  it("falls back to a new visit when the scheduled one can't be recorded, and hangs up cleanly if nothing works", async () => {
+    let tries = 0;
+    const { call, events } = harness({
+      caller: { name: "Dr. Kong", guest: false, hasPin: true },
+      nextVisit: async () => ({ encounterId: "enc_9", spoken: "Your 2:40 is Maria Lopez." }),
+      open: async (i) => {
+        tries++;
+        if (i.encounterId) throw new Error("This visit has already been recorded");
+        events.push("open:new");
+      },
+    });
+    await call.start();
+    for (const d of "4812#") await call.onDigit(d);
+    await call.onTranscript("yes");
+    await call.onDigit("2");
+    expect(tries).toBe(2);
+    expect(call.state).toBe("recording");
+    const broken = harness({ open: async () => { throw new Error("db down"); } });
+    await broken.call.start();
+    await broken.call.onDigit("2");
+    expect(broken.said.at(-1)).toBe(LINES.openFailed);
+    expect(broken.events).toContain("hangup");
+  });
+
+  it("drops the empty visit when the caller hangs up right after consent", async () => {
+    const { call, events } = harness();
+    await call.start();
+    await call.onDigit("2");
+    await call.onHangup();
+    expect(events).toContain("abandon");
+    expect(events).not.toContain("finish");
   });
 
   it("repeats the last line on request", async () => {

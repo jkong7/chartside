@@ -1,4 +1,4 @@
-import { affirmative, directedAtScribe, negative, reviewIntent, wakeCommand } from "./intents";
+import { affirmative, bareWake, consentGiven, consentRefused, directAnswer, directedAtScribe, echoOf, negative, reviewIntent, wakeCommand } from "./intents";
 
 export type CallState = "greeting" | "pin" | "confirmPatient" | "consent" | "recording" | "paused" | "drafting" | "review" | "ended";
 
@@ -23,9 +23,11 @@ export interface CallDeps {
   waitForNote(): Promise<NoteBrief | null>;
   converse(text: string): Promise<string>;
   markReady(): Promise<void>;
-  textLink(reason: "ready" | "processing"): Promise<void>;
+  textLink(reason: "ready" | "processing"): Promise<boolean>;
   declined(): Promise<void>;
+  abandon(): Promise<void>;
   log(event: string, data?: Record<string, unknown>): void;
+  echoWindowMs?: number;
 }
 
 export const LINES = {
@@ -40,7 +42,10 @@ export const LINES = {
   reviewPrompt: "Say ready, and I'll put it at the top of your stack to sign. Tell me anything to change. Or hang up, and I'll text you the link.",
   ready: "Done. It's at the top of your stack. I'm texting you the link to review and sign. Goodbye.",
   readyGuest: "Done. I'm texting you a link to read it and save it, free. Goodbye.",
+  readyNoText: "Done. It's at the top of your stack. I couldn't send you a text, so open Chartside to review and sign. Goodbye.",
   later: "Okay. I'm texting you the link now. Goodbye.",
+  laterNoText: "I couldn't send you a text, but your note is waiting in Chartside. Goodbye.",
+  openFailed: "Sorry, I couldn't start recording. Nothing was kept. Please call back in a moment.",
   slow: "This one is taking longer than usual. I'll text you as soon as it's ready. Goodbye.",
   pinAsk: "Enter your phone PIN, then pound, to hear your schedule. Or press star to just record.",
   pinBad: "That PIN didn't match. You can still record, and I'll match the patient afterward.",
@@ -58,6 +63,10 @@ export class ScribeCall {
   private pendingVisit: NextVisit | null = null;
   private pinDigits = "";
   private spanish = false;
+  private recentSpoken: string[] = [];
+  private askedPatientAt = 0;
+  private wakePrimedAt = 0;
+  private spokeEndedAt = 0;
 
   constructor(private deps: CallDeps) {}
 
@@ -102,13 +111,23 @@ export class ScribeCall {
     await this.say(`Thanks. I don't see a scheduled visit right now, so I'll match the patient afterward. ${LINES.consentAsk}`);
   }
 
-  private async say(text: string) {
+  private remember(text: string) {
     this.lastSpoken = text;
-    await this.deps.say(text);
+    this.recentSpoken = [...this.recentSpoken.slice(-3), text];
+  }
+
+  private async say(text: string, lang?: "en" | "es") {
+    this.remember(text);
+    await this.deps.say(text, lang);
+    this.spokeEndedAt = Date.now();
   }
 
   async onTranscript(text: string) {
     if (!text.trim() || this.busy || this.state === "ended") return;
+    if (echoOf(text, this.recentSpoken, Date.now() - this.spokeEndedAt < (this.deps.echoWindowMs ?? 2000))) {
+      this.deps.log("call.echo_ignored");
+      return;
+    }
     this.busy = true;
     try {
       await this.handleTranscript(text);
@@ -133,13 +152,24 @@ export class ScribeCall {
         return;
       }
       case "consent": {
-        if (negative(text)) return this.decline();
-        if (affirmative(text)) return this.beginRecording();
+        if (consentRefused(text)) return this.decline();
+        if (consentGiven(text)) return this.beginRecording();
+        if (this.askedPatientAt && Date.now() - this.askedPatientAt < 25_000) {
+          const a = directAnswer(text);
+          if (a === "no") return this.decline();
+          if (a === "yes") return this.beginRecording();
+        }
         return;
       }
       case "recording":
       case "paused": {
-        const cmd = wakeCommand(text);
+        if (bareWake(text)) {
+          this.wakePrimedAt = Date.now();
+          return;
+        }
+        const primed = this.wakePrimedAt && Date.now() - this.wakePrimedAt < 4000;
+        this.wakePrimedAt = 0;
+        const cmd = wakeCommand(primed ? `chartside ${text}` : text);
         if (cmd === "pause" && this.state === "recording") return this.pause();
         if (cmd === "resume" && this.state === "paused") return this.resume();
         if (cmd === "end") return this.endVisit();
@@ -154,13 +184,13 @@ export class ScribeCall {
         if (intent.kind === "repeat") return this.say(this.lastSpoken);
         if (intent.kind === "ready") {
           await this.deps.markReady();
-          await this.deps.textLink("ready");
-          await this.say(this.deps.caller.guest ? LINES.readyGuest : LINES.ready);
+          const sent = await this.deps.textLink("ready").catch(() => false);
+          await this.say(!sent ? LINES.readyNoText : this.deps.caller.guest ? LINES.readyGuest : LINES.ready);
           return this.close();
         }
         if (intent.kind === "later") {
-          await this.deps.textLink("ready");
-          await this.say(LINES.later);
+          const sent = await this.deps.textLink("ready").catch(() => false);
+          await this.say(sent ? LINES.later : LINES.laterNoText);
           return this.close();
         }
         this.reviewTurns++;
@@ -200,12 +230,17 @@ export class ScribeCall {
         return;
       }
       if (this.state === "consent") {
-        if (d === "3") return await this.say(LINES.consentScript);
+        if (d === "3") {
+          await this.say(LINES.consentScript);
+          this.askedPatientAt = Date.now();
+          return;
+        }
         if (d === "9") {
           this.spanish = true;
           this.deps.log("call.spanish");
-          this.lastSpoken = LINES.consentScriptEs;
-          return await this.deps.say(LINES.consentScriptEs, "es");
+          await this.say(LINES.consentScriptEs, "es");
+          this.askedPatientAt = Date.now();
+          return;
         }
         if (d === "2" || d === "1") return await this.beginRecording();
         if (d === "0") return await this.decline();
@@ -256,10 +291,34 @@ export class ScribeCall {
   }
 
   private async beginRecording() {
-    await this.deps.open({ encounterId: this.pendingVisit?.encounterId, lang: this.spanish ? "multi" : undefined });
+    const lang = this.spanish ? ("multi" as const) : undefined;
+    try {
+      await this.deps.open({ encounterId: this.pendingVisit?.encounterId, lang });
+    } catch (err) {
+      if (!this.pendingVisit) return this.failOpen(err);
+      this.deps.log("call.scheduled_open_failed", { error: err instanceof Error ? err.message : "error" });
+      this.pendingVisit = null;
+      try {
+        await this.deps.open({ lang });
+      } catch (err2) {
+        return this.failOpen(err2);
+      }
+    }
+    if (this.state === "ended") {
+      await this.deps.abandon();
+      return;
+    }
     this.deps.log("call.consent_granted", { scheduled: !!this.pendingVisit });
-    await this.say(LINES.recording);
     this.state = "recording";
+    await this.say(LINES.recording);
+  }
+
+  private async failOpen(err: unknown) {
+    this.deps.log("call.open_failed", { error: err instanceof Error ? err.message : "error" });
+    if (this.state === "ended") return;
+    this.state = "ended";
+    await this.deps.say(LINES.openFailed);
+    this.deps.hangup();
   }
 
   private async decline() {
@@ -277,9 +336,10 @@ export class ScribeCall {
   }
 
   private async resume() {
-    await this.say(LINES.resumed);
+    if (this.state === "ended") return;
     this.state = "recording";
     this.deps.log("call.resumed");
+    await this.say(LINES.resumed);
   }
 
   private async endVisit() {
@@ -307,7 +367,10 @@ export class ScribeCall {
     this.state = "ended";
     this.deps.log("call.hangup", { state: was });
     if (was === "recording" || was === "paused") {
-      if (!this.hasAudio) return;
+      if (!this.hasAudio) {
+        await this.deps.abandon();
+        return;
+      }
       await this.deps.finish();
       await this.deps.textLink("processing");
       return;
