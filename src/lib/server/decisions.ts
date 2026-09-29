@@ -92,7 +92,7 @@ async function signCards(u: User): Promise<Decision[]> {
     const enc = (await encounters.get(u, q.id))!;
     const rec = await notes.latest(q.id);
     const origin = await artifacts.get<{ channel?: string }>(q.id, "capture_origin");
-    const ready = await artifacts.get<{ at: string; callSid?: string }>(q.id, "phone_ready");
+    const ready = await artifacts.get<{ at: string; callSid?: string; sim?: boolean }>(q.id, "phone_ready");
     const call = await artifacts.get<{ verifiedBy?: string; scheduledVisit?: boolean }>(q.id, "phone_call");
     const summaryOnSign = await artifacts.get<{ at: string }>(q.id, "summary_on_sign");
     const unverified = call?.verifiedBy === "caller-id";
@@ -109,7 +109,7 @@ async function signCards(u: User): Promise<Decision[]> {
       priority: ready ? 0 : q.ageHours >= 24 ? 1 : 2,
       at: enc.endedAt ?? q.scheduledAt,
       actions: [{ action: "approve", label: "Sign", needsScreen: true, payload: ["reviewMs", "force"] }, ...(discardable ? [{ action: "reject" as const, label: unverified ? "I didn't make this call, delete it" : "Delete this recording", needsScreen: true }] : []), snooze],
-      detail: { blockers: q.blockers, words: words(rec?.content), ageHours: q.ageHours, text: rec ? noteToText(rec.content) : "", channel: origin?.channel ?? null, markedReady: ready ? { at: ready.at, label: `Marked ready on a call at ${time(ready.at)}` } : null, unverifiedCaller: unverified ? { label: "Caller ID only, no PIN", help: "If you didn't make this call, delete it." } : null, summaryOnSign: summaryOnSign && enc.patientId ? { label: "Patient summary goes out when you sign" } : null },
+      detail: { blockers: q.blockers, words: words(rec?.content), ageHours: q.ageHours, text: rec ? noteToText(rec.content) : "", channel: origin?.channel ?? null, markedReady: ready ? { at: ready.at, label: `Marked ready on a ${ready.sim ? "browser " : ""}call at ${time(ready.at)}` } : null, unverifiedCaller: unverified ? { label: "Caller ID only, no PIN", help: "If you didn't make this call, delete it." } : null, summaryOnSign: summaryOnSign && enc.patientId ? { label: "Patient summary goes out when you sign" } : null },
       openUrl: `/encounters/${q.id}`,
     };
   }));

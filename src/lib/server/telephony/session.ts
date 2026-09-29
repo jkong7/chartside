@@ -168,7 +168,7 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
     },
     markReady: async () => {
       if (!encId) return;
-      await artifacts.set(encId, "phone_ready", { at: new Date().toISOString(), callSid: claims.callSid });
+      await artifacts.set(encId, "phone_ready", { at: new Date().toISOString(), callSid: claims.callSid, sim: claims.sim });
       await audit.log(user, encId, "phone.ready_to_sign", {});
     },
     textLink: async (reason) => {
