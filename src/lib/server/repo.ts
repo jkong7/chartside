@@ -42,6 +42,8 @@ export interface User extends BaseUser {
 }
 
 export interface UserPrefs {
+  clinicNudgeHour?: number | null;
+  textOptOut?: boolean;
   defaultTemplate?: string;
   state?: string;
   outputLang?: string;
