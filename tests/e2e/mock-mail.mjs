@@ -4,6 +4,7 @@ const PORT = Number(process.env.MOCK_MAIL_PORT || 3295);
 const KEY = "test-sendgrid";
 const messages = [];
 const faxes = [];
+const texts = [];
 
 createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
@@ -15,6 +16,18 @@ createServer((req, res) => {
     if (req.method === "GET" && url.pathname === "/messages") {
       const to = url.searchParams.get("to");
       return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(messages.filter((m) => !to || m.to === to)));
+    }
+    if (req.method === "GET" && url.pathname === "/texts") {
+      const to = url.searchParams.get("to");
+      return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(texts.filter((m) => !to || m.to === to)));
+    }
+    if (req.method === "POST" && /^\/2010-04-01\/Accounts\/[^/]+\/Messages\.json$/.test(url.pathname)) {
+      if (req.headers.authorization !== `Basic ${Buffer.from("ACtest:test-twilio").toString("base64")}`) return res.writeHead(401).end(JSON.stringify({ message: "bad auth" }));
+      const f = new URLSearchParams(raw);
+      if (!f.get("To") || !f.get("From") || !f.get("Body")) return res.writeHead(400).end(JSON.stringify({ message: "To, From and Body are required" }));
+      const sid = `SM${String(texts.length + 1).padStart(32, "0")}`;
+      texts.push({ sid, to: f.get("To"), from: f.get("From"), body: f.get("Body") });
+      return res.writeHead(201, { "content-type": "application/json" }).end(JSON.stringify({ sid, status: "queued" }));
     }
     if (req.method === "GET" && url.pathname === "/faxes") return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(faxes));
     if (req.method === "POST" && url.pathname === "/v2.1/faxes") {
