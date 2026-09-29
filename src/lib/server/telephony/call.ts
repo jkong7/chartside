@@ -164,7 +164,14 @@ export class ScribeCall {
     }
   }
 
-  private async handleTranscript(text: string): Promise<void> {
+  private async handleTranscript(raw: string): Promise<void> {
+    if (bareWake(raw)) {
+      this.wakePrimedAt = Date.now();
+      return;
+    }
+    const primed = this.wakePrimedAt && Date.now() - this.wakePrimedAt < 6000;
+    this.wakePrimedAt = 0;
+    const text = primed ? `Chartside, ${raw}` : raw;
     switch (this.state) {
       case "confirmPatient": {
         if (affirmative(text)) {
@@ -198,13 +205,7 @@ export class ScribeCall {
       }
       case "recording":
       case "paused": {
-        if (bareWake(text)) {
-          this.wakePrimedAt = Date.now();
-          return;
-        }
-        const primed = this.wakePrimedAt && Date.now() - this.wakePrimedAt < 6000;
-        this.wakePrimedAt = 0;
-        const cmd = wakeCommand(primed ? `chartside ${text}` : text);
+        const cmd = wakeCommand(text);
         if (cmd === "pause" && this.state === "recording") return this.pause();
         if (cmd === "resume" && this.state === "paused") return this.resume();
         if (cmd === "end") return this.endVisit();

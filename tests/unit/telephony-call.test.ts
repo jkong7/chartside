@@ -328,6 +328,10 @@ describe("scribe call", () => {
     expect(asked).toBe("");
     await pinned.call.onTranscript("Chartside, what's left today?");
     expect(asked).toBe("what's left today?");
+    asked = "";
+    await pinned.call.onTranscript("Chartside.");
+    await pinned.call.onTranscript("What's my next visit?");
+    expect(asked).toBe("What's my next visit?");
     expect(pinned.said.at(-1)).toBe(`You have 3 notes to sign. ${LINES.askMore}`);
     expect(pinned.call.state).toBe("consent");
     const open = harness({ ask: async () => "should not be asked" });
