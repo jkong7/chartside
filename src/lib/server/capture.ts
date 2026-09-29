@@ -63,7 +63,12 @@ interface CaptureOrigin {
   error?: string;
   warnings?: string[];
   finishedAt?: string;
+  cid?: string;
+  lastSeq?: number;
 }
+
+const cleanCid = (v: string | undefined) => (v && /^[A-Za-z0-9_-]{8,64}$/.test(v) ? v : undefined);
+const seqOf = (v: string | undefined) => (v !== undefined && /^\d{1,6}$/.test(v) ? Number(v) : undefined);
 
 export async function readCaptureRequest(req: Request): Promise<CaptureInput> {
   const url = new URL(req.url);
@@ -169,6 +174,11 @@ async function targetEncounter(user: User, o: Record<string, string>, startedAt:
 export async function startCapture(auth: CaptureAuth, input: CaptureInput) {
   const { user, tokenId } = auth;
   assertCan(user, "clinical.capture");
+  const cid = cleanCid(input.opts.cid);
+  if (cid) {
+    const prior = await get<{ encounter_id: string }>("SELECT a.encounter_id FROM artifacts a JOIN encounters e ON e.id = a.encounter_id WHERE a.kind = 'capture_origin' AND e.user_id = ? AND a.content LIKE ?", user.id, `%"cid":"${cid}"%`);
+    if (prior) return appendCapture(auth, prior.encounter_id, input);
+  }
   await purgeGuests();
   const o = input.opts;
   if (o.consent !== "granted") throw new Invalid("Record the patient's consent: send consent=granted. If the patient declined, don't record.");
@@ -184,7 +194,7 @@ export async function startCapture(auth: CaptureAuth, input: CaptureInput) {
   const startedAt = new Date(Date.now() - (durationS ?? 0) * 1000).toISOString();
   const enc = await targetEncounter(user, o, startedAt, lang);
   await encounters.update(user, enc.id, { status: "recording", startedAt, ...(durationS ? { durationS } : {}), ...(o.templateId ? { templateId: o.templateId } : {}) });
-  await artifacts.set(enc.id, "capture_origin", { tokenId, userId: user.id, channel: (o.channel || (tokenId ? "token" : "session")).slice(0, 30), createdAt: new Date().toISOString() } satisfies CaptureOrigin);
+  await artifacts.set(enc.id, "capture_origin", { tokenId, userId: user.id, channel: (o.channel || (tokenId ? "token" : "session")).slice(0, 30), createdAt: new Date().toISOString(), ...(cid ? { cid, lastSeq: seqOf(o.seq) ?? 0 } : {}) } satisfies CaptureOrigin);
   await recordConsent(user, enc, { decision: "granted", method, state, othersPresent });
   const bytes = input.audio ? await storeAudio(enc.id, input.audio, input.mime!, durationS) : 0;
   await audit.log(user, enc.id, "capture.started", { tokenId, bytes, finish });
@@ -212,7 +222,11 @@ export async function appendCapture(auth: CaptureAuth, encId: string, input: Cap
   if (enc.status !== "recording" && enc.status !== "paused") throw new Invalid(enc.status === "signed" ? "This visit is signed" : "This visit is already being drafted");
   if (!(await consents.latest(enc.id))) throw new Forbidden("No consent is on file for this visit");
   const durationS = Number(input.opts.durationS) > 0 ? Math.round(Number(input.opts.durationS)) : null;
-  const bytes = input.audio ? await storeAudio(enc.id, input.audio, input.mime!, null) : (await audioChunks.list(enc.id)).reduce((n, c) => n + c.bytes, 0);
+  const seq = seqOf(input.opts.seq);
+  const origin = await artifacts.get<CaptureOrigin>(enc.id, "capture_origin");
+  const duplicate = seq !== undefined && origin?.lastSeq !== undefined && seq <= origin.lastSeq;
+  const bytes = input.audio && !duplicate ? await storeAudio(enc.id, input.audio, input.mime!, null) : (await audioChunks.list(enc.id)).reduce((n, c) => n + c.bytes, 0);
+  if (input.audio && !duplicate && seq !== undefined && origin) await artifacts.set(enc.id, "capture_origin", { ...origin, lastSeq: seq });
   if (durationS) await encounters.update(auth.user, enc.id, { durationS });
   const finish = truthy(input.opts.finish);
   if (finish) {
