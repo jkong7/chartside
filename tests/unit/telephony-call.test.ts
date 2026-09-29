@@ -216,6 +216,25 @@ describe("scribe call", () => {
     expect(said[0]).toContain("nothing to sign up for");
   });
 
+  it("ignores room chatter during read-back but answers requests aimed at it", async () => {
+    let asked = "";
+    const { call, said } = harness({ converse: async (t) => ((asked = t), `Changed: ${t}.`) });
+    await call.start();
+    await call.onDigit("2");
+    await call.onDigit("5");
+    const n = said.length;
+    await call.onTranscript("Hi Maria, good to see you again. How have things been?");
+    await call.onTranscript("Pretty good honestly, my stomach was upset the first week.");
+    expect(said.length).toBe(n);
+    expect(asked).toBe("");
+    await call.onTranscript("Chartside, add a follow up in three months.");
+    expect(asked).toBe("add a follow up in three months.");
+    await call.onTranscript("Make the plan shorter");
+    expect(asked).toBe("Make the plan shorter");
+    await call.onTranscript("What code did you pick?");
+    expect(asked).toBe("What code did you pick?");
+  });
+
   it("repeats the last line on request", async () => {
     const { call, said } = harness();
     await call.start();

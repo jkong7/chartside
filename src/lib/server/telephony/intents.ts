@@ -43,3 +43,11 @@ export function reviewIntent(text: string): ReviewIntent {
   if (/^(no|nope|nothing|that's all|that's it|all set|done|bye|goodbye|thanks|thank you|later|text me|send it|send me the link)\b/.test(t) || /\b(text me|send me the link|i'll review later|review later|hang up)\b/.test(t)) return { kind: "later" };
   return { kind: "other", text: text.trim() };
 }
+
+export function directedAtScribe(text: string) {
+  const t = norm(text);
+  if (!t) return false;
+  if (WAKE.test(t)) return true;
+  if (reviewIntent(text).kind !== "other") return true;
+  return /^(please |can you |could you |would you |go ahead and |i want you to |let's )?(make|change|add|remove|delete|drop|shorten|lengthen|expand|fix|update|rewrite|replace|include|put|move|mention|note that|document|code|switch|use|list|read|explain|what|what's|whats|why|how|did|does|is there|are there|which|who|when|tell me|show me|summarize)\b/.test(t);
+}

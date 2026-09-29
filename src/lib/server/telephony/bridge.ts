@@ -167,7 +167,7 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
       const c = call;
       interrupt();
       void (async () => {
-        for (let i = 0; i < 30 && c.isBusy; i++) await new Promise((r) => setTimeout(r, 100));
+        for (let i = 0; i < 200 && c.isBusy; i++) await new Promise((r) => setTimeout(r, 100));
         await c.onDigit(digit);
         emitState();
       })().catch((err) => console.error("phone digit failed", err));

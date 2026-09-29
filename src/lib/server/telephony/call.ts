@@ -1,4 +1,4 @@
-import { affirmative, negative, reviewIntent, wakeCommand } from "./intents";
+import { affirmative, directedAtScribe, negative, reviewIntent, wakeCommand } from "./intents";
 
 export type CallState = "greeting" | "pin" | "confirmPatient" | "consent" | "recording" | "paused" | "drafting" | "review" | "ended";
 
@@ -145,7 +145,11 @@ export class ScribeCall {
         return;
       }
       case "review": {
-        const intent = reviewIntent(text);
+        if (!directedAtScribe(text)) {
+          this.deps.log("call.ignored_chatter");
+          return;
+        }
+        const intent = reviewIntent(text.replace(/^\s*chart ?side[,.!]?\s*/i, ""));
         if (intent.kind === "repeat") return this.say(this.lastSpoken);
         if (intent.kind === "ready") {
           await this.deps.markReady();
@@ -159,7 +163,7 @@ export class ScribeCall {
           return this.close();
         }
         this.reviewTurns++;
-        const reply = await this.deps.converse(intent.text).catch(() => "Sorry, I couldn't do that one. You can change it when you review the note.");
+        const reply = await this.deps.converse(intent.text.replace(/^\s*chart ?side[,.!]?\s*/i, "")).catch(() => "Sorry, I couldn't do that one. You can change it when you review the note.");
         await this.say(`${reply} ${this.reviewTurns === 1 ? LINES.anythingElse : ""}`.trim());
         return;
       }
