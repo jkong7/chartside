@@ -1,6 +1,6 @@
 import { dial } from "../tests/e2e/fake-twilio.mjs";
 
-const args = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, "").split("=")).map(([k, v]) => [k, v ?? "1"]));
+const args = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, "")).map((a) => (a.includes("=") ? [a.slice(0, a.indexOf("=")), a.slice(a.indexOf("=") + 1)] : [a, "1"])));
 const base = args.base || "http://localhost:3100";
 const script = args.script ? JSON.parse(args.script) : [{ waitPrompts: 1 }, { digit: "2" }, { waitPrompts: 2 }, { wav: "tests/e2e/fixtures/visit.wav" }, { say: "Chartside, end visit." }, { waitPrompts: 4, timeoutMs: 120000 }, { say: "Ready." }, { waitClose: true, timeoutMs: 30000 }];
 const out = await dial({ base, sim: !!args.sim, from: args.from, cookie: args.cookie, twilioToken: process.env.TWILIO_AUTH_TOKEN, deepgramKey: process.env.DEEPGRAM_API_KEY, mockDeepgram: args.mock, steps: script, log: (m) => console.log(m) });
