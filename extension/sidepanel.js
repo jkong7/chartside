@@ -66,6 +66,7 @@ function renderRec(error) {
     box.replaceChildren(
       el("p", {}, state.phase === "recording" ? el("span", { class: "dot" }) : "", state.phase === "recording" ? "Recording" : "Paused"),
       el("div", { class: "timer", id: "rec-timer" }, fmt(r ? r.seconds() : 0)),
+      state.offline ? el("p", { class: "warn", id: "rec-offline" }, "No connection. Keep going: audio is held here and uploads when you're back online.") : "",
       el("p", { class: "row", style: "justify-content:center" },
         state.phase === "recording" ? el("button", { id: "rec-pause", onclick: () => r.pause() }, "Pause") : el("button", { id: "rec-resume", onclick: () => r.resume() }, "Resume"),
         el("button", { class: "primary", id: "rec-end", onclick: endRec }, "End visit")),
@@ -85,6 +86,7 @@ function fmt(s) {
 async function startRec() {
   const r = new globalThis.ChartsideRecorder(state.base, (st) => {
     state.phase = st.phase;
+    state.offline = !!st.offline;
     if (st.phase === "failed") renderRec(st.error === "signin" ? "Sign in to Chartside in a browser tab, then record again." : st.error);
     else renderRec();
   });

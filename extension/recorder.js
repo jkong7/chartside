@@ -27,19 +27,26 @@
       this.queue = this.queue.then(async () => {
         if (this.error) return;
         const q = new URLSearchParams({ consent: "granted", finish: String(finish), channel: "extension", durationS: String(Math.max(1, this.seconds())) });
-        const url = this.encId ? `${this.base}/api/capture/${this.encId}?${q}` : `${this.base}/api/capture?${q}`;
-        for (let attempt = 0; attempt < 4; attempt++) {
+        for (let attempt = 0; ; attempt++) {
+          const url = this.encId ? `${this.base}/api/capture/${this.encId}?${q}` : `${this.base}/api/capture?${q}`;
           const r = await fetch(url, { method: "POST", credentials: "include", headers: { "content-type": this.mime.split(";")[0] }, body: blob.size ? blob : null }).catch(() => null);
           if (r && r.ok) {
             const j = await r.json();
             if (!this.encId) this.encId = j.encounterId;
+            if (this.offline) {
+              this.offline = false;
+              this.onState({ phase: this.rec && this.rec.state === "paused" ? "paused" : this.rec && this.rec.state === "inactive" ? "finishing" : "recording" });
+            }
             return;
           }
           if (r && r.status === 401) throw new Error("signin");
-          if (r && r.status < 500) throw new Error((await r.json().catch(() => ({}))).error || `Upload failed (${r.status})`);
-          await new Promise((res) => setTimeout(res, 800 * (attempt + 1)));
+          if (r && r.status < 500 && r.status !== 408 && r.status !== 429) throw new Error((await r.json().catch(() => ({}))).error || `Upload failed (${r.status})`);
+          if (attempt >= 1 && !this.offline) {
+            this.offline = true;
+            this.onState({ phase: this.rec && this.rec.state === "paused" ? "paused" : this.rec && this.rec.state === "inactive" ? "finishing" : "recording", offline: true });
+          }
+          await new Promise((res) => setTimeout(res, Math.min(10000, 800 * 2 ** Math.min(attempt, 4))));
         }
-        throw new Error("Couldn't reach Chartside");
       });
       this.queue.catch((err) => {
         if (this.error) return;
