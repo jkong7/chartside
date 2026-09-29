@@ -86,6 +86,105 @@ Chartside covers the work around the note that enterprise scribes compete on. Th
 | **Long visits** | Recordings stop at a configurable cap (`CHARTSIDE_MAX_RECORDING_MIN`, default 120) with a 30-minute warning, and notes stuck drafting after a crash are recovered automatically. |
 | **Chrome extension** (`extension/`) | Side panel with today's notes beside any web EHR, section copy, and one-click push into EHR fields mapped by pointing at them once. |
 
+## Chartside Line and the ghost interface
+
+The full web app is the back office. The ghost interface is the front door: record a visit without opening the app, get the note behind one tap, and decide everything else from a phone. The plan and research are in [docs/INTERFACE-PLAN.md](docs/INTERFACE-PLAN.md) and [docs/research](docs/research).
+
+### The doors
+
+| Door | Where | What it does |
+|---|---|---|
+| **Chartside Line** (call a number) | Twilio webhook `{PUBLIC}/api/voice/incoming`, media stream `/api/voice/stream` | The call is the recorder. Consent by voice or keypad, then silence until "Chartside, end visit" or hang-up. A read-back of the note, spoken edits that become proposals, and a text with a sign-in link. A number Chartside hasn't seen before gets a free note as a guest. A verified phone plus PIN unlocks a schedule-aware greeting ("Your 2:40 is…") and chart questions. |
+| **Browser phone** | `/go/phone` | The same call bridge in the browser, with captions, a keypad, a sample visit and a Messages tab. No Twilio account is needed. |
+| **One-tap recorder** | `/go` | A single button, a consent sheet, 5-second chunks to `/api/capture`, a wake lock, and a floating picture-in-picture recorder. It works for guests too. |
+| **iPhone Shortcut** | `/go/shortcut` | Record in Voice Memos, share to "Send to Chartside". A one-time 30-day device key, step-by-step build instructions, and a test `curl`. |
+| **The Stack** | `/go/stack` | One card per pending decision: sign a note (with the full note on screen), co-sign, answer a coding question, match a recording to a patient, reply to a patient, finish a task, apply a suggestion. Swipe right to approve, left for later. |
+| **Ask** | `/go/ask`, `POST /api/agent` | Claude with tools over the chart. It answers from the chart and only proposes changes, which land in the Stack. Without an API key a small local router answers common questions. |
+| **Settings** | `/go/settings` | Phone verification, call PIN, connected devices, NPI, the weekly receipt, referral link and credits. |
+| **Landing** | `/line`, `/line/contact.vcf` | The public page for the number, with an "invited by" state for referral links. |
+
+For developers, `POST /api/capture` is the one capture endpoint behind every door. It takes raw or multipart audio (webm, m4a, mp4, wav, ogg, mp3 or aac, up to 100 MB) with `consent=granted`, authenticated by the session cookie or a `Bearer cs_cap_…` capture token. It drafts in the background, with `GET /api/capture/{id}` for status and `GET /api/capture/{id}/note` for the note. Mint a token with `POST /api/capture/token` (session) or `POST /api/v1/capture/token` (API key with `encounters:write`).
+
+### Identity without signup
+
+- **Email:** sign in with an emailed 6-digit code or a single-use link. The link page only shows a Continue button, so link scanners can't spend it. Org MFA and SSO still apply.
+- **Try first:** `POST /api/auth/try` creates a guest who can record right away. Guests can't sign, share, create keys, invite or message patients. Saving with an email claims the visits, either into a new account or merged into an existing one. Unclaimed guests and their audio are deleted after `CHARTSIDE_GUEST_HOURS`.
+- **Phone:** verify a number by SMS code. A text link to a phone guest proves possession of that number. The call PIN is 4 to 6 digits, hashed with scrypt, and locks for 30 minutes after five misses.
+
+### Safety rules
+
+- **What carries patient data:** voice calls may. Text messages never do: they carry only a time, a count and a sign-in link. Emails carry only codes and links. The page behind the link carries the PHI.
+- **Nothing is signed, ordered, billed or sent from voice, text or the agent.** Those channels can only snooze or propose. Approvals happen on screen, and a sign of a note over 300 words in under 20 seconds is flagged for QA.
+- **Caller ID can be spoofed.** Without a PIN a call can only record and hear back the note it just made.
+- **Consent comes first.** Consent is recorded before audio is kept, in the same consent ledger as the web app. All-party states ask about others in the room.
+- **Audio at rest is encrypted** with AES-256-GCM under `CHARTSIDE_SECRET`.
+- **Growth loops never include patient data.** The weekly receipt, share footers and referral links are built from counts only, and e2e tests scan them against every demo patient.
+
+### Growth
+
+- **NPI:** self-attested, matched against the public NPPES registry. It adds a badge and grants nothing.
+- **Referral credits:** two-sided, flat and capped at 12 months, with no cash.
+- **Weekly receipt:** a receipt card with a share image.
+- **Footers:** attribution footers on the patient recap and on shared notes.
+- **Invite:** a one-time invite card after the third signed note.
+- **Analytics:** every loop is measured in `loop_events` (exposure, click, signup, activation). **Admin → Growth** shows the funnel per loop, weekly K (signups per active inviter), time to first note, and activation (3 signed notes within 7 days).
+
+### Configuration
+
+| Variable | Purpose |
+|---|---|
+| `CHARTSIDE_PUBLIC_URL` | The public origin used in texts, emails, sign-in links and receipts, e.g. `https://chartside.example.com` |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | Twilio Voice and SMS. Point the number's voice webhook at `{CHARTSIDE_PUBLIC_URL}/api/voice/incoming` (HTTP POST). Requests are checked against `X-Twilio-Signature`. |
+| `TWILIO_BASE_URL` | Override the Twilio API base URL, used for tests |
+| `CHARTSIDE_ALLOW_UNSIGNED_VOICE` | Accept unsigned voice webhooks in production. Leave unset. |
+| `CHARTSIDE_LINE_NUMBER` | The E.164 number shown on `/line` and in the vCard |
+| `CHARTSIDE_LINE_DISPLAY` | The label for the browser phone at `/go/phone` (default `Demo line`) |
+| `CHARTSIDE_TZ` | The time zone for spoken times and the schedule-aware greeting (default `America/Chicago`) |
+| `CHARTSIDE_PHONE_VOICE` | The Deepgram Aura voice for prompts (default `aura-2-thalia-en`) |
+| `CHARTSIDE_SKIP_WARM` | Skip pre-rendering the fixed phone prompts at startup |
+| `CHARTSIDE_PHONE_DEBUG` | Log call state-machine events |
+| `DEEPGRAM_API_KEY` | Speech to text for the web app and the phone line, plus text to speech on calls |
+| `ANTHROPIC_API_KEY` | Claude for notes and the agent |
+| `CHARTSIDE_MODEL` | The note model (default `claude-opus-5`) |
+| `CHARTSIDE_AGENT_MODEL` | The agent model (default `claude-sonnet-5-5`, chosen for voice latency) |
+| `CHARTSIDE_GUEST_HOURS` | How long an unclaimed guest visit is kept (default 2) |
+| `CHARTSIDE_DELIVERY` | `file` writes outgoing email and SMS to `data/outbox/` instead of sending, and `none` disables delivery. By default, outside production, messages go to `data/outbox/` when no provider is configured. |
+| `SENDGRID_API_KEY`, `CHARTSIDE_EMAIL_FROM` | Email for sign-in codes and shares. SendGrid does not sign a BAA, so email carries no patient data. |
+| `NPPES_BASE_URL` | Override the NPI registry base URL, used for tests |
+| `CHARTSIDE_OPERATOR_EMAILS` | Comma-separated emails that may see growth metrics across all organizations |
+| `HOSTNAME_BIND`, `PORT` | Where `server.ts` listens (default `0.0.0.0:3100`) |
+
+### Running the phone line
+
+The phone line needs a WebSocket upgrade for Twilio media streams, so it runs through the custom server rather than `next start`:
+
+```bash
+npm run build
+NODE_ENV=production npx tsx server.ts        # http://localhost:3100, with /api/voice/stream
+```
+
+`npm run dev` still serves every page and API except the phone WebSocket. For a real number, expose the server publicly (for example `cloudflared tunnel --url http://localhost:3100`), set `CHARTSIDE_PUBLIC_URL` to that address, and point the Twilio number's webhook at `/api/voice/incoming`.
+
+To place a call without a phone, use the fake Twilio caller:
+
+```bash
+TWILIO_AUTH_TOKEN=… node scripts/fake-twilio-call.mjs --base=http://localhost:3100 --from=+13125550123
+node scripts/fake-twilio-call.mjs --base=http://localhost:3100 --sim   # through the browser-phone simulator: no Twilio token, but the server needs DEEPGRAM_API_KEY
+```
+
+It dials the bridge, streams `tests/e2e/fixtures/visit.wav` as 8 kHz mu-law, says "Chartside, end visit", and prints the call result and any texts it sent. Pass `--cookie='cs_session=…'` to call as a signed-in clinician, `--mock=http://localhost:3299` to use the mock Deepgram, or `--script='[...]'` to change the steps.
+
+### Testing the doors
+
+Two sessions share one machine in this project, so run Playwright through the lock:
+
+```bash
+scripts/e2e-locked.sh                        # the whole suite
+scripts/e2e-locked.sh tests/e2e/stack.spec.ts tests/e2e/voice.spec.ts
+```
+
+It waits for `/tmp/chartside-e2e.lock` and clears it if the owning process has died. The suite starts mock Deepgram (including `/v1/speak` and mu-law listen), Twilio Messages, SendGrid, NPPES, FHIR, OIDC and MLLP servers, and runs the app through `server.ts` against `data/e2e/`.
+
 ## Platform and security
 
 - **Public API** at `/api/v1` with an OpenAPI 3.1 spec at `/api/v1/openapi.json`: create patients and encounters, post a transcript (consent is recorded on first call), generate the note, and read JSON or FHIR. Organization API keys are hashed, scoped, and rate limited.
@@ -253,6 +352,8 @@ npm install
 npm run dev            # http://localhost:3100
 ```
 
+The phone line needs the custom server. See [Running the phone line](#running-the-phone-line).
+
 Create an account. This creates your organization with you as its owner. Each new account gets today's five-patient demo clinic plus two weeks of signed history. Open a visit, record consent, and choose **Play demo conversation** to watch a full visit, or **Start listening** in Chrome to use your microphone.
 
 Optional configuration is in `.env.example`: `ANTHROPIC_API_KEY`, `CHARTSIDE_MODEL`, `CHARTSIDE_ENGINE=local`, `DEEPGRAM_API_KEY`, `SMART_CLIENT_ID`/`SMART_ISS`/`SMART_ALLOWED_ISS`, `CHARTSIDE_SECRET` (encrypts EHR tokens and SSO client secrets), `CHARTSIDE_DB` (SQLite path), `DATABASE_URL` (Postgres), `SSO_REDIRECT_URI` (override when running behind a proxy), and `CHARTSIDE_CODESETS_DIR` / `CHARTSIDE_LICENSED_DIR` (code-set locations).
@@ -260,7 +361,7 @@ Optional configuration is in `.env.example`: `ANTHROPIC_API_KEY`, `CHARTSIDE_MOD
 ## Tests
 
 ```bash
-npm test               # 250 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
+npm test               # 329 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
                        # org scoping, RBAC, admin rules, OIDC token verification, SSO provisioning, Claude + Deepgram (mock servers),
                        # official code sets (hash verification, DOS release selection, pricing, HCC V28), diagnosis review, Medicare rules,
                        # NCCI/MUE/LCD logic, the claim lifecycle, co-signature and addenda, inbox triage and drafts, dictation grammar,
@@ -272,7 +373,7 @@ npm test               # 250 unit tests: extraction, notes, verification, coding
                        # J-code units, prenatal gestational age and flags, AcroForm filling, order sets, agenda, and access control
                        # e2e also runs an axe WCAG 2.1 AA scan of clinician pages and patient-facing pages (summary, intake, check-in)
 npm run codesets:build # re-download and rebuild the official code sets (verifies pinned hashes)
-npm run test:e2e       # 86 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR, OIDC, SendGrid, and MLLP servers, and a fake microphone
+npm run test:e2e       # 122 Playwright end-to-end flows against a production build, mock Deepgram, SMART/FHIR, OIDC, SendGrid, and MLLP servers, and a fake microphone
 npm run test:pg        # both suites against Postgres (DATABASE_URL must point at a disposable database)
 npm run typecheck
 ```
