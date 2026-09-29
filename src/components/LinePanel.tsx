@@ -8,6 +8,7 @@ interface LineData {
   operator: boolean;
   scope: "org" | "all";
   config: { number: string | null; publicUrl: string | null; voiceUrl: string | null; smsUrl: string | null; checks: Record<"speech" | "twilio" | "publicUrl" | "notes" | "cron", boolean> };
+  calls: { at: string; caller: string; simulator: boolean; verifiedBy: string | null; outcome: string; texted: boolean; summaryQueued: boolean }[];
   roster: { userId: string; name: string; role: string; phone: string | null; pin: boolean; calls: number; lastCall: string | null; ready: boolean }[];
   stats: { days: number; calls: number; simCalls: number; consented: number; declined: number; readyOnCall: number; texted: number; agentTurns: number; textReplies: number; nudges: number; drafted: number; failed: number; byChannel: Record<string, number> };
 }
@@ -80,6 +81,27 @@ export default function LinePanel() {
             ))}
         </ul>
         <p className="mt-2 text-xs text-ink-3">{s.drafted} notes drafted · {s.failed} failed</p>
+      </section>
+      <section className="card overflow-x-auto p-4">
+        <h2 className="font-semibold">Recent calls</h2>
+        <p className="text-xs text-ink-3">Outcomes only. No audio, transcripts or patient names are shown here.</p>
+        <table className="mt-2 w-full text-sm" data-testid="line-calls-log">
+          <thead>
+            <tr className="text-left text-ink-3"><th className="py-1 font-medium">When</th><th className="font-medium">Caller</th><th className="font-medium">Verified</th><th className="font-medium">Outcome</th><th className="font-medium">Text</th></tr>
+          </thead>
+          <tbody>
+            {!d.calls.length && <tr><td colSpan={5} className="py-2 text-ink-3">No calls yet.</td></tr>}
+            {d.calls.map((c, i) => (
+              <tr key={i} className="border-t border-line" data-testid="line-call-row" data-outcome={c.outcome}>
+                <td className="py-1.5 font-mono text-xs">{new Date(c.at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</td>
+                <td>{c.caller}{c.simulator && <span className="ml-1 text-xs text-ink-3">browser</span>}</td>
+                <td className="text-xs">{c.verifiedBy === "pin" ? "PIN" : c.verifiedBy === "caller-id" ? <span className="text-warn">caller ID only</span> : c.verifiedBy === "guest" ? "guest" : "–"}</td>
+                <td>{c.outcome}{c.summaryQueued && <span className="ml-1 text-xs text-ink-3">· summary queued</span>}</td>
+                <td>{c.texted ? "sent" : "–"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
       <section className="card overflow-x-auto p-4">
         <h2 className="font-semibold">Your team on the line</h2>

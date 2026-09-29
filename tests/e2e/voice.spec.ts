@@ -392,3 +392,18 @@ test("the clinician asks on the call to text the patient, and the summary goes o
   const sms = (await texts(request, patientPhone))[0].body;
   expect(sms).toMatch(/your visit summary is ready\. View it securely: http:\/\/localhost:3200\/s\/\w+/);
 });
+
+test("Admin → Line lists recent calls with outcomes and no patient details", async ({ page, baseURL }) => {
+  await register(page, "Dr. Log Keeper");
+  const phone = await verifiedPhone(page);
+  await dial({ base: baseURL!, from: phone, twilioToken: "test-twilio", mockDeepgram: MOCK_DG, frameMs: 1, steps: [{ waitPrompts: 1 }, { digit: "2" }, { waitPrompts: 2 }, { wav: "tests/e2e/fixtures/visit.wav" }, { digit: "5" }, { waitPrompts: 4, timeoutMs: 60000 }, { digit: "1" }, { waitClose: true }] });
+  await dial({ base: baseURL!, from: phone, twilioToken: "test-twilio", mockDeepgram: MOCK_DG, frameMs: 1, steps: [{ waitPrompts: 1 }, { digit: "0" }, { waitClose: true }] });
+  await page.goto("/admin?tab=line");
+  const rows = page.getByTestId("line-call-row");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toHaveAttribute("data-outcome", "declined");
+  await expect(rows.nth(1)).toHaveAttribute("data-outcome", "marked ready");
+  await expect(rows.nth(1)).toContainText("caller ID only");
+  await expect(rows.nth(1)).toContainText("sent");
+  await expect(page.getByTestId("line-calls-log")).not.toContainText(/Gonzalez|cough|respiratory/i);
+});
