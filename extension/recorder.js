@@ -42,7 +42,9 @@
         throw new Error("Couldn't reach Chartside");
       });
       this.queue.catch((err) => {
+        if (this.error) return;
         this.error = err;
+        this.release();
         this.onState({ phase: "failed", error: err.message });
       });
       return this.queue;
@@ -56,6 +58,16 @@
       this.started = Date.now();
       this.rec.start(this.opts.timeslice || 5000);
       this.onState({ phase: "recording" });
+    }
+
+    release() {
+      if (this.rec && this.rec.state !== "inactive") {
+        this.rec.ondataavailable = null;
+        try {
+          this.rec.stop();
+        } catch {}
+      }
+      if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
     }
 
     pause() {

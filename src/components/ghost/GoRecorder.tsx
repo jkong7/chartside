@@ -34,6 +34,7 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
   const [error, setError] = useState<string | null>(null);
   const [encId, setEncId] = useState<string | null>(null);
   const [pip, setPip] = useState<Pip | null>(null);
+  const pipRef = useRef<Pip | null>(null);
   const [isGuest, setIsGuest] = useState(guest);
   const [notice, setNotice] = useState<string | null>(null);
   const rec = useRef<MediaRecorder | null>(null);
@@ -78,9 +79,17 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
     queue.current.catch((err) => {
       setError(err instanceof Error ? err.message : "Upload failed");
       setPhase("failed");
+      const r = rec.current;
+      if (r && r.state !== "inactive") {
+        r.ondataavailable = null;
+        r.onstop = null;
+        r.stop();
+      }
+      releaseAllRef.current();
     });
   }, []);
 
+  const releaseAllRef = useRef<() => void>(() => {});
   const releaseAll = useCallback(() => {
     stream.current?.getTracks().forEach((t) => t.stop());
     stream.current = null;
@@ -94,6 +103,10 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
     setLevel(0);
   }, []);
 
+  releaseAllRef.current = () => {
+    releaseAll();
+    pipRef.current?.close();
+  };
   useEffect(() => () => releaseAll(), [releaseAll]);
 
   const begin = async () => {
@@ -114,6 +127,8 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
         if (e.data.size) upload(e.data, false);
       };
       enc.current = null;
+      setEncId(null);
+      queue.current = Promise.resolve();
       started.current = Date.now();
       pausedFor.current = 0;
       setSecs(0);
@@ -211,7 +226,11 @@ export default function GoRecorder({ signedIn, guest, waiting, maxMinutes = 120 
       }
     }
     w.document.body.className = "bg-[#0b0f16] text-white font-sans m-0";
-    w.addEventListener("pagehide", () => setPip(null));
+    w.addEventListener("pagehide", () => {
+      pipRef.current = null;
+      setPip(null);
+    });
+    pipRef.current = w;
     setPip(w);
   };
 

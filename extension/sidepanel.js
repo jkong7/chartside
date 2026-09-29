@@ -73,6 +73,7 @@ function renderRec(error) {
   } else if (state.phase === "finishing") {
     box.replaceChildren(el("p", {}, "Writing your note…"), el("p", { class: "muted" }, "Usually under a minute."));
   } else if (state.phase === "failed") {
+    clearInterval(state.tick);
     box.replaceChildren(el("p", { class: "warn" }, error || "Something went wrong."), el("button", { onclick: () => { state.phase = "idle"; renderRec(); } }, "Start over"));
   }
 }
