@@ -286,3 +286,42 @@ test("a clinician on a call can pause, resume and end the visit from their scree
   await expect(page.getByTestId("live-calls")).toHaveCount(0);
   expect((await page.request.post("/api/voice/live/CAnotmine", { data: { action: "end" } })).status()).toBe(404);
 });
+
+test("a call without a PIN is flagged on the stack and the clinician can delete it", async ({ page, baseURL }) => {
+  await register(page, "Dr. Wary Wu");
+  const phone = await verifiedPhone(page);
+  await dial({ base: baseURL!, from: phone, twilioToken: "test-twilio", mockDeepgram: MOCK_DG, frameMs: 1, steps: [{ waitPrompts: 1 }, { digit: "2" }, { waitPrompts: 2 }, { wav: "tests/e2e/fixtures/visit.wav" }, { hangup: true }] });
+  await expect.poll(async () => ((await (await page.request.get("/api/decisions")).json()).decisions as { detail: { unverifiedCaller?: unknown } }[]).filter((d) => d.detail.unverifiedCaller).length, { timeout: 30000 }).toBe(1);
+  const card = ((await (await page.request.get("/api/decisions")).json()).decisions as { id: string; encounterId: string; title: string; detail: { unverifiedCaller?: unknown } }[]).find((d) => d.detail.unverifiedCaller)!;
+  expect(card.title).toMatch(/^Sign note: \d{1,2}:\d{2} [AP]M visit$/);
+  await page.goto(`/go/stack?focus=${card.encounterId}`);
+  await expect(page.getByTestId("stack-unverified")).toContainText("Caller ID only, no PIN");
+  await page.getByTestId("stack-reject").click();
+  await expect(page.getByTestId("stack-toast")).toContainText("Deleted");
+  expect((await page.request.get(`/api/encounters/${card.encounterId}`)).status()).toBe(404);
+});
+
+test("a phone guest who saves their note is shown how to just call next time and can set a PIN", async ({ page, baseURL, request }) => {
+  const from = randomPhone();
+  await dial({ base: baseURL!, from, twilioToken: "test-twilio", mockDeepgram: MOCK_DG, frameMs: 1, steps: [{ waitPrompts: 1 }, { digit: "2" }, { waitPrompts: 2 }, { wav: "tests/e2e/fixtures/visit.wav" }, { hangup: true }] });
+  await expect.poll(async () => (await texts(request, from)).length, { timeout: 30000 }).toBeGreaterThan(0);
+  const link = /(http:\/\/\S+\/m\/\S+)/.exec((await texts(request, from)).at(-1)!.body)![1];
+  await page.goto(link);
+  await page.getByTestId("magic-go").click();
+  await page.waitForURL(/\/go\/stack/);
+  const email = `nexttime-${Date.now()}@chartside.test`;
+  await page.getByTestId("claim-email").fill(email);
+  await page.getByTestId("claim-send").click();
+  const mail = async () => (await (await request.get(`http://localhost:3295/messages?to=${encodeURIComponent(email)}`)).json()) as { body: string }[];
+  await expect.poll(async () => (await mail()).length).toBeGreaterThan(0);
+  await page.getByTestId("claim-code").fill(/\b(\d{6})\b/.exec((await mail()).at(-1)!.body)![1]);
+  await page.getByTestId("claim-verify").click();
+  await page.waitForURL(/claimed=1/);
+  await expect(page.getByTestId("next-time")).toContainText("Next time, just call.");
+  await expect(page.getByTestId("next-contact")).toHaveAttribute("href", "/line/contact.vcf");
+  await page.getByTestId("next-pin").fill("5937");
+  await page.getByTestId("next-pin-save").click();
+  await expect(page.getByTestId("next-pin-msg")).toContainText("PIN set");
+  const pin = await (await page.request.get("/api/auth/phone/pin")).json();
+  expect(pin.set).toBe(true);
+});
