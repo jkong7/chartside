@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { ED_DEMO } from "@/lib/demo/scripts";
 import { criticalCareMinutes, edCourse, edDisposition } from "@/lib/engine/ed";
 import { newMember } from "./org-helpers";
@@ -54,6 +54,10 @@ describe("emergency department", () => {
   });
 
   it("runs the track board from arrival through pickup, disposition, admission, and departure", async () => {
+    const noon = new Date();
+    noon.setHours(12, 0, 0, 0);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(noon);
     const ed = await import("@/lib/server/ed");
     const repo = await import("@/lib/server/repo");
     const doc = await newMember("Dr. Sam Ortiz");
@@ -92,5 +96,6 @@ describe("emergency department", () => {
     expect(board.rows).toHaveLength(0);
     expect(board.metrics).toMatchObject({ arrivals: 2, lwbs: 1, admitRate: 100 });
     expect(board.metrics.medianLos).toBeGreaterThanOrEqual(49);
+    vi.useRealTimers();
   });
 });
