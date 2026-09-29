@@ -447,8 +447,8 @@ describe("spoken note brief", () => {
     expect(text).toContain("12-minute visit");
     expect(text).toContain("Assessment: Type 2 diabetes, improving.");
     expect(text).toContain("Plan: A1c in 3 months. Continue metformin.");
-    expect(text).toContain("level 4 visit");
-    expect(text).toContain("2 diagnoses coded");
+    expect(text).toContain("Codes and the full note are in your link.");
+    expect(text).not.toMatch(/level|99214/);
     expect(text).not.toContain("E11.9");
   });
 

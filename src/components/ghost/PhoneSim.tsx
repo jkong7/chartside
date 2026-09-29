@@ -27,8 +27,8 @@ const HINTS: Partial<Record<CallState, string[]>> = {
   consent: ["Patient agreed? Say “they agreed” or press 2", "Press 3 to have Chartside ask them, 9 in Spanish", "Declined? Press 0", "After your PIN, ask “Chartside, what's left today?”"],
   recording: ["Talk with your patient normally", "Say “Chartside, end visit” or press 5", "Press 4 to pause"],
   paused: ["Say “Chartside, resume” or press 2"],
-  drafting: ["Stay on to hear it, or hang up and get a text"],
-  review: ["Say “ready” or press 1", "Next patient on this call: say it or press 8", "Ask for a change: “make the plan shorter”", "Press 7 to text the patient after you sign"],
+  drafting: ["Usually under a minute", "Or just hang up, and we'll text you"],
+  review: ["Say “ready” or press 1", "Or just hang up, and we'll text you"],
 };
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
@@ -311,7 +311,7 @@ export default function PhoneSim({ lineNumber, signedInAs, autopilot = false, fa
           <div className="flex h-[664px] flex-col items-center px-6 pb-14 pt-8" data-testid="sim-incall" data-state={state}>
             {pilot && (
               <button onClick={() => { setPilot(false); if (audio.current) audio.current.muted = false; }} className="mb-2 rounded-full bg-[#2fbf61]/20 px-3 py-1 text-[11px] font-medium text-[#8ff0b0]" data-testid="sim-autopilot">
-                Autopilot is playing the visit · tap to take over
+                Sample visit playing · tap to use your own voice
               </button>
             )}
             <div className="flex w-full min-h-0 flex-1 flex-col items-center overflow-y-auto">
@@ -322,10 +322,10 @@ export default function PhoneSim({ lineNumber, signedInAs, autopilot = false, fa
               {STATUS[state]}
             </p>
 
-            <div className="mt-5 min-h-[112px] w-full rounded-2xl bg-white/10 p-3 text-[14px] leading-snug" aria-live="polite" data-testid="sim-caption">
+            <div className="mt-5 max-h-44 min-h-[112px] w-full overflow-y-auto rounded-2xl bg-white/10 p-3 text-[14px] leading-snug" aria-live="polite" data-testid="sim-caption">
               {caption ? caption : <span className="text-white/65">Connecting…</span>}
             </div>
-            {heard && (
+            {heard && (state === "recording" || state === "consent" || state === "review" || state === "confirmPatient") && (
               <p className="mt-2 w-full text-right text-[12px] italic text-white/65" data-testid="sim-heard">
                 You: “{heard}”
               </p>

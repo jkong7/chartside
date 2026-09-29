@@ -1,5 +1,3 @@
-const EM_LEVEL: Record<string, string> = { "99212": "level 2", "99213": "level 3", "99214": "level 4", "99215": "level 5", "99202": "new patient level 2", "99203": "new patient level 3", "99204": "new patient level 4", "99205": "new patient level 5" };
-
 export function speakable(text: string) {
   return text
     .replace(/\*\*\*/g, "blank")
@@ -53,9 +51,6 @@ export function spokenBrief(note: NoteForBrief, minutes?: number | null) {
     if (plan) lines.push(`Plan: ${firstSentences(plan.text, 2, 25)}`);
   }
   if (!ap && !assessment && !plan && note.sections[0]) lines.push(firstSentences(note.sections[0].text, 2, 40));
-  const em = note.codes?.em;
-  if (em) lines.push(`Coding suggests a ${EM_LEVEL[em] ?? em} visit.`);
-  const dx = note.codes?.diagnoses.length ?? 0;
-  if (dx) lines.push(`${dx} diagnos${dx === 1 ? "is" : "es"} coded. The full note is in your link.`);
+  lines.push("Codes and the full note are in your link.");
   return lines.join(" ").replace(/\s+/g, " ").replace(/\.\./g, ".");
 }
