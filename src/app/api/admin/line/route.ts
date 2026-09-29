@@ -1,7 +1,7 @@
 import { authed, body, json } from "@/lib/server/http";
 import { isOperator } from "@/lib/server/loops";
 import { assertCan, Forbidden } from "@/lib/server/policy";
-import { connectNumber, lineCallLog, lineConfig, lineRoster, lineStats } from "@/lib/server/telephony/admin";
+import { connectNumber, lineCallLog, lineConfig, lineRoster, lineStats, speechCheck } from "@/lib/server/telephony/admin";
 
 export const GET = authed(async (req, user) => {
   assertCan(user, "org.manage");
@@ -12,7 +12,8 @@ export const GET = authed(async (req, user) => {
 
 export const POST = authed(async (req, user) => {
   assertCan(user, "org.manage");
-  if (!isOperator(user.email)) throw new Forbidden("Only a Chartside operator can point the phone number at this deployment");
-  const b = await body<{ number?: string }>(req);
+  if (!isOperator(user.email)) throw new Forbidden("Only a Chartside operator can change or test the line for this deployment");
+  const b = await body<{ number?: string; check?: string }>(req);
+  if (b.check === "speech") return json(await speechCheck());
   return json({ connected: await connectNumber(user, b.number ?? "") });
 });

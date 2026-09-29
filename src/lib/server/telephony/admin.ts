@@ -134,3 +134,43 @@ export async function lineCallLog(orgId: string | null, limit = 25) {
   }
   return out;
 }
+
+export async function speechCheck() {
+  const { synthesize, LiveListener, phoneSpeechReady } = await import("./speech");
+  if (!phoneSpeechReady()) return { ok: false, tts: null, listen: null, error: "DEEPGRAM_API_KEY isn't set" };
+  const t0 = Date.now();
+  let tts: { ms: number; bytes: number } | null = null;
+  try {
+    const audio = await synthesize(`Chartside speech check ${Date.now() % 1000}.`);
+    tts = { ms: Date.now() - t0, bytes: audio.length };
+  } catch (err) {
+    return { ok: false, tts: null, listen: null, error: err instanceof Error ? err.message : "Speech synthesis failed" };
+  }
+  const t1 = Date.now();
+  const listen = await new Promise<{ ms: number } | { error: string }>((resolve) => {
+    let done = false;
+    const l = new LiveListener(
+      () => {},
+      (err) => {
+        if (done) return;
+        done = true;
+        resolve({ error: err.message });
+      },
+      "check",
+    );
+    l.onOpen = () => {
+      if (done) return;
+      done = true;
+      l.close();
+      resolve({ ms: Date.now() - t1 });
+    };
+    l.open();
+    setTimeout(() => {
+      if (done) return;
+      done = true;
+      l.close();
+      resolve({ error: "Live transcription didn't connect within 8 seconds" });
+    }, 8000);
+  });
+  return { ok: !("error" in listen), tts, listen: "ms" in listen ? listen : null, error: "error" in listen ? listen.error : null };
+}

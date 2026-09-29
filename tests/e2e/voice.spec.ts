@@ -251,6 +251,8 @@ test("Admin → Line shows setup and call stats, and an operator points the Twil
   await expect(panel.locator('[data-check="speech"]')).toHaveAttribute("data-ok", "true");
   await expect(panel.locator('[data-check="twilio"]')).toHaveAttribute("data-ok", "true");
   await expect(panel).toContainText("http://localhost:3200/api/voice/incoming");
+  await page.getByTestId("line-speech-check").click();
+  await expect(page.getByTestId("line-speech-result")).toContainText(/Voice ready in \d+ ms · live transcription connected in \d+ ms/);
   await expect(page.getByTestId("line-member")).toHaveCount(1);
   await expect(page.getByTestId("line-member")).toHaveAttribute("data-ready", "false");
   await expect(page.getByTestId("line-invite")).toHaveAttribute("href", /^sms:\?&body=.*go%2Fsettings/);

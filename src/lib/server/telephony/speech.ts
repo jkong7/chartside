@@ -69,6 +69,7 @@ export class LiveListener {
   private queue: Buffer[] = [];
   private keepAlive: NodeJS.Timeout | null = null;
   closed = false;
+  onOpen: (() => void) | null = null;
 
   constructor(private onFinal: (text: string) => void, private onError: (err: Error) => void = () => {}, private callTag?: string) {}
 
@@ -78,6 +79,7 @@ export class LiveListener {
     const ws = new WebSocket(listenUrl(this.callTag), { headers: { Authorization: `Token ${k}` } });
     this.ws = ws;
     ws.on("open", () => {
+      this.onOpen?.();
       for (const b of this.queue) ws.send(b);
       this.queue = [];
       this.keepAlive = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify({ type: "KeepAlive" })), 8000);

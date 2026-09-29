@@ -30,6 +30,13 @@ export default function LinePanel() {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [scope, setScope] = useState<"org" | "all">("org");
+  const [check, setCheck] = useState<{ ok: boolean; tts: { ms: number } | null; listen: { ms: number } | null; error: string | null } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const runCheck = async () => {
+    setChecking(true);
+    setCheck(await api<NonNullable<typeof check>>("/admin/line", { body: { check: "speech" } }).catch((err) => ({ ok: false, tts: null, listen: null, error: err instanceof Error ? err.message : "Check failed" })));
+    setChecking(false);
+  };
 
   const load = useCallback(() => {
     api<LineData>(`/admin/line${scope === "all" ? "?scope=all" : ""}`).then(setD).catch((err) => setError(err instanceof Error ? err.message : "Could not load"));
@@ -147,6 +154,16 @@ export default function LinePanel() {
             <div><dt className="inline font-medium">Voice webhook: </dt><dd className="inline font-mono">{d.config.voiceUrl}</dd></div>
             <div><dt className="inline font-medium">Messaging webhook: </dt><dd className="inline font-mono">{d.config.smsUrl}</dd></div>
           </dl>
+        )}
+        {d.operator && (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button className="btn-outline text-sm" onClick={runCheck} disabled={checking} data-testid="line-speech-check">{checking ? "Checking…" : "Test speech"}</button>
+            {check && (
+              <span className={`text-sm ${check.ok ? "text-ok" : "text-rec"}`} role="status" data-testid="line-speech-result">
+                {check.ok ? `Voice ready in ${check.tts?.ms} ms · live transcription connected in ${check.listen?.ms} ms` : check.error}
+              </span>
+            )}
+          </div>
         )}
         {d.operator ? (
           <div className="mt-4">
