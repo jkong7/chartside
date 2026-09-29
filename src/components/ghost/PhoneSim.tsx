@@ -69,6 +69,7 @@ export default function PhoneSim({ lineNumber, signedInAs }: { lineNumber: strin
   const inbox = useRef<{ key: string; phone: string } | null>(null);
   const sampleRef = useRef<{ bytes: Uint8Array; pos: number; timer: number | null } | null>(null);
   const seen = useRef(0);
+  const [shared, setShared] = useState<string | null>(null);
 
   const send = useCallback((o: unknown) => {
     if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(JSON.stringify(o));
@@ -210,6 +211,27 @@ export default function PhoneSim({ lineNumber, signedInAs }: { lineNumber: strin
     stopSample();
   };
 
+  const shareLine = async () => {
+    let url = `${location.origin}/line?src=sim`;
+    if (signedInAs) {
+      const g = await fetch("/api/growth").then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      const ref = g && JSON.stringify(g).match(/https?:\/\/[^"]+\/r\/[a-z0-9]{6}/)?.[0];
+      if (ref) url = `${ref}?src=share`;
+    }
+    const text = "I just called my scribe. It listened to the visit and texted me the note. Try it:";
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Chartside Line", text, url });
+        setShared("Shared.");
+        return;
+      }
+    } catch {
+      return;
+    }
+    await navigator.clipboard.writeText(`${text} ${url}`).catch(() => {});
+    setShared("Link copied. Paste it to a colleague.");
+  };
+
   const toggleMute = () => {
     const next = !muted;
     setMuted(next);
@@ -346,6 +368,14 @@ export default function PhoneSim({ lineNumber, signedInAs }: { lineNumber: strin
                   {linkify(t.body)}
                 </div>
               ))}
+              {texts.length > 0 && (
+                <div className="pt-4 text-center">
+                  <button onClick={shareLine} className="rounded-full bg-white px-4 py-2 text-[13px] font-medium text-black hover:bg-white/90" data-testid="sim-share">
+                    Show a colleague
+                  </button>
+                  {shared && <p className="mt-2 text-[12px] text-white/70" role="status" data-testid="sim-shared">{shared}</p>}
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -66,6 +66,10 @@ test("the browser phone runs a whole call: consent, sample visit, read-back, and
   await expect(page.getByTestId("sim-text")).toContainText("Tap to save it", { timeout: 15000 });
   const href = await page.getByTestId("sim-text-link").getAttribute("href");
   expect(href).toMatch(/\/m\/[\w-]+$/);
+  await page.evaluate(() => Object.defineProperty(navigator, "share", { value: undefined, configurable: true }));
+  await page.getByTestId("sim-share").click();
+  await expect(page.getByTestId("sim-shared")).toHaveText("Link copied. Paste it to a colleague.");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/Try it: http:\/\/localhost:3200\/line\?src=sim$/);
 });
 
 test("the line page shows who invited you, offers a contact card, and passes an accessibility scan", async ({ page, browser }) => {
