@@ -90,6 +90,9 @@ export default async function LinePage({ searchParams }: { searchParams: Promise
               <Link href="/go/phone" className="btn-primary px-5 py-3 text-base" data-testid="line-try">
                 Call from this browser
               </Link>
+              <Link href="/go/phone?autopilot=1" className="btn-outline px-5 py-3 text-base" data-testid="line-watch">
+                Watch a call play itself
+              </Link>
               <a href="/line/contact.vcf" className="btn-outline px-5 py-3 text-base" data-testid="line-contact">
                 Save to contacts
               </a>

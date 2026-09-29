@@ -72,6 +72,15 @@ test("the browser phone runs a whole call: consent, sample visit, read-back, and
   expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/Try it: http:\/\/localhost:3200\/line\?src=sim$/);
 });
 
+test("autopilot plays a whole call by itself and ends on the text", async ({ page }) => {
+  await page.goto("/go/phone?autopilot=1&ff=1");
+  await page.getByTestId("sim-call").click();
+  await expect(page.getByTestId("sim-autopilot")).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId("sim-incall")).toHaveAttribute("data-state", "recording", { timeout: 20000 });
+  await expect(page.getByTestId("sim-text")).toContainText("Tap to save it", { timeout: 90000 });
+  await expect(page.getByTestId("sim-messages")).toBeVisible();
+});
+
 test("the line page shows who invited you, offers a contact card, and passes an accessibility scan", async ({ page, browser }) => {
   await register(page, "Dr. Jamie Rivera");
   const g = await (await page.request.get("/api/growth")).json();
@@ -81,6 +90,7 @@ test("the line page shows who invited you, offers a contact card, and passes an 
   await visitor.waitForURL(/\/line\?ref=/);
   await expect(visitor.getByTestId("line-invited")).toContainText("Dr. Rivera invited you");
   await expect(visitor.getByRole("heading", { level: 1 })).toContainText("Your scribe is");
+  await expect(visitor.getByTestId("line-watch")).toHaveAttribute("href", "/go/phone?autopilot=1");
   await expect(visitor.getByTestId("line-video").locator("video")).toHaveAttribute("src", "/demo/line-call.mp4");
   expect((await visitor.request.get("/demo/line-call.mp4")).headers()["content-type"]).toContain("video/mp4");
   const vcf = await visitor.request.get("/line/contact.vcf");
