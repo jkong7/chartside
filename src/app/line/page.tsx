@@ -24,6 +24,18 @@ async function inviter(code: string | undefined) {
   return u ? displayName(u.name) : null;
 }
 
+
+const FAQ: [string, string][] = [
+  ["Do I need to install anything?", "No. Call the number from any phone, even a clinic landline. If you'd rather tap than call, the same thing works in any browser at /go, beside your EHR in the Chrome side panel, or from Voice Memos with an iPhone Shortcut."],
+  ["What if my patient says no?", "Say they declined or press 0. The line hangs up and keeps nothing. It only starts keeping audio after you say they agreed, press 2, or the patient answers yes when Chartside asks them itself."],
+  ["Can someone call my line pretending to be me?", "Caller ID can be faked, so it never unlocks your chart. Your schedule and chart questions need your phone PIN. A call without a PIN can only record a new visit, which shows up on your stack marked as caller ID only, with a delete button."],
+  ["What does the text message say?", "Only the time of the call and a one-time link. Never a patient's name or anything about the visit. The note itself sits behind your sign-in."],
+  ["Is it HIPAA ready?", "The audio is encrypted at rest, every step is audit-logged, consent is recorded with the moment it was given, and the speech, AI and phone vendors all offer BAAs. The demo line runs on synthetic visits. A practice signs a BAA before using it with real patients."],
+  ["Does it speak Spanish?", "Press 9 and Chartside asks your patient for consent in Spanish. The visit can move between English and Spanish, and the note comes back in English."],
+  ["Where does the note go?", "To your stack, where you review it with every sentence linked to the moment it was said, then sign. From there it can go to your EHR through the Chrome side panel or a SMART on FHIR connection, and your patient can get a plain-language summary."],
+  ["Can I sign by voice?", "No. You can mark a note ready on the call, but signing, orders and claims always happen on a screen where you can read them."],
+];
+
 const CALL = [
   ["Chartside", "Hi Dr. Patel, this is your scribe, on a recorded line. When your patient agrees, press 2."],
   ["You", "She agreed."],
@@ -189,6 +201,22 @@ export default async function LinePage({ searchParams }: { searchParams: Promise
             <p className="mt-1 text-sm text-ink-2">Coding, claims, inpatient boards, quality and your EHR connection, when you need the depth.</p>
           </Link>
         </div>
+        <section className="mx-auto mt-14 max-w-3xl" data-testid="line-faq">
+          <h2 className="font-serif text-3xl font-semibold text-ink">Questions clinicians ask first</h2>
+          <div className="mt-4 divide-y divide-line rounded-2xl border border-line bg-surface">
+            {FAQ.map(([q, a]) => (
+              <details key={q} className="group px-5 py-4">
+                <summary className="cursor-pointer list-none font-medium text-ink marker:hidden">
+                  <span className="flex items-center justify-between gap-4">
+                    {q}
+                    <span className="text-ink-3 transition group-open:rotate-45" aria-hidden>+</span>
+                  </span>
+                </summary>
+                <p className="mt-2 leading-relaxed text-ink-2">{a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
         <p className="mt-10 text-center text-sm text-ink-3">For physicians, NPs, PAs, therapists, PT, OT and speech, chiropractors and vets. Demo line runs on synthetic data only until your practice signs a BAA.</p>
       </section>
     </main>
