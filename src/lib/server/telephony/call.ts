@@ -290,7 +290,7 @@ export class ScribeCall {
   }
 
   async remote(action: "pause" | "resume" | "end") {
-    for (let i = 0; i < 50 && this.busy; i++) await new Promise((r) => setTimeout(r, 100));
+    while (this.busy && this.state !== "ended") await new Promise((r) => setTimeout(r, 100));
     if (this.state !== "recording" && this.state !== "paused") return;
     this.busy = true;
     try {
@@ -304,7 +304,7 @@ export class ScribeCall {
   }
 
   async onLimit() {
-    for (let i = 0; i < 50 && this.busy; i++) await new Promise((r) => setTimeout(r, 100));
+    while (this.busy && this.state !== "ended") await new Promise((r) => setTimeout(r, 100));
     if (this.state !== "recording" && this.state !== "paused") return;
     this.busy = true;
     try {
