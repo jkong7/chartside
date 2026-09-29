@@ -130,6 +130,7 @@ export default function Stack({ initial, user, focus }: { initial: Decision[]; u
             <p className="text-sm font-semibold" data-testid="stack-count">{cards.length ? `${cards.length} to review` : "All caught up"}</p>
             <p className="truncate text-xs text-ink-3">{done ? `${done} done this session · ` : ""}{counts["note.sign"] ? `${counts["note.sign"]} to sign` : "Nothing to sign"}</p>
           </div>
+          <a className="text-sm font-medium text-brand" href={`/go/ask${top?.encounterId ? `?encounter=${top.encounterId}` : ""}`} data-testid="stack-ask">Ask</a>
           <a className="text-sm font-medium text-brand" href="/today">Full app</a>
         </div>
       </header>
