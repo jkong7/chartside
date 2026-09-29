@@ -58,12 +58,12 @@ export default defineConfig({
       env: { MOCK_OIDC_PORT: "3296" },
     },
     {
-      command: `rm -rf data/e2e.db data/e2e.db-wal data/e2e.db-shm data/audio && node tests/e2e/reset-pg.mjs && npm run build && NODE_ENV=production PORT=${PORT} npx tsx server.ts`,
+      command: `rm -rf data/e2e && node tests/e2e/reset-pg.mjs && npm run build && NODE_ENV=production PORT=${PORT} npx tsx server.ts`,
       url: `http://localhost:${PORT}/api/health`,
       timeout: 240_000,
       reuseExistingServer: false,
       env: {
-        CHARTSIDE_DB: "data/e2e.db",
+        CHARTSIDE_DB: "data/e2e/e2e.db",
         CHARTSIDE_ENGINE: "local",
         CHARTSIDE_INSECURE_COOKIES: "1",
         DEEPGRAM_API_KEY: "test-key",

@@ -34,7 +34,7 @@ test("patient completes a pre-visit intake and the brief shows flags and screeni
   await expect(page.getByTestId("intake-flags")).toContainText("Current tobacco use");
 });
 
-test("saves patient contact info and logs a send attempt when no provider is configured", async ({ page }) => {
+test("saves patient contact info and texts the intake link through the SMS provider", async ({ page }) => {
   await register(page);
   const pats = (await (await page.request.get("/api/patients")).json()) as { patients: { id: string; name: string }[] };
   const maria = pats.patients.find((p) => p.name === "Maria Gonzalez")!;
@@ -46,7 +46,9 @@ test("saves patient contact info and logs a send attempt when no provider is con
   await page.getByTestId("visit-row").filter({ hasText: "Maria Gonzalez" }).click();
   await page.getByTestId("intake-create").click();
   await page.getByTestId("send-intake").click();
-  await expect(page.getByTestId("send-intake-status")).toContainText("No SMS provider is configured");
+  await expect(page.getByTestId("send-intake-status")).toContainText("Sent by text to");
+  const sent = (await (await page.request.get("http://localhost:3295/texts?to=%2B13125550142")).json()) as { body: string }[];
+  expect(sent.at(-1)!.body).toContain("please answer a few questions before your visit");
   await page.goto(`/patients/${maria.id}`);
-  await expect(page.getByTestId("outbox")).toContainText("intake by sms to +13125550142 · unconfigured");
+  await expect(page.getByTestId("outbox")).toContainText("intake by sms to +13125550142");
 });

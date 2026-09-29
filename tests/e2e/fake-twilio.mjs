@@ -90,6 +90,9 @@ export async function dial({ base, from = "+15550100000", sim = false, cookie, t
     ws.on("message", (data) => {
       const m = JSON.parse(data.toString());
       if (m.event === "media") outboundBytes += Buffer.from(m.media.payload, "base64").length;
+      if (m.event === "chartside.heard") log(`heard: ${m.text}`);
+      if (m.event === "chartside.caption") log(`said: ${m.text.slice(0, 90)}`);
+      if (m.event === "chartside.state") log(`state: ${m.state}`);
       if (m.event === "mark") {
         const playMs = Math.min(outboundBytes / 8, 30000);
         outboundBytes = 0;
@@ -155,6 +158,7 @@ export async function dial({ base, from = "+15550100000", sim = false, cookie, t
       } else if (step.digit) send({ event: "dtmf", streamSid, dtmf: { track: "inbound_track", digit: step.digit } });
       else if (step.say) await speak(step.say);
       else if (step.wav) await stream(wavToMulaw8k(step.wav));
+      else if (step.ulaw) await stream(readFileSync(step.ulaw));
       else if (step.silence) await stream(Buffer.alloc(Math.round(step.silence * 8000), 0xff));
       else if (step.sleep) await sleep(step.sleep);
       else if (step.hangup) {

@@ -101,6 +101,10 @@ const phoneWss = new WebSocketServer({ noServer: true });
 server.on("upgrade", (req, socket, head) => {
   const phoneUrl = new URL(req.url, `http://localhost:${PORT}`);
   if (phoneUrl.pathname === "/v1/listen" && phoneUrl.searchParams.get("encoding") === "mulaw") {
+    if (phoneUrl.searchParams.has("utterance_end_ms") && phoneUrl.searchParams.get("interim_results") !== "true") {
+      socket.write("HTTP/1.1 400 Bad Request\r\ndg-error: Utterance End feature requires interim results.\r\n\r\n");
+      return socket.destroy();
+    }
     if (req.headers.authorization !== `Token ${KEY}` || phoneUrl.searchParams.get("sample_rate") !== "8000") {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
       return socket.destroy();
