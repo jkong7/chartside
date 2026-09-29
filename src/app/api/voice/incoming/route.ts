@@ -1,7 +1,8 @@
 import { guestForPhone } from "@/lib/server/guest";
 import { userByPhone } from "@/lib/server/magic";
 import { normalizePhone } from "@/lib/server/notify";
-import { limited } from "@/lib/server/ratelimit";
+import { createHash } from "node:crypto";
+import { get } from "@/lib/db";
 import { audit } from "@/lib/server/repo";
 import { phoneSpeechReady } from "@/lib/server/telephony/speech";
 import { mintCallToken } from "@/lib/server/telephony/token";
@@ -24,12 +25,16 @@ export async function POST(req: Request) {
   const phone = normalizePhone(params.From ?? "");
   const callSid = params.CallSid ?? "";
   if (!phone || !callSid) return xml(twiml([{ say: "Sorry, Chartside can't take calls from a hidden number. Please call from your own phone." }, { hangup: true }]));
-  const known = await userByPhone(phone);
-  if (!known && (limited(`guestcall:${phone}`, Number(process.env.CHARTSIDE_GUEST_CALLS_PER_NUMBER || 5), 86400_000) || limited("guestcall:all", Number(process.env.CHARTSIDE_GUEST_CALL_DAILY_CAP || 200), 86400_000))) {
+  const verified = await userByPhone(phone);
+  const known = verified && !verified.guestUntil ? verified : null;
+  const phoneTag = createHash("sha256").update(`${process.env.CHARTSIDE_SECRET ?? ""}:${phone}`).digest("hex").slice(0, 16);
+  const since = new Date(Date.now() - 86400_000).toISOString();
+  const count = async (extra: string, ...args: string[]) => Number((await get<{ n: number }>(`SELECT COUNT(*) AS n FROM audit WHERE action = 'phone.call' AND created_at > ? AND detail LIKE '%"guest":true%' ${extra}`, since, ...args))?.n ?? 0);
+  if (!known && ((await count("AND detail LIKE ?", `%"phoneTag":"${phoneTag}"%`)) >= Number(process.env.CHARTSIDE_GUEST_CALLS_PER_NUMBER || 5) || (await count("")) >= Number(process.env.CHARTSIDE_GUEST_CALL_DAILY_CAP || 200))) {
     return xml(twiml([{ say: "Chartside's free line is at capacity right now. Please try again tomorrow, or sign up at chartside's website to call any time." }, { hangup: true }]));
   }
-  const user = known ?? (await guestForPhone(phone));
-  await audit.log(user, null, "phone.call", { callSid, guest: !known });
+  const user = known ?? verified ?? (await guestForPhone(phone));
+  await audit.log(user, null, "phone.call", { callSid, guest: !known, phoneTag });
   const callToken = mintCallToken({ userId: user.id, orgId: user.orgId, phone, callSid, guest: !known, sim: false });
   return xml(twiml([{ stream: { url: `${wsOrigin(origin)}/api/voice/stream`, params: { callToken } } }, { hangup: true }]));
 }
