@@ -167,3 +167,25 @@ test("a wrong PIN falls back to record-only and never names a patient", async ({
   expect(mine.some((s) => s.includes("didn't match"))).toBe(true);
   expect(mine.join(" ")).not.toMatch(/Is that who you're seeing/);
 });
+
+test("texting the line answers with the queue and a link, never patient details", async ({ page, baseURL, request }) => {
+  const url = `${baseURL}/api/sms/incoming`;
+  const stranger = { From: randomPhone(), To: "+13125550199", Body: "hi", MessageSid: "SM1" };
+  expect((await request.post("/api/sms/incoming", { form: stranger })).status()).toBe(403);
+  const pitch = await request.post("/api/sms/incoming", { form: stranger, headers: { "x-twilio-signature": twilioSignature("test-twilio", url, stranger) } });
+  expect(await pitch.text()).toContain("AI scribe you can call");
+  await register(page, "Dr. Noor Haddad");
+  const phone = await verifiedPhone(page);
+  const status = { From: phone, To: "+13125550199", Body: "status", MessageSid: "SM2" };
+  const xml = await (await request.post("/api/sms/incoming", { form: status, headers: { "x-twilio-signature": twilioSignature("test-twilio", url, status) } })).text();
+  expect(xml).toMatch(/<Message>Chartside: .*to clear\. Open: http:\/\/localhost:3200\/m\/[\w-]+<\/Message>/);
+  expect(xml).not.toMatch(PHI);
+});
+
+test("the nudge job refuses callers without the cron secret", async ({ request }) => {
+  expect((await request.post("/api/cron/nudges")).status()).toBe(401);
+  expect((await request.post("/api/cron/nudges", { headers: { authorization: "Bearer wrong-cron" } })).status()).toBe(401);
+  const ok = await request.post("/api/cron/nudges", { headers: { authorization: "Bearer test-cron" } });
+  expect(ok.status()).toBe(200);
+  expect(await ok.json()).toMatchObject({ sent: expect.any(Number) });
+});
