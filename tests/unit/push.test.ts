@@ -23,7 +23,7 @@ beforeAll(async () => {
 
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-const sub = (n: number) => ({ endpoint: `https://push.example/sub/${n}`, keys: { p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM", auth: "tBHItJI5svbpez7KI4CCXg" } });
+const sub = (n: number) => ({ endpoint: `https://fcm.googleapis.com/fcm/send/${n}`, keys: { p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM", auth: "tBHItJI5svbpez7KI4CCXg" } });
 
 describe("note-ready push", () => {
   it("validates subscriptions and refuses guests", async () => {
@@ -31,9 +31,11 @@ describe("note-ready push", () => {
     const { createGuest } = await import("@/lib/server/guest");
     const doc = await newMember("Dr. Push Ready");
     await expect(subscribePush(doc, { endpoint: "http://insecure.example", keys: sub(0).keys }, null)).rejects.toThrow("isn't valid");
+    await expect(subscribePush(doc, { endpoint: "https://10.0.0.5/admin", keys: sub(0).keys }, null)).rejects.toThrow("browser push service");
+    for (let i = 100; i < 112; i++) await subscribePush(doc, sub(i), null);
     await subscribePush(doc, sub(1), "test");
     await subscribePush(doc, sub(1), "test");
-    expect(await pushCount(doc.id)).toBe(1);
+    expect(await pushCount(doc.id)).toBe(10);
     const guest = await createGuest();
     await expect(subscribePush(guest, sub(2), null)).rejects.toThrow("Save your notes");
   });

@@ -175,7 +175,8 @@ test("clinicians can subscribe to PHI-free note-ready notifications; guests can'
   expect(info).toMatchObject({ configured: true, subscriptions: 0, guest: false });
   expect(info.publicKey).toMatch(/^[A-Za-z0-9_-]{80,}$/);
   expect((await page.request.post("/api/push", { data: { endpoint: "http://insecure.example/x", keys: { p256dh: "a", auth: "b" } } })).status()).toBe(422);
-  const ok = await page.request.post("/api/push", { data: { endpoint: "https://push.invalid/sub/1", keys: { p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM", auth: "tBHItJI5svbpez7KI4CCXg" } } });
+  expect((await page.request.post("/api/push", { data: { endpoint: "https://push.invalid/sub/1", keys: { p256dh: "a", auth: "b" } } })).status()).toBe(422);
+  const ok = await page.request.post("/api/push", { data: { endpoint: "https://fcm.googleapis.com/fcm/send/e2e-1", keys: { p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM", auth: "tBHItJI5svbpez7KI4CCXg" } } });
   expect(ok.status()).toBe(201);
   expect((await (await page.request.get("/api/push")).json()).subscriptions).toBe(1);
   await page.goto("/go/stack");

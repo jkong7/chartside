@@ -35,10 +35,24 @@ function sender(): Sender {
 export async function subscribePush(u: User, sub: { endpoint?: string; keys?: { p256dh?: string; auth?: string } }, userAgent: string | null) {
   if (u.guestUntil) throw new Invalid("Save your notes with your email first, then turn on notifications.");
   if (!sub.endpoint || !/^https:\/\//.test(sub.endpoint) || !sub.keys?.p256dh || !sub.keys?.auth) throw new Invalid("That notification subscription isn't valid");
+  if (!pushHostAllowed(sub.endpoint)) throw new Invalid("Notifications must come from a browser push service");
   await run("DELETE FROM push_subscriptions WHERE endpoint = ?", sub.endpoint);
+  if ((await pushCount(u.id)) >= 10) await run("DELETE FROM push_subscriptions WHERE id IN (SELECT id FROM push_subscriptions WHERE user_id = ? ORDER BY created_at LIMIT 1)", u.id);
   await run("INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", uid("psh_"), u.id, sub.endpoint, sub.keys.p256dh, sub.keys.auth, (userAgent ?? "").slice(0, 200), now());
   await audit.log(u, null, "push.subscribed", {});
   return { ok: true };
+}
+
+const PUSH_HOSTS = [/^fcm\.googleapis\.com$/, /^android\.googleapis\.com$/, /(^|\.)push\.apple\.com$/, /^updates\.push\.services\.mozilla\.com$/, /(^|\.)notify\.windows\.com$/, /(^|\.)push\.services\.mozilla\.com$/];
+
+export function pushHostAllowed(endpoint: string) {
+  try {
+    const u = new URL(endpoint);
+    const extra = (process.env.CHARTSIDE_PUSH_HOSTS ?? "").split(",").map((h) => h.trim()).filter(Boolean);
+    return u.protocol === "https:" && (PUSH_HOSTS.some((r) => r.test(u.hostname)) || extra.includes(u.hostname));
+  } catch {
+    return false;
+  }
 }
 
 export async function unsubscribePush(u: User, endpoint: string) {
