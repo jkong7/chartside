@@ -112,4 +112,31 @@ describe("texting the line", () => {
     const early = await sendClinicNudges(new Date("2026-09-29T20:05:00Z"));
     expect(early.sent).toBe(0);
   });
+
+  it("answers SCHEDULE with a count and first time, and sends an opt-in morning brief once", async () => {
+    const magic = await import("@/lib/server/magic");
+    const repo = await import("@/lib/server/repo");
+    const { inboundText, sendClinicNudges, dayLine } = await import("@/lib/server/telephony/texting");
+    const doc = await newMember("Dr. Early Bird");
+    await magic.verifyPhone(doc.id, "+13125550166");
+    const pat = await repo.patients.create(doc, { mrn: "77", name: "Ruth Hale", dob: "1950-03-04", sex: "F", pronouns: "she/her", language: "en", chart: { problems: [], medications: [], allergies: [], coverage: { payer: "Medicare" } } });
+    await repo.encounters.create(doc, { scheduledAt: "2026-09-29T14:30:00Z", patientId: pat.id, reason: "Hypertension", visitType: "follow-up" });
+    await repo.encounters.create(doc, { scheduledAt: "2026-09-29T16:00:00Z", patientId: pat.id, reason: "Hypertension", visitType: "follow-up" });
+    const at = new Date("2026-09-29T12:05:00Z");
+    expect((await dayLine(doc, at)).text).toBe("2 visits today, starting at 9:30 AM.");
+    expect(await inboundText("+13125550166", "brief 7", "https://line.test")).toContain("7 AM");
+    expect((await repo.users.byId(doc.id))!.prefs.morningBriefHour).toBe(7);
+    const before = sent.length;
+    const r = await sendClinicNudges(at);
+    expect(r.briefs).toBe(1);
+    const mine = sent.slice(before).filter((m) => m.kind === "morning_brief");
+    expect(mine).toHaveLength(1);
+    expect(mine[0].body).toBe("Chartside: 2 visits today, starting at 9:30 AM. Call the line before each visit. Reply STOP to end these.");
+    expect(mine[0].body).not.toMatch(PHI);
+    await sendClinicNudges(new Date(at.getTime() + 15 * 60_000));
+    expect(sent.slice(before).filter((m) => m.kind === "morning_brief")).toHaveLength(1);
+    const reply = await inboundText("+13125550166", "schedule", "https://line.test");
+    expect(reply).toMatch(/^Chartside: (No visits on your schedule today\.|\d+ visits? today, starting at )/);
+    expect(reply).not.toMatch(PHI);
+  });
 });
