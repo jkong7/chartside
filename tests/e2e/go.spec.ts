@@ -168,3 +168,19 @@ test("iPhone Safari visitors get a one-time Add to Home Screen tip on the stack"
   await expect(page.getByTestId("home-tip")).toHaveCount(0);
   await ctx.close();
 });
+
+test("clinicians can subscribe to PHI-free note-ready notifications; guests can't", async ({ page }) => {
+  await register(page);
+  const info = await (await page.request.get("/api/push")).json();
+  expect(info).toMatchObject({ configured: true, subscriptions: 0, guest: false });
+  expect(info.publicKey).toMatch(/^[A-Za-z0-9_-]{80,}$/);
+  expect((await page.request.post("/api/push", { data: { endpoint: "http://insecure.example/x", keys: { p256dh: "a", auth: "b" } } })).status()).toBe(422);
+  const ok = await page.request.post("/api/push", { data: { endpoint: "https://push.invalid/sub/1", keys: { p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM", auth: "tBHItJI5svbpez7KI4CCXg" } } });
+  expect(ok.status()).toBe(201);
+  expect((await (await page.request.get("/api/push")).json()).subscriptions).toBe(1);
+  await page.goto("/go/stack");
+  await expect(page.getByTestId("notify-enable").or(page.getByTestId("notify-on")).or(page.getByTestId("notify-blocked"))).toBeVisible();
+  const guest = await (await page.context().browser()!.newContext()).newPage();
+  await guest.request.post(`${new URL(page.url()).origin}/api/auth/try`);
+  expect((await guest.request.post(`${new URL(page.url()).origin}/api/push`, { data: { endpoint: "https://push.invalid/sub/2", keys: { p256dh: "x", auth: "y" } } })).status()).toBe(422);
+});

@@ -10,6 +10,7 @@ import InviteCard from "./InviteCard";
 import NextTimeCard from "./NextTimeCard";
 import LiveCallBanner from "@/components/ghost/LiveCallBanner";
 import HomeScreenTip from "@/components/ghost/HomeScreenTip";
+import NotifyToggle from "@/components/ghost/NotifyToggle";
 
 interface StackUser {
   name: string;
@@ -144,6 +145,7 @@ export default function Stack({ initial, user, focus, justClaimed = false }: { i
       <div className="mx-auto max-w-xl space-y-4 px-4 pt-4">
         {!user.guestUntil && <LiveCallBanner />}
         <HomeScreenTip />
+        {!user.guestUntil && <NotifyToggle />}
         {!claimed && <ClaimBanner onClaimed={() => setClaimed(true)} />}
         {nextTime && <NextTimeCard hasPhone={!!user.phone} onClose={() => setNextTime(false)} />}
         {invite && <InviteCard referral={invite.referral} signed={invite.signed} onClose={() => setInvite(null)} />}

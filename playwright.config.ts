@@ -87,6 +87,8 @@ export default defineConfig({
         TWILIO_BASE_URL: "http://localhost:3295",
         CHARTSIDE_CRON_SECRET: "test-cron",
         CHARTSIDE_SIM_RATE: "500",
+        CHARTSIDE_VAPID_PUBLIC: "BGudtAMbymjXKQFProCqX4_fxCCDT9IGdDcxkBMlXd7oC70pqE_eDc50AyxPeKwUNHbBXCeH-th3HviJ9sO9PHo",
+        CHARTSIDE_VAPID_PRIVATE: "h60y-RKd-geWI4rQS_A8FQ3CWJeOwIeGKN_BfuYuSI0",
         CHARTSIDE_GUEST_CALL_DAILY_CAP: "500",
         CHARTSIDE_MAX_RECORDING_MIN: "5",
         CHARTSIDE_OPERATOR_EMAILS: "operator@chartside.test",
