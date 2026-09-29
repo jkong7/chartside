@@ -6,6 +6,7 @@ import { orgs } from "@/lib/server/repo";
 import { mfaStatus, orgSecurity } from "@/lib/server/security";
 import IdleWarning from "@/components/IdleWarning";
 import Shortcuts from "@/components/Shortcuts";
+import LiveCallBanner from "@/components/ghost/LiveCallBanner";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await currentUser();
@@ -19,6 +20,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div className="min-w-0 flex-1">
         <MobileNav role={user.role} />
         {children}
+      </div>
+      <div className="fixed bottom-4 right-4 z-40 w-[min(440px,calc(100vw-2rem))]">
+        <LiveCallBanner />
       </div>
       <IdleWarning minutes={sec.idleMinutes ?? 30} />
       <Shortcuts />

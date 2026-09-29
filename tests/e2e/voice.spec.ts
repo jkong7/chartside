@@ -254,3 +254,33 @@ test("an org admin who isn't an operator can see the line but not repoint the nu
   const r = await page.request.post("/api/admin/line", { data: { number: "+13125550199" } });
   expect(r.status()).toBe(403);
 });
+
+test("a clinician on a call can pause, resume and end the visit from their screen", async ({ page, baseURL, request }) => {
+  await register(page, "Dr. Remote Ray");
+  const phone = await verifiedPhone(page);
+  const call = dial({
+    base: baseURL!,
+    from: phone,
+    twilioToken: "test-twilio",
+    mockDeepgram: MOCK_DG,
+    frameMs: 5,
+    steps: [{ waitPrompts: 1 }, { digit: "2" }, { waitPrompts: 2 }, { silence: 40 }, { waitPrompts: 6, timeoutMs: 60000 }, { hangup: true }],
+  });
+  await page.goto("/go");
+  const banner = page.getByTestId("live-call");
+  await expect(banner).toHaveAttribute("data-state", "recording", { timeout: 20000 });
+  await page.getByTestId("live-pause").click();
+  await expect(banner).toHaveAttribute("data-state", "paused", { timeout: 10000 });
+  await page.getByTestId("live-resume").click();
+  await expect(banner).toHaveAttribute("data-state", "recording", { timeout: 10000 });
+  await page.getByTestId("live-end").click();
+  await expect.poll(async () => ((await banner.count()) ? await banner.getAttribute("data-state") : "gone"), { timeout: 15000 }).toMatch(/drafting|review|gone/);
+  const done = await call;
+  expect(done.connected).toBe(true);
+  const said = await spoken(request);
+  expect(said).toContain("Paused. Nothing is being recorded. Say Chartside, resume, or press 2 to keep going.");
+  expect(said).toContain("Listening again.");
+  await page.goto("/today");
+  await expect(page.getByTestId("live-calls")).toHaveCount(0);
+  expect((await page.request.post("/api/voice/live/CAnotmine", { data: { action: "end" } })).status()).toBe(404);
+});

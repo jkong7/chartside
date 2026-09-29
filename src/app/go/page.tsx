@@ -1,5 +1,6 @@
 import Link from "next/link";
 import GoRecorder from "@/components/ghost/GoRecorder";
+import LiveCallBanner from "@/components/ghost/LiveCallBanner";
 import { currentUser } from "@/lib/server/auth";
 import { decisionCounts } from "@/lib/server/decisions";
 import { recordingMinutesFromEnv } from "@/lib/engine/limits";
@@ -23,6 +24,11 @@ export default async function GoPage() {
           {user && <Link href="/go/ask" className="btn-ghost">Ask</Link>}
         </nav>
       </header>
+      {user && (
+        <div className="mx-auto max-w-3xl px-4">
+          <LiveCallBanner />
+        </div>
+      )}
       <GoRecorder signedIn={!!user} guest={!!user?.guestUntil} waiting={counts?.total ?? 0} maxMinutes={recordingMinutesFromEnv()} />
     </main>
   );
