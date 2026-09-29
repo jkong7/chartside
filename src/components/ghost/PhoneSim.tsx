@@ -235,7 +235,7 @@ export default function PhoneSim({ lineNumber, signedInAs }: { lineNumber: strin
             <h2 className="mt-4 text-2xl font-semibold">Chartside</h2>
             <p className="mt-1 text-sm text-white/60">{lineNumber} · your scribe</p>
             {state === "ended" && <p className="mt-3 text-sm text-white/70" data-testid="sim-ended">Call ended · {clock(secs)}</p>}
-            {signedInAs ? <p className="mt-2 text-xs text-white/50">Calling as {signedInAs}</p> : <p className="mt-2 text-xs text-white/50">No account needed. Your first note is free.</p>}
+            {signedInAs ? <p className="mt-2 text-xs text-white/65">Calling as {signedInAs}</p> : <p className="mt-2 text-xs text-white/65">No account needed. Your first note is free.</p>}
             <button onClick={dial} className="mt-10 flex h-20 w-20 items-center justify-center rounded-full bg-[#2fbf61] text-3xl shadow-lg transition hover:scale-105 active:scale-95" aria-label="Call Chartside" data-testid="sim-call">
               <PhoneIcon />
             </button>
@@ -246,15 +246,16 @@ export default function PhoneSim({ lineNumber, signedInAs }: { lineNumber: strin
               </p>
             )}
             <ol className="mt-auto mb-2 w-full space-y-2 text-[13px] text-white/70">
-              <li className="flex gap-2"><span className="text-white/40">1</span>Call, set the phone down, see your patient.</li>
-              <li className="flex gap-2"><span className="text-white/40">2</span>Hang up, or say “Chartside, end visit”.</li>
-              <li className="flex gap-2"><span className="text-white/40">3</span>Tap the text. Your note is waiting.</li>
+              <li className="flex gap-2"><span className="text-white/65">1</span>Call, set the phone down, see your patient.</li>
+              <li className="flex gap-2"><span className="text-white/65">2</span>Hang up, or say “Chartside, end visit”.</li>
+              <li className="flex gap-2"><span className="text-white/65">3</span>Tap the text. Your note is waiting.</li>
             </ol>
           </div>
         )}
 
         {tab === "phone" && inCall && (
-          <div className="flex h-[640px] flex-col items-center px-6 pt-8" data-testid="sim-incall" data-state={state}>
+          <div className="flex h-[664px] flex-col items-center px-6 pb-14 pt-8" data-testid="sim-incall" data-state={state}>
+            <div className="flex w-full min-h-0 flex-1 flex-col items-center overflow-y-auto">
             <p className="text-sm text-white/60">{state === "connecting" ? "Calling" : clock(secs)}</p>
             <h2 className="mt-1 text-2xl font-semibold">Chartside</h2>
             <p className="mt-1 flex items-center gap-2 text-sm text-white/80" data-testid="sim-status">
@@ -263,10 +264,10 @@ export default function PhoneSim({ lineNumber, signedInAs }: { lineNumber: strin
             </p>
 
             <div className="mt-5 min-h-[112px] w-full rounded-2xl bg-white/10 p-3 text-[14px] leading-snug" aria-live="polite" data-testid="sim-caption">
-              {caption ? caption : <span className="text-white/40">Connecting…</span>}
+              {caption ? caption : <span className="text-white/65">Connecting…</span>}
             </div>
             {heard && (
-              <p className="mt-2 w-full text-right text-[12px] italic text-white/50" data-testid="sim-heard">
+              <p className="mt-2 w-full text-right text-[12px] italic text-white/65" data-testid="sim-heard">
                 You: “{heard}”
               </p>
             )}
@@ -301,7 +302,8 @@ export default function PhoneSim({ lineNumber, signedInAs }: { lineNumber: strin
               </ul>
             )}
 
-            <div className="mt-auto mb-2 w-full">
+            </div>
+            <div className="w-full shrink-0 pt-3">
               {keypad ? (
                 <div className="grid grid-cols-3 gap-3 px-4" data-testid="sim-keypad">
                   {KEYS.map((k) => (
@@ -335,9 +337,9 @@ export default function PhoneSim({ lineNumber, signedInAs }: { lineNumber: strin
         {tab === "messages" && (
           <div className="flex h-[640px] flex-col px-4 pt-4" data-testid="sim-messages">
             <h2 className="text-center text-sm font-semibold">Chartside</h2>
-            <p className="text-center text-[11px] text-white/40">Text message</p>
+            <p className="text-center text-[11px] text-white/65">Text message</p>
             <div className="mt-4 flex-1 space-y-2 overflow-y-auto">
-              {texts.length === 0 && <p className="mt-10 text-center text-sm text-white/50">After your call, a link to your note shows up here. It never contains patient details.</p>}
+              {texts.length === 0 && <p className="mt-10 text-center text-sm text-white/65">After your call, a link to your note shows up here. It never contains patient details.</p>}
               {texts.map((t, i) => (
                 <div key={i} className="max-w-[85%] rounded-2xl rounded-bl-sm bg-white/15 px-3 py-2 text-[14px] leading-snug" data-testid="sim-text">
                   {linkify(t.body)}
@@ -348,7 +350,7 @@ export default function PhoneSim({ lineNumber, signedInAs }: { lineNumber: strin
         )}
 
         <nav className="absolute bottom-0 left-0 right-0 flex border-t border-white/10 bg-black/40 text-[12px] backdrop-blur">
-          <button onClick={() => setTab("phone")} className={`flex-1 py-3 ${tab === "phone" ? "text-white" : "text-white/50"}`} aria-current={tab === "phone"} data-testid="sim-tab-phone">
+          <button onClick={() => setTab("phone")} className={`flex-1 py-3 ${tab === "phone" ? "text-white" : "text-white/65"}`} aria-current={tab === "phone"} data-testid="sim-tab-phone">
             Phone
           </button>
           <button
@@ -356,7 +358,7 @@ export default function PhoneSim({ lineNumber, signedInAs }: { lineNumber: strin
               setTab("messages");
               setUnread(0);
             }}
-            className={`relative flex-1 py-3 ${tab === "messages" ? "text-white" : "text-white/50"}`}
+            className={`relative flex-1 py-3 ${tab === "messages" ? "text-white" : "text-white/65"}`}
             aria-current={tab === "messages"}
             data-testid="sim-tab-messages"
           >
