@@ -6,6 +6,7 @@ import type { Decision, DecisionResult } from "@/lib/server/decisions";
 import { Alert, Check, Logo } from "../icons";
 import { Spinner } from "../ui";
 import ClaimBanner from "./ClaimBanner";
+import InviteCard from "./InviteCard";
 
 interface StackUser {
   name: string;
@@ -30,6 +31,12 @@ export default function Stack({ initial, user, focus }: { initial: Decision[]; u
   const [text, setText] = useState("");
   const [dx, setDx] = useState(0);
   const [claimed, setClaimed] = useState(!user.guestUntil);
+  const [invite, setInvite] = useState<{ referral: { url: string; message: string }; signed: number } | null>(null);
+  const checkGrowth = useCallback(async () => {
+    if (user.guestUntil) return;
+    const g = await api<{ referral: { url: string; message: string }; signed: number; prompts: { invite: boolean } }>("/growth").catch(() => null);
+    if (g?.prompts.invite) setInvite({ referral: g.referral, signed: g.signed });
+  }, [user.guestUntil]);
   const shown = useRef(Date.now());
   const drag = useRef<{ x: number; id: number } | null>(null);
   const top = cards[0];
@@ -66,6 +73,7 @@ export default function Stack({ initial, user, focus }: { initial: Decision[]; u
       } else {
         setNote({ tone: "ok", text: r.message });
         setCards((c) => c.slice(1));
+        if (action === "approve" && top.kind === "note.sign") checkGrowth();
       }
     } catch (err) {
       const data = err instanceof ApiError ? (err.data as { blockers?: string[] } | undefined) : undefined;
@@ -75,7 +83,7 @@ export default function Stack({ initial, user, focus }: { initial: Decision[]; u
       setDx(0);
     }
     setBusy(false);
-  }, [top, busy, choice, text]);
+  }, [top, busy, choice, text, checkGrowth]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -127,6 +135,7 @@ export default function Stack({ initial, user, focus }: { initial: Decision[]; u
       </header>
       <div className="mx-auto max-w-xl space-y-4 px-4 pt-4">
         {!claimed && <ClaimBanner onClaimed={() => setClaimed(true)} />}
+        {invite && <InviteCard referral={invite.referral} signed={invite.signed} onClose={() => setInvite(null)} />}
         {note && <p className={`rounded-lg px-3 py-2 text-sm ${note.tone === "ok" ? "bg-ok-50 text-ok" : "bg-rec-50 text-rec"}`} role="status" data-testid="stack-toast">{note.text}</p>}
         {!top ? (
           <div className="card p-8 text-center" data-testid="stack-empty">

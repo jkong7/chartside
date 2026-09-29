@@ -1,6 +1,6 @@
 type Snapshot = { patient: { name: string; dob: string; sex: string; mrn: string } | null; clinician: string; date: string; reason: string; status: string; signedAt: string | null; noteText: string; addenda: { kind: string; text: string; author: string | null; at: string }[] };
 
-export default function SharedNote({ s, from, message, banner }: { s: Snapshot; from?: string; message?: string; banner: string }) {
+export default function SharedNote({ s, from, message, banner, footer }: { s: Snapshot; from?: string; message?: string; banner: string; footer?: { written: string; tryUrl: string; demoUrl: string } | null }) {
   return (
     <article className="card p-5 md:p-7" data-testid="shared-note">
       <p className="text-xs text-ink-3" data-testid="shared-banner">{banner}</p>
@@ -13,6 +13,12 @@ export default function SharedNote({ s, from, message, banner }: { s: Snapshot; 
         <div className="mt-5 border-t border-line pt-4">
           {s.addenda.map((a) => <p key={a.at} className="text-sm"><span className="font-medium capitalize">{a.kind.replace("_", " ")}</span> by {a.author ?? "clinician"}, {new Date(a.at).toLocaleDateString("en-US")}: {a.text}</p>)}
         </div>
+      )}
+      {footer && (
+        <footer className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4 text-sm text-ink-3" data-testid="shared-footer">
+          <span>{footer.written}.</span>
+          <span><a className="font-medium text-brand" href={footer.tryUrl} data-testid="shared-try">Try it on your next patient</a> · <a className="text-brand" href={footer.demoUrl}>Call the demo line</a></span>
+        </footer>
       )}
     </article>
   );

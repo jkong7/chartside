@@ -378,6 +378,8 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   await purgeExpired(user);
   const { purgeTranscripts } = await import("./retention");
   await purgeTranscripts(user.orgId);
+  const { onSigned } = await import("./growth");
+  await onSigned(user).catch(() => null);
   return { signed: true, blockers: [] as string[], learned: candidates.length, cosign: cosign ? { supervisor: cosign.supervisorName } : null };
 }
 

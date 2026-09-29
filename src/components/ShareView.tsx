@@ -17,8 +17,8 @@ interface Data {
 }
 
 const UI = {
-  en: { ask: "Message your care team", askHint: "Questions about this visit, refills, or results. Not for emergencies: call 911 if you have chest pain, trouble breathing, or thoughts of harming yourself.", askSend: "Send message", asked: "Sent", reply: "Reply from", waiting: "Your care team usually replies within 2 business days.", urgent: "If this is an emergency, call 911 now. We also flagged your message for a call today.", visit: "Visit summary", wrong: "Something not right?", tell: "Tell us what's wrong", send: "Send to my care team", sent: "Thanks. Your care team will review this.", transcript: "Read the visit conversation", you: "You", clinician: "Clinician", private: "This page is private to you. Share it only with people you trust." },
-  es: { ask: "Enviar un mensaje a su equipo de atención", askHint: "Preguntas sobre esta visita, recetas o resultados. No es para emergencias: llame al 911 si tiene dolor de pecho, dificultad para respirar o pensamientos de hacerse daño.", askSend: "Enviar mensaje", asked: "Enviado", reply: "Respuesta de", waiting: "Su equipo suele responder en 2 días hábiles.", urgent: "Si es una emergencia, llame al 911 ahora. También marcamos su mensaje para llamarle hoy.", visit: "Resumen de la visita", wrong: "¿Algo no está bien?", tell: "Díganos qué está mal", send: "Enviar a mi equipo de atención", sent: "Gracias. Su equipo de atención lo revisará.", transcript: "Leer la conversación de la visita", you: "Usted", clinician: "Clínico", private: "Esta página es privada. Compártala solo con personas de confianza." },
+  en: { ask: "Message your care team", askHint: "Questions about this visit, refills, or results. Not for emergencies: call 911 if you have chest pain, trouble breathing, or thoughts of harming yourself.", askSend: "Send message", asked: "Sent", reply: "Reply from", waiting: "Your care team usually replies within 2 business days.", urgent: "If this is an emergency, call 911 now. We also flagged your message for a call today.", visit: "Visit summary", wrong: "Something not right?", tell: "Tell us what's wrong", send: "Send to my care team", sent: "Thanks. Your care team will review this.", transcript: "Read the visit conversation", you: "You", clinician: "Clinician", private: "This page is private to you. Share it only with people you trust.", prepared: "Prepared with Chartside for", other: "Does your other doctor use Chartside?", demo: "Try it: call the demo line" },
+  es: { ask: "Enviar un mensaje a su equipo de atención", askHint: "Preguntas sobre esta visita, recetas o resultados. No es para emergencias: llame al 911 si tiene dolor de pecho, dificultad para respirar o pensamientos de hacerse daño.", askSend: "Enviar mensaje", asked: "Enviado", reply: "Respuesta de", waiting: "Su equipo suele responder en 2 días hábiles.", urgent: "Si es una emergencia, llame al 911 ahora. También marcamos su mensaje para llamarle hoy.", visit: "Resumen de la visita", wrong: "¿Algo no está bien?", tell: "Díganos qué está mal", send: "Enviar a mi equipo de atención", sent: "Gracias. Su equipo de atención lo revisará.", transcript: "Leer la conversación de la visita", you: "Usted", clinician: "Clínico", private: "Esta página es privada. Compártala solo con personas de confianza.", prepared: "Preparado con Chartside para", other: "¿Su otro médico usa Chartside?", demo: "Pruébelo: llame a la línea de demostración" },
 };
 
 export default function ShareView({ token }: { token: string }) {
@@ -113,6 +113,10 @@ export default function ShareView({ token }: { token: string }) {
         </div>
       </details>
       <p className="mt-10 text-xs text-ink-3">{t.private}</p>
+      <footer className="mt-6 border-t border-line pt-4 text-xs text-ink-3" data-testid="recap-footer">
+        <p>{t.prepared} {d.clinician}.</p>
+        <p className="mt-1">{t.other} <a className="font-medium text-brand" href="/line?src=recap" data-testid="recap-cta">{t.demo}</a></p>
+      </footer>
     </main>
   );
 }

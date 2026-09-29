@@ -54,6 +54,8 @@ export interface UserPrefs {
   surveySnoozedUntil?: string;
   onboardingDismissed?: boolean;
   locationId?: string;
+  npi?: { number: string; name: string; credential: string; specialty: string; state: string; matched: boolean; reason: string | null; at: string };
+  invitePromptSeenAt?: string;
 }
 
 export const j = <T>(s: string | null | undefined, fallback: T): T => {

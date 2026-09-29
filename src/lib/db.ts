@@ -708,6 +708,27 @@ CREATE TABLE IF NOT EXISTS decision_state (
   seen_at TEXT,
   PRIMARY KEY (user_id, decision_id)
 );
+CREATE TABLE IF NOT EXISTS referral_codes (
+  code TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS growth_credits (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  months INTEGER NOT NULL,
+  other_user_id TEXT,
+  created_at TEXT NOT NULL,
+  UNIQUE(user_id, kind, other_user_id)
+);
+CREATE TABLE IF NOT EXISTS receipts (
+  token TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  revoked_at TEXT
+);
 CREATE TABLE IF NOT EXISTS capture_tokens (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,
@@ -781,6 +802,7 @@ const LEGACY_COLUMNS: [string, string, string][] = [
   ["users", "phone_verified_at", "TEXT"],
   ["users", "guest_expires_at", "TEXT"],
   ["users", "phone_pin_hash", "TEXT"],
+  ["users", "referred_by", "TEXT"],
   ["users", "phone_pin_failures", "INTEGER NOT NULL DEFAULT 0"],
   ["users", "phone_pin_locked_until", "TEXT"],
   ["users", "mfa_recovery", "TEXT"],

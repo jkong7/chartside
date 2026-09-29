@@ -46,6 +46,12 @@ export default defineConfig({
       env: { MOCK_MAIL_PORT: "3295" },
     },
     {
+      command: "node tests/e2e/mock-nppes.mjs",
+      url: "http://localhost:3293/stats",
+      reuseExistingServer: false,
+      env: { MOCK_NPPES_PORT: "3293" },
+    },
+    {
       command: "node tests/e2e/mock-oidc.mjs",
       url: "http://localhost:3296/.well-known/openid-configuration",
       reuseExistingServer: false,
@@ -72,6 +78,7 @@ export default defineConfig({
         PHAXIO_KEY: "test-fax-key",
         PHAXIO_SECRET: "test-fax-secret",
         PHAXIO_BASE_URL: "http://localhost:3295",
+        NPPES_BASE_URL: "http://localhost:3293",
         TWILIO_ACCOUNT_SID: "ACtest",
         TWILIO_AUTH_TOKEN: "test-twilio",
         TWILIO_FROM: "+13125550199",
