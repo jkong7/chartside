@@ -15,7 +15,11 @@ const { LINES } = await import("./src/lib/server/telephony/call");
 const { phoneSpeechReady, warmPhrases } = await import("./src/lib/server/telephony/speech");
 if (phoneSpeechReady() && !process.env.CHARTSIDE_SKIP_WARM) void warmPhrases(Object.values(LINES));
 const { recoverStalledCaptures } = await import("./src/lib/server/recovery");
-const sweep = () => recoverStalledCaptures().catch((err) => console.error("capture recovery failed", err));
+const { purgeGuests } = await import("./src/lib/server/guest");
+const sweep = async () => {
+  await recoverStalledCaptures().catch((err) => console.error("capture recovery failed", err));
+  await purgeGuests().catch((err) => console.error("guest purge failed", err));
+};
 setTimeout(sweep, 30_000).unref();
 setInterval(sweep, 5 * 60_000).unref();
 const wss = new WebSocketServer({ noServer: true, maxPayload: 1 << 20 });
