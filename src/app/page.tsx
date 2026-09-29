@@ -49,10 +49,10 @@ export default async function Home() {
             Chartside listens to the visit and drafts a specialty-ready note, codes, orders, and a patient summary. Every sentence links back to the moment it came from.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link className="btn-primary px-5 py-2.5 text-base" href="/register">Start a demo clinic day</Link>
-            <Link className="btn-outline px-5 py-2.5 text-base" href="/login">Sign in</Link>
+            <Link className="btn-primary px-5 py-2.5 text-base" href="/go/phone?autopilot=1" data-testid="home-sample">Try a sample call, no signup</Link>
+            <Link className="btn-outline px-5 py-2.5 text-base" href="/register">Start a demo clinic day</Link>
           </div>
-          <p className="mt-4 text-sm text-ink-3">Runs fully offline with the built-in clinical engine, or with Claude when an API key is configured.</p>
+          <p className="mt-4 text-sm text-ink-3">Your first note is free. Nothing to install.</p>
         </div>
         <div className="card overflow-hidden shadow-xl">
           <div className="flex items-center justify-between border-b border-line bg-sunken px-4 py-2.5 text-xs text-ink-3">
