@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { api, copyText } from "@/lib/client";
 import { CREDENTIALS } from "@/lib/engine/attest";
 import DevelopersPanel from "./DevelopersPanel";
+import GrowthPanel from "./GrowthPanel";
 import AdminSecurity from "./AdminSecurity";
 import { ROLE_INFO, roleLabel, type Role } from "@/lib/roles";
 import { Check, Copy, Plus, Shield, X } from "./icons";
@@ -48,7 +49,7 @@ interface Data {
   audit: { id: string; action: string; detail: Record<string, unknown>; created_at: string; user_name: string | null; encounter_id: string | null }[];
 }
 
-type Tab = "members" | "plan" | "sso" | "security" | "billing" | "developers" | "analytics" | "audit" | "org";
+type Tab = "members" | "plan" | "sso" | "security" | "billing" | "developers" | "analytics" | "growth" | "audit" | "org";
 
 const ACTION_LABEL: Record<string, string> = {
   "user.login": "Signed in",
@@ -117,7 +118,7 @@ function describe(a: Data["audit"][number], members: Member[]) {
 export default function AdminConsole({ initial, me, tab: initialTab, redirectOrigin }: { initial: Data; me: { id: string; role: Role }; tab?: string; redirectOrigin: string | null }) {
   const router = useRouter();
   const [d, setD] = useState(initial);
-  const [tab, setTab] = useState<Tab>((["members", "sso", "security", "billing", "developers", "analytics", "audit", "org"].includes(initialTab ?? "") ? initialTab : "members") as Tab);
+  const [tab, setTab] = useState<Tab>((["members", "plan", "sso", "security", "billing", "developers", "analytics", "growth", "audit", "org"].includes(initialTab ?? "") ? initialTab : "members") as Tab);
   const [toast, setToast] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -176,6 +177,7 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
             { id: "billing", label: "Billing & code sets" },
             { id: "developers", label: "Developers" },
             { id: "analytics", label: "Clinician analytics" },
+            { id: "growth", label: "Growth" },
             { id: "audit", label: "Audit log" },
             { id: "org", label: "Organization" },
           ]}
@@ -391,6 +393,7 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
 
       {tab === "developers" && <DevelopersPanel />}
       {tab === "security" && <AdminSecurity />}
+      {tab === "growth" && <GrowthPanel />}
       {tab === "analytics" && (
         <div className="card mt-5 overflow-x-auto" data-testid="org-analytics">
           <table className="w-full min-w-[640px] text-sm">

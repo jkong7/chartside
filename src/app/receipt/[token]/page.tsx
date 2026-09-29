@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { receiptByToken } from "@/lib/server/growth";
+import { cookies } from "next/headers";
+import { receiptByToken, receiptOwner, referralCode } from "@/lib/server/growth";
+import { trackLoop, VISITOR_COOKIE, visitorKey } from "@/lib/server/loops";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +17,9 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
 export default async function ReceiptPage({ params }: { params: Promise<{ token: string }> }) {
   const r = await receiptByToken((await params).token);
   if (!r) notFound();
+  const owner = await receiptOwner((await params).token);
+  const code = owner ? await referralCode({ id: owner }) : null;
+  if (owner) await trackLoop({ loop: "receipt", kind: "exposure", inviterId: owner, visitor: visitorKey((await cookies()).get(VISITOR_COOKIE)?.value ?? null) });
   const stat = (value: string | number, label: string, testid: string) => (
     <div className="rounded-xl bg-surface p-4 text-center">
       <p className="font-serif text-4xl text-brand" data-testid={testid}>{value}</p>
@@ -34,7 +39,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
           {stat(r.medianMinutesToSign === null ? "–" : `${r.medianMinutesToSign}m`, "median visit to signature", "receipt-median")}
         </div>
         {r.afterHours === 0 && r.notesSigned > 0 && <p className="mt-4 rounded-lg bg-ok-50 px-3 py-2 text-center text-sm font-medium text-ok">Zero pajama-time charting.</p>}
-        <p className="mt-6 text-center text-sm text-ink-2">Call your scribe: <a className="font-medium text-brand" href="/line">{r.line}</a></p>
+        <p className="mt-6 text-center text-sm text-ink-2">Call your scribe: <a className="font-medium text-brand" href={code ? `/r/${code}?src=receipt` : "/line"} data-testid="receipt-cta">{r.line}</a></p>
         <p className="mt-1 text-center text-xs text-ink-4">Hours back is an estimate at 12 minutes per note. No patient information is on this page.</p>
       </article>
     </main>

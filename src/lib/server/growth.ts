@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { all, get, now, run, uid } from "../db";
 import { Invalid } from "./policy";
 import { publicOrigin } from "./magic";
+import { checkActivation } from "./loops";
 import { audit, users, type User } from "./repo";
 
 export const CREDIT_MONTHS = 1;
@@ -114,9 +115,13 @@ export async function creditsFor(userId: string) {
 
 export async function onSigned(u: User) {
   const r = await get<{ referred_by: string | null; guest_expires_at: string | null }>("SELECT referred_by, guest_expires_at FROM users WHERE id = ?", u.id);
-  if (!r?.referred_by || r.guest_expires_at || (await signedCount(u.id)) < 1) return null;
+  if (!r?.referred_by || r.guest_expires_at || (await signedCount(u.id)) < 1) {
+    await checkActivation(u.id);
+    return null;
+  }
   const { changes } = await run("INSERT INTO growth_credits (id, user_id, kind, months, other_user_id, created_at) VALUES (?, ?, 'referred', ?, ?, ?) ON CONFLICT DO NOTHING", uid("crd_"), u.id, CREDIT_MONTHS, r.referred_by, now());
   if (!changes) return null;
+  await checkActivation(u.id);
   const referrer = await creditsFor(r.referred_by);
   const referrerCredited = !referrer.capped;
   if (referrerCredited) await run("INSERT INTO growth_credits (id, user_id, kind, months, other_user_id, created_at) VALUES (?, ?, 'referrer', ?, ?, ?) ON CONFLICT DO NOTHING", uid("crd_"), r.referred_by, CREDIT_MONTHS, u.id, now());
@@ -186,6 +191,10 @@ export async function createReceipt(u: User) {
   return { token, url: `${publicOrigin()}/receipt/${token}`, stats };
 }
 
+export async function receiptOwner(token: string) {
+  return (await get<{ user_id: string }>("SELECT user_id FROM receipts WHERE token = ? AND revoked_at IS NULL", token))?.user_id ?? null;
+}
+
 export async function receiptByToken(token: string): Promise<ReceiptStats | null> {
   if (!/^[A-Za-z0-9_-]{10,40}$/.test(token)) return null;
   const r = await get<{ content: string; revoked_at: string | null }>("SELECT content, revoked_at FROM receipts WHERE token = ?", token);
@@ -207,12 +216,12 @@ export async function writtenInSeconds(encId: string) {
 export async function shareFooter(encId: string, clinicianId: string) {
   const seconds = await writtenInSeconds(encId);
   const code = await referralCode({ id: clinicianId });
-  return { written: seconds ? `Written with Chartside in ${seconds < 90 ? `${seconds} seconds` : `${Math.round(seconds / 60)} minutes`}` : "Written with Chartside", tryUrl: `/r/${code}`, demoUrl: "/line" };
+  return { written: seconds ? `Written with Chartside in ${seconds < 90 ? `${seconds} seconds` : `${Math.round(seconds / 60)} minutes`}` : "Written with Chartside", tryUrl: `/r/${code}?src=share`, demoUrl: "/line" };
 }
 
 export async function shareFooterForToken(token: string) {
   const r = await get<{ encounter_id: string; created_by: string }>("SELECT encounter_id, created_by FROM encounter_shares WHERE token_hash = ?", createHash("sha256").update(token).digest("hex"));
-  return r ? shareFooter(r.encounter_id, r.created_by) : null;
+  return r ? { ...(await shareFooter(r.encounter_id, r.created_by)), inviterId: r.created_by } : null;
 }
 
 export function inviteMessage(u: User, url: string) {
@@ -221,7 +230,7 @@ export function inviteMessage(u: User, url: string) {
 
 export async function growthState(u: User, origin?: string) {
   const code = await referralCode(u);
-  const url = referralUrl(code, origin);
+  const url = `${referralUrl(code, origin)}?src=invite`;
   const signed = await signedCount(u.id);
   return {
     referral: { code, url, message: inviteMessage(u, url) },

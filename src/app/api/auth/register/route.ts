@@ -4,6 +4,7 @@ import { body, fail, json } from "@/lib/server/http";
 import { actorFor, audit, invites, orgs, users } from "@/lib/server/repo";
 import { seedDemo } from "@/lib/server/seed";
 import { attributeReferral, REF_COOKIE } from "@/lib/server/growth";
+import { recordSignup, touchFromCookies } from "@/lib/server/loops";
 
 export async function POST(req: Request) {
   const b = await body<{ email?: string; password?: string; name?: string; specialty?: string; demo?: boolean; orgName?: string; invite?: string }>(req);
@@ -31,6 +32,7 @@ export async function POST(req: Request) {
   await audit.log(user, null, invite ? "member.joined" : "user.registered", invite ? { role: invite.role, via: "invite" } : {});
   if (!invite && b.demo !== false) await seedDemo(user);
   if (!invite) await attributeReferral(user.id, (await cookies()).get(REF_COOKIE)?.value);
+  if (!invite) await recordSignup(user.id, await touchFromCookies(await cookies()));
   await startSession(user.id, orgId);
   return json({ user: publicUser(user) }, 201);
 }

@@ -13,7 +13,7 @@ async function axe(page: Page, label: string) {
 }
 
 test("settings verifies a phone by text, sets a PIN, claims an NPI, and shares a receipt", async ({ page }) => {
-  await register(page, "Dr. Avery Chen");
+  await register(page, "Dr. Dana Ruiz");
   await page.goto("/go/stack");
   await page.getByTestId("stack-settings").click();
   await expect(page.getByTestId("go-settings")).toHaveAttribute("data-ready", "true");
@@ -26,7 +26,7 @@ test("settings verifies a phone by text, sets a PIN, claims an NPI, and shares a
   const texts = async () => (await (await page.request.get(`http://localhost:3295/texts?to=${encodeURIComponent(`+1${phone}`)}`)).json()) as { body: string }[];
   await expect.poll(async () => (await texts()).length).toBe(1);
   const body = (await texts())[0].body;
-  expect(body).not.toMatch(/Avery|Chen/);
+  expect(body).not.toMatch(/Dana|Ruiz/);
   await page.getByTestId("phone-code").fill(/\b(\d{6})\b/.exec(body)![1]);
   await page.getByTestId("phone-verify").click();
   await expect(page.getByTestId("phone-current")).toHaveText(new RegExp(`${phone.slice(-4)}$`));
@@ -40,14 +40,14 @@ test("settings verifies a phone by text, sets a PIN, claims an NPI, and shares a
   await expect(page.getByTestId("pin-status")).toHaveText("A PIN is set.");
   expect((await (await page.request.get("/api/auth/phone/pin")).json()).set).toBe(true);
 
-  await page.getByTestId("npi-input").fill("1234567893");
-  await page.getByTestId("npi-state").fill("IL");
+  await page.getByTestId("npi-input").fill("1245319599");
+  await page.getByTestId("npi-state").fill("CA");
   await page.getByTestId("npi-save").click();
-  await expect(page.getByTestId("npi-status")).toContainText("NPI 1234567893 on file");
+  await expect(page.getByTestId("npi-status")).toContainText("NPI 1245319599 on file");
 
   await page.getByTestId("receipt-create").click();
   await expect(page.getByTestId("receipt-link")).toContainText("/receipt/");
-  await expect(page.getByTestId("referral-url")).toHaveText(/\/r\/[a-z0-9]{6}$/);
+  await expect(page.getByTestId("referral-url")).toHaveText(/\/r\/[a-z0-9]{6}\?src=invite$/);
   await expect(page.getByTestId("credits")).toContainText("0 free months");
   problems.push(...(await axe(page, "settings-after")));
   expect(problems).toEqual([]);

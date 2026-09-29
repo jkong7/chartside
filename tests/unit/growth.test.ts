@@ -168,7 +168,7 @@ describe("growth", () => {
     const { enc } = await signedVisit(doc, "Nellie Bly", { endedAt: new Date(Date.now() - 41000).toISOString() });
     const f = await g.shareFooter(enc.id, doc.id);
     expect(f.written).toMatch(/^Written with Chartside in \d+ seconds$/);
-    expect(f.tryUrl).toBe(`/r/${await g.referralCode(doc)}`);
+    expect(f.tryUrl).toBe(`/r/${await g.referralCode(doc)}?src=share`);
     expect(JSON.stringify(f)).not.toMatch(/Nellie|Bly/);
   });
 });

@@ -729,6 +729,16 @@ CREATE TABLE IF NOT EXISTS receipts (
   created_at TEXT NOT NULL,
   revoked_at TEXT
 );
+CREATE TABLE IF NOT EXISTS loop_events (
+  id TEXT PRIMARY KEY,
+  loop_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  inviter_id TEXT,
+  user_id TEXT,
+  org_id TEXT,
+  visitor TEXT,
+  at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS capture_tokens (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,
@@ -768,6 +778,7 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS messages_assignee ON messages(org_id, assignee_id, status)",
   "CREATE INDEX IF NOT EXISTS magic_links_email ON magic_links(email, created_at)",
   "CREATE INDEX IF NOT EXISTS decision_proposals_user ON decision_proposals(user_id, status)",
+  "CREATE INDEX IF NOT EXISTS loop_events_at ON loop_events(at, loop_id, kind)",
   "CREATE UNIQUE INDEX IF NOT EXISTS users_verified_phone ON users(phone) WHERE phone_verified_at IS NOT NULL",
 ];
 
@@ -803,6 +814,8 @@ const LEGACY_COLUMNS: [string, string, string][] = [
   ["users", "guest_expires_at", "TEXT"],
   ["users", "phone_pin_hash", "TEXT"],
   ["users", "referred_by", "TEXT"],
+  ["users", "acq_loop", "TEXT"],
+  ["users", "acq_inviter", "TEXT"],
   ["users", "phone_pin_failures", "INTEGER NOT NULL DEFAULT 0"],
   ["users", "phone_pin_locked_until", "TEXT"],
   ["users", "mfa_recovery", "TEXT"],

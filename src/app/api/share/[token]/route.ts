@@ -2,6 +2,7 @@ import { fail, json } from "@/lib/server/http";
 import { artifacts, encounterByShareToken, notes, patientFlags, patients, users, utterances } from "@/lib/server/repo";
 import type { PatientSummary } from "@/lib/types";
 import { documents } from "@/lib/server/documents";
+import { trackLoop, visitorKey } from "@/lib/server/loops";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
@@ -11,6 +12,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
   const patient = enc.patientId ? await patients.byIdUnscoped(enc.patientId) : undefined;
   const lang = patient?.language && summaries[patient.language] ? patient.language : enc.outputLang && summaries[enc.outputLang] ? enc.outputLang : "en";
   const clinician = await users.byId(enc.userId);
+  await trackLoop({ loop: "recap", kind: "exposure", inviterId: enc.userId, visitor: visitorKey(token) });
   return json({
     firstName: patient?.name.split(" ")[0] ?? null,
     clinician: clinician?.name ?? "Your clinician",

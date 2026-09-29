@@ -86,7 +86,7 @@ test("the patient recap and the external share carry the attribution footers", a
   await other.getByTestId("xshare-code").fill(/\b(\d{6})\b/.exec((await inbox())[1].body)![1]);
   await other.getByTestId("xshare-verify").click();
   await expect(other.getByTestId("shared-footer")).toContainText("Written with Chartside");
-  await expect(other.getByTestId("shared-try")).toHaveAttribute("href", /^\/r\/[a-z0-9]{6}$/);
+  await expect(other.getByTestId("shared-try")).toHaveAttribute("href", /^\/r\/[a-z0-9]{6}\?src=share$/);
 });
 
 test("the stack offers the colleague invite once, after the third signed note", async ({ page }) => {
@@ -103,7 +103,7 @@ test("the stack offers the colleague invite once, after the third signed note", 
   await expect(page.getByTestId("invite-card").or(force)).toBeVisible();
   if (await force.isVisible()) await force.click();
   await expect(page.getByTestId("invite-card")).toBeVisible();
-  await expect(page.getByTestId("invite-url")).toHaveText(/\/r\/[a-z0-9]{6}$/);
+  await expect(page.getByTestId("invite-url")).toHaveText(/\/r\/[a-z0-9]{6}\?src=invite$/);
   await expect(page.getByTestId("invite-sms")).toHaveAttribute("href", /^sms:/);
   await page.getByTestId("invite-close").click();
   await page.reload();

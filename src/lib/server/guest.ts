@@ -1,5 +1,6 @@
 import { all, get, now, run, tx, uid } from "../db";
 import { deleteAudio } from "./audio";
+import { markGuestLoop } from "./loops";
 import { Forbidden } from "./policy";
 import { actorFor, audit, orgs, users, type BaseUser, type User } from "./repo";
 
@@ -25,6 +26,7 @@ export async function createGuest(opts: { phone?: string | null } = {}): Promise
   const org = await orgs.create("Unsaved practice", id);
   const actor = (await actorFor(id, org.id))!;
   await audit.log(actor, null, "guest.created", { via: opts.phone ? "phone" : "web", expiresAt: expires });
+  await markGuestLoop(id, opts.phone ? "phone_guest" : "go_guest");
   return actor;
 }
 
