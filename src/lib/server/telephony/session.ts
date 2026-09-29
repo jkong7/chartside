@@ -94,7 +94,7 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
       const r = await captureAudio(user, { options: { consent: "granted", method: "verbal", state: user.prefs.state || "IL", finish: false, channel: claims.sim ? "phone-sim" : "phone", reason: "", ...(lang ? { lang } : {}), ...(encounterId ? { encounterId } : {}) } as never });
       encId = r.encounterId;
       const verifiedBy = user.guestUntil ? "guest" : pinOk ? "pin" : "caller-id";
-      await artifacts.set(encId, "phone_call", { callSid: claims.callSid, sim: claims.sim, verifiedBy, startedAt: new Date(startedAt).toISOString() });
+      await artifacts.set(encId, "phone_call", { callSid: claims.callSid, sim: claims.sim, verifiedBy, phone: claims.phone, startedAt: new Date(startedAt).toISOString() });
       await audit.log(user, encId, "phone.consent", { callSid: claims.callSid, sim: claims.sim, verifiedBy });
     },
     flush: () => flush(),
