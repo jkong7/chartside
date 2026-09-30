@@ -11,12 +11,20 @@ import { recordingMinutesFromEnv } from "@/lib/engine/limits";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Record a visit · Chartside", description: "One tap to record a visit. Chartside writes the note." };
 
-export default async function GoPage({ searchParams }: { searchParams: Promise<{ shared?: string }> }) {
-  const { shared } = await searchParams;
+function lineDisplay() {
+  const raw = process.env.CHARTSIDE_LINE_NUMBER || "";
+  const d = raw.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+  if (!raw) return null;
+  return { tel: raw, text: process.env.CHARTSIDE_LINE_DISPLAY || (d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : raw) };
+}
+
+export default async function GoPage({ searchParams }: { searchParams: Promise<{ shared?: string; welcome?: string }> }) {
+  const { shared, welcome } = await searchParams;
   const found = await currentUser().catch(() => null);
   const user = found ? await captureTz(found).catch(() => found) : null;
   const counts = user ? await decisionCounts(user).catch(() => null) : null;
   const sample = !!user?.prefs.sampleDay;
+  const line = lineDisplay();
   const pin = user && !user.guestUntil ? await hasPhonePin(user.id).catch(() => false) : false;
   return (
     <main className="min-h-screen bg-paper">
@@ -29,6 +37,7 @@ export default async function GoPage({ searchParams }: { searchParams: Promise<{
           <Link href="/go/phone" className="btn-ghost">Call instead</Link>
           {user && <Link href="/go/stack" className="btn-ghost">To review</Link>}
           {user && <Link href="/go/ask" className="btn-ghost">Ask</Link>}
+          {user && !user.guestUntil && <Link href="/today" className="btn-ghost" data-testid="go-more">More</Link>}
         </nav>
       </header>
       {shared && (
@@ -40,6 +49,16 @@ export default async function GoPage({ searchParams }: { searchParams: Promise<{
         <div className="mx-auto max-w-3xl px-4">
           <LiveCallBanner />
         </div>
+      )}
+      {user && !user.guestUntil && welcome === "1" && (
+        <p className="mx-auto mt-1 max-w-md px-4 text-center text-sm text-ink-2" data-testid="go-welcome">
+          You&apos;re in. Record your first visit below, or play the sample if no patient is handy.
+        </p>
+      )}
+      {user && !user.guestUntil && line && (
+        <p className="mx-auto mt-3 flex max-w-md items-center justify-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-sm text-ink-2" data-testid="go-line-card">
+          <span className="font-medium text-ink">Your line:</span> call <a className="font-semibold text-brand underline" href={`tel:${line.tel}`}>{line.text}</a> before your next visit
+        </p>
       )}
       {user && !user.guestUntil && (
         <div className="px-4 pt-2">
