@@ -183,6 +183,32 @@ describe("capture API", () => {
     expect(n.json.error).toMatch(/Device keys/);
   });
 
+  it("lets a texted upload link send one recording, never read the note, and text the link when ready", async () => {
+    const { root, one, note } = await routes();
+    const { settleCaptures } = await import("@/lib/server/capture");
+    const { listCaptureTokens, mintUploadToken } = await import("@/lib/server/captureTokens");
+    const { simMessages } = await import("@/lib/server/telephony/sms");
+    const magic = await import("@/lib/server/magic");
+    const repo = await import("@/lib/server/repo");
+    const doc = await newMember("Dr. Upload Once");
+    await magic.verifyPhone(doc.id, "+15550180001");
+    const u = (await repo.actorFor(doc.id, doc.orgId))!;
+    const { token } = await mintUploadToken(u, 30);
+    expect(await listCaptureTokens(u)).toHaveLength(0);
+    const r = await call(root.POST, "/api/capture?consent=granted&encounterId=enc_other", { method: "POST", token, body: audio, headers: { "content-type": "audio/mp4" } });
+    expect(r.status).toBe(202);
+    const id = r.json.encounterId as string;
+    await settleCaptures();
+    expect((await call(one.GET, `/api/capture/${id}`, { token }, { id })).json.status).toBe("ready");
+    expect((await call(note.GET, `/api/capture/${id}/note`, { token }, { id })).status).toBe(403);
+    expect((await call(one.POST, `/api/capture/${id}`, { method: "POST", token, body: audio, headers: { "content-type": "audio/mp4" } }, { id })).status).toBe(403);
+    const again = await call(root.POST, "/api/capture?consent=granted", { method: "POST", token, body: audio, headers: { "content-type": "audio/mp4" } });
+    expect(again.status).toBe(410);
+    expect(again.json.error).toMatch(/already used/);
+    expect((await repo.encounters.list(u, {})).length).toBe(1);
+    expect(simMessages("+15550180001").map((m: { body: string }) => m.body).join("\n")).toMatch(/is ready\. Review and sign: /);
+  });
+
   it("scopes a token to the captures it created", async () => {
     const { root, one, note } = await routes();
     const { settleCaptures } = await import("@/lib/server/capture");

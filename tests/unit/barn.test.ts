@@ -64,6 +64,10 @@ describe("Barn Line", () => {
     const all = await import("@/lib/db");
     const row = await all.get<{ user_id: string; org_id: string; id: string }>("SELECT e.user_id, e.org_id, e.id FROM encounters e JOIN patients p ON p.id = e.patient_id WHERE p.name = 'Biscuit'");
     const lee = (await repo.actorFor(row!.user_id, row!.org_id))!;
+    const { setOwnerPhone, setOwnerTexts } = await import("@/lib/server/barn");
+    await setOwnerTexts(lee, true);
+    const biscuit = (await repo.patients.list(lee)).find((p) => p.name === "Biscuit")!;
+    await setOwnerPhone(lee, biscuit.id, { phone: biscuit.chart.animal!.ownerPhone, confirm: true });
     clearSim("+15550160042");
     const r = await signEncounter(lee, row!.id, { force: true });
     expect(r.signed).toBe(true);
@@ -74,7 +78,8 @@ describe("Barn Line", () => {
     expect(owner[0]).toContain("Prepared with Chartside");
     expect(owner[0]).not.toMatch(/\b(sale|discount|offer|try)\b/i);
     expect(await inboundText("+15550160042", "STOP", "https://line.test")).toContain("won't get texts");
-    const duchess = await all.get<{ id: string }>("SELECT e.id FROM encounters e JOIN patients p ON p.id = e.patient_id WHERE p.name = 'Duchess'");
+    const duchess = await all.get<{ id: string; patient_id: string }>("SELECT e.id, e.patient_id FROM encounters e JOIN patients p ON p.id = e.patient_id WHERE p.name = 'Duchess'");
+    await setOwnerPhone(lee, duchess!.patient_id, { phone: "+15550160042", confirm: true });
     await signEncounter(lee, duchess!.id, { force: true });
     expect(simMessages("+15550160042")).toHaveLength(1);
   });
@@ -83,5 +88,84 @@ describe("Barn Line", () => {
     const { afterVetSign } = await import("@/lib/server/barn");
     const human = await newMember("Dr. People Pat");
     expect((await afterVetSign(human, "enc_missing")).sent).toBe(false);
+  });
+
+  it("sends no owner text while the practice setting is off, which is the default", async () => {
+    const { inboundText } = await import("@/lib/server/telephony/texting");
+    const { settleCaptures } = await import("@/lib/server/capture");
+    const { signEncounter } = await import("@/lib/server/pipeline");
+    const { setOwnerPhone } = await import("@/lib/server/barn");
+    const { simMessages } = await import("@/lib/server/telephony/sms");
+    const repo = await import("@/lib/server/repo");
+    const doc = await vet("Dr. Off Setting", "+15550160101");
+    expect((await repo.orgs.get(doc.orgId))!.settings.ownerTexts).toBeUndefined();
+    await inboundText("+15550160101", "Note: This is Pepper, a 9 year old Arabian mare at Stone farm, owner is Amy Stone, owner's number is 555-016-0102. Stall rest for 3 days.", "https://line.test");
+    await settleCaptures();
+    const pat = (await repo.patients.list(doc)).find((p) => p.name === "Pepper")!;
+    await setOwnerPhone(doc, pat.id, { phone: "+15550160102", confirm: true });
+    const enc = (await repo.encounters.list(doc, {}))[0];
+    expect((await signEncounter(doc, enc.id, { force: true })).signed).toBe(true);
+    expect(simMessages("+15550160102")).toHaveLength(0);
+  });
+
+  it("sends no owner text until the vet confirms the phone that came from speech", async () => {
+    const { inboundText } = await import("@/lib/server/telephony/texting");
+    const { settleCaptures } = await import("@/lib/server/capture");
+    const { afterVetSign, setOwnerTexts } = await import("@/lib/server/barn");
+    const { simMessages } = await import("@/lib/server/telephony/sms");
+    const repo = await import("@/lib/server/repo");
+    const doc = await vet("Dr. Unconfirmed", "+15550160201");
+    await setOwnerTexts(doc, true);
+    await inboundText("+15550160201", "Note: This is Maple, a 6 year old Morgan mare at Oak farm, owner is Ben Oak, owner's number is 555-016-0202. Stall rest for 3 days.", "https://line.test");
+    await settleCaptures();
+    const pat = (await repo.patients.list(doc)).find((p) => p.name === "Maple")!;
+    expect(pat.chart.animal).toMatchObject({ ownerPhone: "+15550160202", ownerPhoneConfirmedAt: null });
+    const enc = (await repo.encounters.list(doc, {}))[0];
+    expect(await afterVetSign(doc, enc.id)).toEqual({ sent: false, reason: "unconfirmed_phone" });
+    expect(simMessages("+15550160202")).toHaveLength(0);
+  });
+
+  it("files a same-name animal of another species, or with no shared owner or farm, as a new animal", async () => {
+    const { inboundText } = await import("@/lib/server/telephony/texting");
+    const { settleCaptures } = await import("@/lib/server/capture");
+    const { setOwnerPhone } = await import("@/lib/server/barn");
+    const repo = await import("@/lib/server/repo");
+    const doc = await vet("Dr. Two Biscuits", "+15550160301");
+    await inboundText("+15550160301", "Note: This is Biscuit, a 12 year old Quarter Horse gelding at Miller's barn, owner is Jane Miller, owner's number is 555-016-0302. Stall rest for 3 days.", "https://line.test");
+    await settleCaptures();
+    const horse = (await repo.patients.list(doc)).find((p) => p.name === "Biscuit")!;
+    await setOwnerPhone(doc, horse.id, { phone: "+15550160302", confirm: true });
+    await inboundText("+15550160301", "Note: This is Biscuit, a 4 year old Labrador dog, owner is Jane Miller, owner's number is 555-016-0399. Recheck in 2 weeks.", "https://line.test");
+    await inboundText("+15550160301", "Note: This is Biscuit, a 10 year old Quarter Horse gelding. Recheck in 2 weeks.", "https://line.test");
+    await inboundText("+15550160301", "Note: This is Biscuit, a 12 year old Quarter Horse gelding at Miller's barn, owner is Jane Miller, owner's number is 555-016-0377. Recheck in 2 weeks.", "https://line.test");
+    await inboundText("+15550160301", "Note: This is Biscuit, a 12 year old Quarter Horse gelding at Miller's barn, owner is Jane Miller. Recheck in 2 weeks.", "https://line.test");
+    await settleCaptures();
+    const all = (await repo.patients.list(doc)).filter((p) => p.name === "Biscuit");
+    expect(all).toHaveLength(4);
+    const same = (await repo.patients.get(doc, horse.id))!;
+    expect(same.chart.animal).toMatchObject({ ownerPhone: "+15550160302" });
+    expect(same.chart.animal!.ownerPhoneConfirmedAt).toBeTruthy();
+    expect((await repo.encounters.list(doc, { patientId: horse.id })).length).toBe(2);
+    expect(all.find((p) => p.chart.animal!.ownerPhone === "+15550160399")!.chart.animal!.species).not.toBe("Equine");
+  });
+
+  it("reads the owner's name whatever the case of the word owner", async () => {
+    const { profileFrom } = await import("@/lib/engine/vet");
+    expect(profileFrom("Owner is Jane Miller. Horse is lame.").owner).toBe("Jane Miller");
+    expect(profileFrom("OWNER IS Jane Miller.").owner).toBe("Jane Miller");
+    expect(profileFrom("Client is Bob Stone.").owner).toBe("Bob Stone");
+  });
+
+  it("lets only the practice owner turn owner texts on, and logs it", async () => {
+    const { setOwnerTexts } = await import("@/lib/server/barn");
+    const repo = await import("@/lib/server/repo");
+    const all = await import("@/lib/db");
+    const owner = await vet("Dr. Org Owner", "+15550160401");
+    const member = await newMember("Dr. Member", { orgId: owner.orgId, role: "clinician" });
+    await expect(setOwnerTexts(member, true)).rejects.toThrow(/owner/);
+    expect(await setOwnerTexts(owner, true)).toBe(true);
+    expect((await repo.orgs.get(owner.orgId))!.settings.ownerTexts).toBe(true);
+    const log = await all.get<{ n: number }>("SELECT COUNT(*) AS n FROM audit WHERE org_id = ? AND action = 'org.owner_texts'", owner.orgId);
+    expect(Number(log!.n)).toBe(1);
   });
 });

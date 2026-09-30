@@ -6,8 +6,9 @@ import { audioSeconds, type MediaItem } from "../../engine/media";
 import { dictationText, formatClock, holdExpiry, nextHold, splitNumbered, type MemoHoldState } from "../../engine/memo";
 import { noteToText } from "../../engine/note";
 import { captureAudio, captureTyped, finishCaptureFor, normalizeMime, onDrafted } from "../capture";
-import { hipaaApplies, orgJurisdiction } from "../jurisdiction";
-import { mintLoginLink } from "../magic";
+import { hipaaApplies, orgJurisdiction, textOptedOut } from "../jurisdiction";
+import { mintUploadToken } from "../captureTokens";
+import { mintLoginLink, publicOrigin } from "../magic";
 import { actorFor, audit, encounters, notes, patients, users, type User } from "../repo";
 import { deleteMedia, downloadMedia, maxMemoBytes } from "./media";
 import { sendText } from "./sms";
@@ -46,16 +47,25 @@ const clockLabel = (secs: number | null | undefined) => {
   return c ? `${c} recording` : "recording";
 };
 
-async function discard(row: HoldRow, reason: "declined" | "expired") {
+const DISCARD_ACTION = { declined: "memo.consent_declined", expired: "memo.hold_expired", orphaned: "memo.hold_orphaned" } as const;
+
+async function discard(row: HoldRow, reason: keyof typeof DISCARD_ACTION) {
   if (row.path) rmSync(row.path, { force: true });
   await run("UPDATE memo_holds SET status = 'discarded', path = NULL, resolved_at = ? WHERE id = ? AND status = 'held'", now(), row.id);
-  const actor = await actorFor(row.user_id, row.org_id).catch(() => undefined);
-  await audit.log(actor ?? null, null, reason === "declined" ? "memo.consent_declined" : "memo.hold_expired", { holdId: row.id, channel: row.channel });
+  const actor = reason === "orphaned" ? undefined : await actorFor(row.user_id, row.org_id).catch(() => undefined);
+  await audit.log(actor ?? null, null, DISCARD_ACTION[reason], { holdId: row.id, channel: row.channel });
+}
+
+export async function firstSeen(messageSid: string | null | undefined) {
+  if (!messageSid) return true;
+  const { changes } = await run("INSERT INTO inbound_messages (sid, created_at) VALUES (?, ?) ON CONFLICT DO NOTHING", messageSid.slice(0, 64), now());
+  return changes > 0;
 }
 
 export async function purgeMemoHolds(at = new Date()) {
   const rows = await all<HoldRow>("SELECT * FROM memo_holds WHERE status = 'held' AND expires_at <= ?", at.toISOString());
   for (const r of rows) if (nextHold({ status: r.status, createdAt: r.created_at, expiresAt: r.expires_at }, { kind: "tick" }, at).status === "discarded") await discard(r, "expired");
+  await run("DELETE FROM inbound_messages WHERE created_at < ?", new Date(at.getTime() - 7 * 86400_000).toISOString());
   return rows.length;
 }
 
@@ -104,7 +114,7 @@ async function noteBodies(user: User, ids: string[]) {
 export async function notifyReady(user: User, phone: string, channel: MemoChannel, secs: number | null, r: { ok: true; encounterIds: string[] } | { ok: false; error: string }, source: "memo" | "text" = "memo") {
   const fresh = (await actorFor(user.id, user.orgId).catch(() => undefined)) ?? user;
   const what = source === "text" ? "text" : `${clockLabel(secs)}`;
-  if (fresh.prefs.textOptOut && channel === "mms") {
+  if (channel === "mms" && (fresh.prefs.textOptOut || (await textOptedOut(phone)))) {
     await audit.log(fresh, null, "memo.text_skipped", { reason: "opted_out" });
     return;
   }
@@ -122,11 +132,16 @@ export async function notifyReady(user: User, phone: string, channel: MemoChanne
       return;
     }
     const ids = r.encounterIds;
+    const owners = ids.length ? await all<{ org_id: string }>(`SELECT DISTINCT org_id FROM encounters WHERE id IN (${ids.map(() => "?").join(", ")})`, ...ids) : [];
+    if (owners.length !== 1 || owners[0].org_id !== fresh.orgId) {
+      await audit.log(fresh, null, "memo.text_skipped", { reason: "org_mismatch", channel });
+      return;
+    }
     const link = await linkFor(fresh, phone, ids.length === 1 ? `/go/stack?focus=${ids[0]}` : "/go/stack");
     const many = ids.length > 1 ? `${ids.length} notes` : "note";
     const verb = ids.length > 1 ? "are" : "is";
     const head = fresh.guestUntil ? `Chartside: your ${many} from the ${what} ${verb} ready. Tap to save ${ids.length > 1 ? "them" : "it"} (free): ${link}` : `Chartside: your ${many} from the ${what} ${verb} ready. Review and sign: ${link}`;
-    const inline = channel === "whatsapp" || !hipaaApplies(await orgJurisdiction(fresh.orgId));
+    const inline = !hipaaApplies(await orgJurisdiction(owners[0].org_id));
     if (inline && !fresh.guestUntil) {
       const bodies = await noteBodies(fresh, ids);
       await send(`${bodies.join("\n\n---\n\n")}\n\nEdit and sign: ${link}`, true);
@@ -140,11 +155,14 @@ export async function notifyReady(user: User, phone: string, channel: MemoChanne
 
 export async function uploadLinkReply(user: User | null, origin: string, phone: string) {
   if (!user || user.guestUntil) return `Too big to text? Record or upload it here: ${origin}/go`;
-  return `Too big to text? Upload it here. The link works once, for 30 minutes: ${await linkFor(user, phone, "/go/upload")}`;
+  const { token } = await mintUploadToken(user, 30);
+  const client = (await orgJurisdiction(user.orgId)) === "veterinary" ? "client" : "patient";
+  return `Too big to text? Upload it here. The link works once, for 30 minutes: ${publicOrigin(origin)}/go/upload#t=${token}&c=${client}`;
 }
 
 export async function inboundMemo(input: { user: User; phone: string; channel: MemoChannel; items: MediaItem[]; messageSid?: string | null; origin: string }) {
   const { user, phone, channel, items, origin } = input;
+  if (!(await firstSeen(input.messageSid))) return "";
   await purgeMemoHolds();
   if (channel === "whatsapp") await touchSession(phone, channel);
   const audio = items.filter((i) => i.audio);
@@ -193,41 +211,60 @@ export async function inboundMemo(input: { user: User; phone: string; channel: M
   return `Got your ${label}. Reply YES if your ${vet ? "client" : "patient"} agreed to be recorded, or NO to delete it. Nothing is written until you reply, and it is deleted after ${hrs} hour${hrs === 1 ? "" : "s"}.${extra}`;
 }
 
-export async function resolveHolds(phone: string, intent: "yes" | "no" | "always", channel?: MemoChannel) {
+export async function resolveHolds(phone: string, intent: "yes" | "no" | "always", channel?: MemoChannel, messageSid?: string | null) {
+  if (!(await firstSeen(messageSid))) return "";
   const rows = await heldMemos(phone, channel);
   if (!rows.length) return null;
-  const user = await actorFor(rows[0].user_id, rows[0].org_id);
-  if (!user) return null;
+  const groups = new Map<string, HoldRow[]>();
+  for (const r of rows) groups.set(`${r.user_id}:${r.org_id}`, [...(groups.get(`${r.user_id}:${r.org_id}`) ?? []), r]);
+  const live: { user: User; rows: HoldRow[] }[] = [];
+  for (const g of groups.values()) {
+    const user = await actorFor(g[0].user_id, g[0].org_id).catch(() => undefined);
+    if (!user || user.orgId !== g[0].org_id) {
+      for (const r of g) await discard(r, "orphaned");
+      continue;
+    }
+    live.push({ user, rows: g });
+  }
+  if (!live.length) return null;
+  const count = live.reduce((n, g) => n + g.rows.length, 0);
   if (intent === "no") {
-    for (const r of rows) await discard(r, "declined");
-    return `Deleted. Nothing from ${rows.length > 1 ? "those recordings" : "that recording"} was kept.`;
+    for (const g of live) for (const r of g.rows) await discard(r, "declined");
+    return `Deleted. Nothing from ${count > 1 ? "those recordings" : "that recording"} was kept.`;
   }
   let standingSet = false;
-  if (intent === "always") {
-    if (user.guestUntil) return "Save your account first, then you can turn on standing consent. Reply YES to confirm this recording.";
-    await users.update(user.id, { prefs: { ...user.prefs, memoStandingConsent: now() } });
-    await audit.log(user, null, "memo.standing_consent", { on: true });
-    standingSet = true;
-  }
+  let guestAsked = false;
   let secs = 0;
-  for (const r of rows) {
-    const claimed = await run("UPDATE memo_holds SET status = 'confirmed', resolved_at = ? WHERE id = ? AND status = 'held'", now(), r.id);
-    if (!claimed.changes || !r.path) continue;
-    let audio: Buffer;
-    try {
-      audio = unsealBytes(readFileSync(r.path));
-    } catch {
-      continue;
-    } finally {
-      rmSync(r.path, { force: true });
+  for (const { user, rows: held } of live) {
+    if (intent === "always") {
+      if (user.guestUntil) {
+        guestAsked = true;
+        continue;
+      }
+      await users.update(user.id, { prefs: { ...user.prefs, memoStandingConsent: now() } });
+      await audit.log(user, null, "memo.standing_consent", { on: true });
+      standingSet = true;
     }
-    const encId = await memoCapture(user, phone, r.channel, audio, r.mime, r.duration_s, standingSet ? "standing" : "text-confirmed");
-    await run("UPDATE memo_holds SET encounter_id = ?, path = NULL WHERE id = ?", encId, r.id);
-    secs += r.duration_s ?? 0;
+    for (const r of held) {
+      const claimed = await run("UPDATE memo_holds SET status = 'confirmed', resolved_at = ? WHERE id = ? AND status = 'held'", now(), r.id);
+      if (!claimed.changes || !r.path) continue;
+      let audio: Buffer;
+      try {
+        audio = unsealBytes(readFileSync(r.path));
+      } catch {
+        continue;
+      } finally {
+        rmSync(r.path, { force: true });
+      }
+      const encId = await memoCapture(user, phone, r.channel, audio, r.mime, r.duration_s, intent === "always" ? "standing" : "text-confirmed");
+      await run("UPDATE memo_holds SET encounter_id = ?, path = NULL WHERE id = ?", encId, r.id);
+      secs += r.duration_s ?? 0;
+    }
   }
+  if (guestAsked && !standingSet) return "Save your account first, then you can turn on standing consent. Reply YES to confirm this recording.";
   const label = clockLabel(secs || null);
   if (standingSet) return `Got it. You won't be asked again. Writing the note from your ${label} now.`;
-  const offer = !user.guestUntil ? " If you always get consent in the room, reply ALWAYS and I won't ask again." : "";
+  const offer = live.some((g) => !g.user.guestUntil) ? " If you always get consent in the room, reply ALWAYS and I won't ask again." : "";
   return `Thanks. Writing the note from your ${label}. I'll text you when it's ready.${offer}`;
 }
 

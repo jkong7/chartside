@@ -17,6 +17,7 @@ export const PATCH = authed<{ id: string }>(async (req, user, { id }) => {
   const coverageOnly = !!b.chart && Object.keys(b.chart).every((k) => k === "coverage");
   if (!(coverageOnly && can(user, "billing.review"))) assertCan(user, "patients.write");
   const next = { ...p.chart, ...(b.chart ?? {}) };
+  if (b.chart && "animal" in b.chart) next.animal = p.chart.animal || b.chart.animal ? { ...(b.chart.animal ?? p.chart.animal!), ownerPhone: p.chart.animal?.ownerPhone ?? null, ownerPhoneConfirmedAt: p.chart.animal?.ownerPhoneConfirmedAt ?? null } : undefined;
   if (b.chart && "pregnancy" in b.chart) {
     const g = b.chart.pregnancy;
     if (!g) delete next.pregnancy;

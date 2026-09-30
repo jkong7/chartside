@@ -14,6 +14,7 @@ const log = { gets: [] as string[], deletes: [] as string[], badAuth: 0 };
 let transcript: string[] = ["Follow up for knee pain, doing better with therapy.", "Knee exam shows no swelling.", "Continue physical therapy and recheck in six weeks."];
 const auth = `Basic ${Buffer.from("ACunit:unit-token").toString("base64")}`;
 let n = 0;
+let sids = 0;
 
 function addMedia(opts: { file?: string; bytes?: number; type?: string } = {}) {
   const sid = `ME${String(++n).padStart(8, "0")}`;
@@ -22,7 +23,7 @@ function addMedia(opts: { file?: string; bytes?: number; type?: string } = {}) {
 }
 
 function mms(from: string, items: { url: string }[], type = "audio/wav", body = "") {
-  const p: Record<string, string> = { From: from, To: "+13125550199", Body: body, MessageSid: `MM${n}`, NumMedia: String(items.length) };
+  const p: Record<string, string> = { From: from, To: "+13125550199", Body: body, MessageSid: `MM${n}S${++sids}`, NumMedia: String(items.length) };
   items.forEach((it, i) => {
     p[`MediaUrl${i}`] = it.url;
     p[`MediaContentType${i}`] = type;
@@ -182,7 +183,7 @@ describe("text a voice memo to the line", () => {
     await clinician("Dr. Big Bo", "+15550140006");
     const big = addMedia({ bytes: 3 * 1024 * 1024 });
     const reply = await inboundSms(mms("+15550140006", [big]), "https://line.test");
-    expect(reply).toMatch(/over 2 MB\. Too big to text\? Upload it here\. The link works once, for 30 minutes: https:\/\/line\.test\/m\//);
+    expect(reply).toMatch(/over 2 MB\. Too big to text\? Upload it here\. The link works once, for 30 minutes: https:\/\/line\.test\/go\/upload#t=cs_cap_[\w-]+&c=patient$/);
     expect(log.deletes).toContain(big.sid);
   });
 
@@ -211,4 +212,36 @@ describe("text a voice memo to the line", () => {
     expect(JSON.stringify(note!.content)).toMatch(/physical therapy/i);
     expect((await texts("+15550140008")).at(-1)).toMatch(/^Chartside: your note from the text is ready\. Review and sign:/);
   });
+
+  it("confirms each hold under its own clinician and drops a hold whose user is gone", async () => {
+    const { inboundSms, inboundText } = await import("@/lib/server/telephony/texting");
+    const repo = await import("@/lib/server/repo");
+    const db = await import("@/lib/db");
+    const doc = await clinician("Dr. Merge Mira", "+15550140011");
+    expect(await inboundSms(mms("+15550140011", [addMedia()]), "https://line.test")).toContain("Reply YES");
+    const old = new Date(Date.now() - 3600_000).toISOString();
+    await db.run("INSERT INTO memo_holds (id, phone, channel, user_id, org_id, status, mime, bytes, duration_s, path, message_sid, created_at, expires_at) VALUES ('memo_orphan', '+15550140011', 'mms', 'usr_gone', 'org_gone', 'held', 'audio/wav', 10, 5, NULL, NULL, ?, ?)", old, new Date(Date.now() + 3600_000).toISOString());
+    const yes = await inboundText("+15550140011", "YES", "https://line.test");
+    expect(yes).toContain("Writing the note from your 0:22 recording");
+    await settle();
+    expect(await repo.encounters.list(doc, {})).toHaveLength(1);
+    expect((await db.get<{ status: string }>("SELECT status FROM memo_holds WHERE id = 'memo_orphan'"))!.status).toBe("discarded");
+  });
+
+  it("ignores a retried webhook for a memo or a YES it already handled", async () => {
+    const { inboundSms } = await import("@/lib/server/telephony/texting");
+    const repo = await import("@/lib/server/repo");
+    const db = await import("@/lib/db");
+    const doc = await clinician("Dr. Retry Rae", "+15550140012");
+    const memo = mms("+15550140012", [addMedia()]);
+    expect(await inboundSms(memo, "https://line.test")).toContain("Reply YES");
+    expect(await inboundSms(memo, "https://line.test")).toBe("");
+    expect(Number((await db.get<{ n: number }>("SELECT COUNT(*) AS n FROM memo_holds WHERE phone = '+15550140012'"))!.n)).toBe(1);
+    const yes = { From: "+15550140012", To: "+13125550199", Body: "YES", MessageSid: "SMretry0001", NumMedia: "0" };
+    expect(await inboundSms(yes, "https://line.test")).toContain("Writing the note");
+    expect(await inboundSms(yes, "https://line.test")).toBe("");
+    await settle();
+    expect(await repo.encounters.list(doc, {})).toHaveLength(1);
+  });
 });
+
