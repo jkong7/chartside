@@ -43,7 +43,7 @@ export default function MemoUpload({ client }: { client: "patient" | "client" })
     <div className="card mx-auto w-full max-w-md p-6" data-testid="memo-upload" data-phase={phase}>
       <p className="label">Upload a recording</p>
       <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Too big to text? Send it here.</h1>
-      <p className="mt-2 text-sm text-ink-2">Pick a voice memo or any audio file up to 100 MB. It is encrypted as it uploads, and your note is ready in about a minute.</p>
+      <p className="mt-2 text-sm text-ink-2">Pick a voice memo or any audio file up to 100 MB. Chartside stores it encrypted, and your note is ready in about a minute.</p>
       {(phase === "pick" || phase === "failed") && (
         <div className="mt-5 space-y-4">
           <input ref={file} id="memo-file" type="file" accept="audio/*,video/3gpp,video/mp4,.m4a,.amr,.3gp,.caf" className="sr-only" onChange={(e) => setPicked(e.target.files?.[0] ?? null)} data-testid="memo-file" />
