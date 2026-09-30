@@ -72,12 +72,12 @@ export function splitSample(sample: string): SampleSection[] {
 
 const bulleted = (l: string) => /^(?:[-*•·]|\d+[.)]|[a-z][.)])\s+/.test(l);
 
-function sectionKeyFor(slot: Slot, keys: string[]) {
+function sectionKeysFor(slot: Slot, keys: string[]): string[] {
   const direct = keys.find((k) => SLOT_KEYS[slot].test(k));
-  if (direct) return direct;
-  if (slot === "assessment" || slot === "plan") return keys.find((k) => SLOT_KEYS.assessment_plan.test(k)) ?? null;
-  if (slot === "assessment_plan") return keys.find((k) => SLOT_KEYS.assessment.test(k)) ?? null;
-  return null;
+  if (direct) return [direct];
+  if (slot === "assessment" || slot === "plan") return keys.filter((k) => SLOT_KEYS.assessment_plan.test(k)).slice(0, 1);
+  if (slot === "assessment_plan") return [keys.find((k) => SLOT_KEYS.assessment.test(k)), keys.find((k) => SLOT_KEYS.plan.test(k))].filter((k): k is string => !!k);
+  return [];
 }
 
 function pronounStyle(text: string) {
@@ -103,19 +103,20 @@ export function matchStyle(sample: string, note: Pick<Note, "sections">): StyleM
   const words = wordCount(text);
   const detail = detailFromWords(words);
 
-  const mapped: { key: string; sec: SampleSection[] }[] = [];
+  const mapped: { key: string; sec: SampleSection[]; split: boolean }[] = [];
   for (const s of sections) {
-    const key = sectionKeyFor(s.slot, keys);
-    if (!key) continue;
-    const hit = mapped.find((m) => m.key === key);
-    if (hit) hit.sec.push(s);
-    else mapped.push({ key, sec: [s] });
+    const found = sectionKeysFor(s.slot, keys);
+    for (const key of found) {
+      const hit = mapped.find((m) => m.key === key);
+      if (hit) hit.sec.push(s);
+      else mapped.push({ key, sec: [s], split: found.length > 1 });
+    }
   }
 
   const order = mapped.map((m) => m.key);
   const current = keys.filter((k) => order.includes(k));
   if (order.length >= 2 && order.join(",") !== current.join(",")) {
-    const names = order.map((k) => mapped.find((m) => m.key === k)!.sec.map((s) => s.heading).join("/"));
+    const names = [...new Set(order.map((k) => mapped.find((m) => m.key === k)!.sec.map((s) => s.heading).join("/")))];
     rules.push({ kind: "order", section: "*", value: order.join(","), label: `Put sections in your order: ${names.join(", ")}` });
     findings.push(`Section order: ${names.join(", ")}`);
   }
@@ -123,11 +124,11 @@ export function matchStyle(sample: string, note: Pick<Note, "sections">): StyleM
   for (const m of mapped) {
     const heading = m.sec.length > 1 ? m.sec.map((s) => s.heading).join("/") : m.sec[0].heading;
     const title = titles.get(m.key) ?? m.key;
-    if (heading && heading.toLowerCase() !== title.toLowerCase()) {
+    if (!m.split && heading && heading.toLowerCase() !== title.toLowerCase()) {
       rules.push({ kind: "heading", section: m.key, value: heading, label: `Call ${title} "${heading}"` });
     }
     const lines = m.sec.flatMap((s) => s.lines);
-    if (!lines.length) continue;
+    if (!lines.length || m.split) continue;
     const bullets = lines.filter(bulleted).length;
     const fmt = bullets >= Math.max(2, Math.ceil(lines.length * 0.6)) ? "bullets" : bullets === 0 && lines.length <= 3 ? "paragraph" : null;
     const have = note.sections.find((s) => s.key === m.key)?.format;

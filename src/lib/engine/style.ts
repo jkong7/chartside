@@ -116,8 +116,10 @@ export function applyStyle(note: Note, rules: StyleRule[]): Note {
     return i < 0 ? Number.POSITIVE_INFINITY : i;
   };
   const placed = sections.filter((s) => want.includes(s.key)).sort((a, b) => rank(a.key) - rank(b.key));
-  let n = 0;
-  return { ...note, sections: sections.map((s) => (want.includes(s.key) ? placed[n++] : s)) };
+  const at = sections.findIndex((s) => want.includes(s.key));
+  if (at < 0) return { ...note, sections };
+  const rest = sections.filter((s) => !want.includes(s.key));
+  return { ...note, sections: [...rest.slice(0, at), ...placed, ...rest.slice(at)] };
 }
 
 export function pronounText(text: string, style: string) {

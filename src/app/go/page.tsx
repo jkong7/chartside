@@ -33,11 +33,11 @@ export default async function GoPage({ searchParams }: { searchParams: Promise<{
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand text-white">C</span>
           Chartside
         </Link>
-        <nav className="flex gap-1">
-          <Link href="/go/phone" className="btn-ghost">Call instead</Link>
-          {user && <Link href="/go/stack" className="btn-ghost">To review</Link>}
-          {user && <Link href="/go/ask" className="btn-ghost">Ask</Link>}
-          {user && !user.guestUntil && <Link href="/today" className="btn-ghost" data-testid="go-more">More</Link>}
+        <nav className="flex min-w-0 flex-wrap justify-end gap-0.5 sm:gap-1">
+          <Link href="/go/phone" className="btn-ghost px-2 sm:px-3">Call instead</Link>
+          {user && <Link href="/go/stack" className="btn-ghost px-2 sm:px-3">To review</Link>}
+          {user && <Link href="/go/ask" className="btn-ghost px-2 sm:px-3">Ask</Link>}
+          {user && !user.guestUntil && <Link href="/today" className="btn-ghost px-2 sm:px-3" data-testid="go-more">More</Link>}
         </nav>
       </header>
       {shared && (
@@ -52,12 +52,12 @@ export default async function GoPage({ searchParams }: { searchParams: Promise<{
       )}
       {user && !user.guestUntil && welcome === "1" && (
         <p className="mx-auto mt-1 max-w-md px-4 text-center text-sm text-ink-2" data-testid="go-welcome">
-          You&apos;re in. Record your first visit below, or play the sample if no patient is handy.
+          You&apos;re in. Tap Start visit when your patient is in the room. No patient handy? <Link href="/go/phone?autopilot=1" className="font-medium text-brand underline">Hear a sample call</Link>.
         </p>
       )}
       {user && !user.guestUntil && line && (
-        <p className="mx-auto mt-3 flex max-w-md items-center justify-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-sm text-ink-2" data-testid="go-line-card">
-          <span className="font-medium text-ink">Your line:</span> call <a className="font-semibold text-brand underline" href={`tel:${line.tel}`}>{line.text}</a> before your next visit
+        <p className="mx-4 mt-3 rounded-2xl border border-line bg-surface px-4 py-2 text-center text-sm text-ink-2 sm:mx-auto sm:max-w-md" data-testid="go-line-card">
+          <span className="font-medium text-ink">Your line:</span> call{" "}<a className="font-semibold text-brand underline" href={`tel:${line.tel}`}>{line.text}</a>{" "}before your next visit
         </p>
       )}
       {user && !user.guestUntil && (

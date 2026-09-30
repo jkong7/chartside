@@ -84,3 +84,19 @@ describe("paste an old note, match its style", () => {
     expect(samplePhiProblem(APSO)).toBeNull();
   });
 });
+
+describe("style match on templates with separate assessment and plan", () => {
+  it("moves the A/P block up front without burying the other sections", () => {
+    const note = { sections: [
+      { key: "subjective", title: "Subjective", format: "paragraph" as const, sentences: [{ id: "s1", text: "The patient reports knee pain.", evidence: [], kind: "fact" as const, support: "strong" as const }] },
+      { key: "objective", title: "Objective", format: "bullets" as const, sentences: [{ id: "o1", text: "Swelling noted.", evidence: [], kind: "fact" as const, support: "strong" as const }] },
+      { key: "assessment", title: "Assessment", format: "bullets" as const, sentences: [{ id: "a1", text: "Knee strain.", evidence: [], kind: "fact" as const, support: "strong" as const }] },
+      { key: "plan", title: "Plan", format: "bullets" as const, sentences: [{ id: "p1", text: "Ice and rest.", evidence: [], kind: "fact" as const, support: "strong" as const }] },
+    ] };
+    const m = matchStyle("A/P:\n- Knee strain, ice.\nS: Pt with knee pain after a fall, better with rest.\nO:\n- Mild swelling", note);
+    const styled = applyStyle({ ...note, meta: { engine: "local", templateId: "x", generatedAt: "" } }, asRules(m.rules));
+    expect(styled.sections.map((s) => s.key)).toEqual(["assessment", "plan", "subjective", "objective"]);
+    expect(styled.sections.find((s) => s.key === "subjective")!.title).toBe("S");
+    expect(m.findings[0]).toBe("Section order: A/P, S, O");
+  });
+});

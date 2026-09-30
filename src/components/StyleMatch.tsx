@@ -87,11 +87,11 @@ export default function StyleMatch({ encounterId = null, open: startOpen = false
           <div className="grid gap-3 md:grid-cols-2">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-ink-3">Before</p>
-              <pre className="mt-1 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg bg-sunken p-3 font-sans text-xs leading-relaxed text-ink-2" data-testid="style-before">{preview.before}</pre>
+              <pre tabIndex={0} aria-label="Your note before" className="mt-1 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg bg-sunken p-3 font-sans text-xs leading-relaxed text-ink-2" data-testid="style-before">{preview.before}</pre>
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-brand">In your style</p>
-              <pre className="mt-1 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg border border-brand/30 bg-brand-50 p-3 font-sans text-xs leading-relaxed text-ink" data-testid="style-after">{preview.after}</pre>
+              <pre tabIndex={0} aria-label="Your note in your style" className="mt-1 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg border border-brand/30 bg-brand-50 p-3 font-sans text-xs leading-relaxed text-ink" data-testid="style-after">{preview.after}</pre>
             </div>
           </div>
           {preview.rules.length > 0 && (
