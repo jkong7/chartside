@@ -7,7 +7,7 @@ const MOCK = "http://localhost:3295";
 const texts = async (request: APIRequestContext, to: string) => (await (await request.get(`${MOCK}/texts?to=${encodeURIComponent(to)}`)).json()) as { body: string }[];
 const mail = async (request: APIRequestContext, to: string) => (await (await request.get(`${MOCK}/messages?to=${encodeURIComponent(to)}`)).json()) as { body: string }[];
 const randomPhone = () => `+1312${String(Math.floor(Math.random() * 1e7)).padStart(7, "0")}`;
-const PHI = /cough|respiratory|fever|James|Maria|Dana|viral|infection/i;
+const PHI = /cough|respiratory|fever|James|Maria|Priya|viral|infection/i;
 
 async function axe(page: Page, label: string) {
   const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
@@ -168,7 +168,7 @@ test("in an all-party state everyone must agree, and a clinician can claim with 
   expect(early.status()).toBe(422);
   await page.getByTestId("pv-others-ok").check();
   await page.getByTestId("pv-offer-details").locator("summary").click();
-  await page.getByTestId("pv-clinician-name").fill("Dr. Dana Ruiz");
+  await page.getByTestId("pv-clinician-name").fill("Dr. Priya Nair");
   await page.getByTestId("pv-agree").click();
   await recordAndFinish(page);
 
@@ -183,14 +183,14 @@ test("in an all-party state everyone must agree, and a clinician can claim with 
   await doc.getByTestId("offer-state").selectOption("IL");
   await doc.getByTestId("offer-npi-go").click();
   await expect(doc.getByTestId("offer-error")).toContainText("doesn't match the name the patient entered");
-  await doc.getByTestId("offer-npi").fill("1245319599");
+  await doc.getByTestId("offer-npi").fill("1555555550");
   await doc.getByTestId("offer-state").selectOption("CA");
   await doc.getByTestId("offer-npi-go").click();
   await doc.waitForURL(/\/go\/stack\?focus=enc_/);
   await expect(doc.getByTestId("stack-from-patient")).toBeVisible();
   await expect(doc.getByTestId("claim-banner")).toBeVisible();
   const me = (await (await doc.request.get("/api/auth/me")).json()).user;
-  expect(me.name).toBe("Dana Ruiz");
+  expect(me.name).toBe("Priya Nair");
   expect(me.guestUntil).toBeTruthy();
 
   await page.reload();

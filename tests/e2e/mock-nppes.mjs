@@ -5,6 +5,7 @@ const PORT = Number(process.env.MOCK_NPPES_PORT || 3293);
 const PEOPLE = {
   "1234567893": { first: "AVERY", last: "CHEN", credential: "M.D.", taxonomy: "Family Medicine", state: "IL" },
   "1245319599": { first: "DANA", last: "RUIZ", credential: "D.O.", taxonomy: "Internal Medicine", state: "CA" },
+  "1555555550": { first: "PRIYA", last: "NAIR", credential: "M.D.", taxonomy: "Pediatrics", state: "CA" },
   "1003000126": { first: "SAM", last: "PATEL", credential: "PT", taxonomy: "Physical Therapist", state: "TX" },
 };
 
