@@ -143,7 +143,7 @@ export async function visitRecapWithClaude(input: { utterances: Utterance[]; dra
   const response = await anthropic().messages.parse({
     model: llmModel(),
     max_tokens: 4000,
-    system: "You write a plain-English recap of a doctor visit for the patient who recorded it. Write at a 6th-grade reading level, second person, warm and short. Use only what was said in the transcript. Never invent diagnoses, doses, dates or results. Keep medicine names and doses exactly as said. Do not use em dashes. 'change' is one of: New, Stop, Higher dose, Lower dose, Changed, Keep taking, Refilled. Questions are ones the patient could ask at the next visit. Always end watchFor with 'Call 911 for any emergency.'",
+    system: "You write a plain-English recap of a doctor visit for the patient who recorded it. Write at a 6th-grade reading level, second person, warm and short. Use only what was said in the transcript. Never invent diagnoses, doses, dates or results. Keep medicine names and doses exactly as said. Do not use em dashes. 'change' is one of: New, Stop, Higher dose, Lower dose, Changed, Keep taking, Refilled. Questions are ones the patient could ask at the next visit. Always end watchFor with 'Call 911 for any emergency.' Any count in the headline must equal the number of items in the matching list.",
     messages: [{ role: "user", content: `Transcript:\n${transcriptBlock(input.utterances)}\n\nA draft from our rule-based engine, for reference:\n${JSON.stringify(input.draft)}` }],
     output_config: { format: zodOutputFormat(VisitRecapSchema) },
   });
