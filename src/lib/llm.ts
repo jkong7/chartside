@@ -194,3 +194,25 @@ export async function answerChartWithClaude(question: string, passages: { title:
   if (!text || (!cited.length && !/isn't in the chart|not in the chart/i.test(text)) || cited.some((n) => n < 1 || n > passages.length)) throw new Error("Unverified citations");
   return text;
 }
+
+export async function playPatientWithClaude(input: { persona: string; facts: Record<string, string>; history: { role: "student" | "patient"; text: string }[]; question: string }) {
+  const messages: { role: "user" | "assistant"; content: string }[] = [];
+  for (const h of input.history.slice(-16)) {
+    const role = h.role === "student" ? "user" : "assistant";
+    const last = messages.at(-1);
+    if (last?.role === role) last.content += `\n${h.text}`;
+    else messages.push({ role, content: h.text });
+  }
+  if (messages[0]?.role === "assistant") messages.shift();
+  if (messages.at(-1)?.role === "user") messages.at(-1)!.content += `\n${input.question}`;
+  else messages.push({ role: "user", content: input.question });
+  const response = await anthropic().messages.create({
+    model: llmModel(),
+    max_tokens: 300,
+    system: `You are a standardized patient in a medical student's practice encounter. Everything is fictional. Stay in character at all times.\n\n${input.persona}\n\nHidden facts, keyed by topic. Use them only when the student asks about that topic:\n${Object.entries(input.facts).map(([k, v]) => `- ${k}: ${v}`).join("\n")}\n\nRules:\n- Answer only what was asked, in 1 to 3 short spoken sentences, in plain everyday words. Never use medical jargon the character wouldn't know.\n- Never volunteer facts the student didn't ask about. Never list symptoms unprompted. Never give hints, diagnoses, or teaching.\n- If asked about something not in the facts, give a plausible answer that is consistent and adds no new problems. For symptom questions not covered, say you haven't noticed that.\n- If the student asks to examine you, just agree briefly. The exam findings are shown separately.\n- If the student says something kind, respond naturally as the character.\n- Reply with the character's words only. No stage directions and no quotation marks.`,
+    messages,
+  });
+  const text = response.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("").trim();
+  if (!text || response.stop_reason === "refusal") throw new Error("Patient unavailable");
+  return text.replace(/^["“]|["”]$/g, "");
+}
