@@ -19,6 +19,7 @@ export interface NpiRecord {
   credential: string;
   specialty: string;
   state: string;
+  taxonomyCode?: string;
 }
 
 export function npiValid(npi: string) {
@@ -45,13 +46,13 @@ export async function lookupNpi(npi: string): Promise<NpiRecord | null> {
   if (!npiValid(n)) throw new Invalid("That isn't a valid 10-digit NPI");
   const res = await fetch(`${nppesBase()}/api/?version=2.1&number=${n}`, { signal: AbortSignal.timeout(8000) });
   if (!res.ok) throw new Invalid("The NPI registry didn't answer. Try again in a minute.");
-  const j = (await res.json()) as { result_count?: number; results?: { number: string | number; enumeration_type?: string; basic?: { first_name?: string; last_name?: string; credential?: string }; taxonomies?: { desc?: string; primary?: boolean; state?: string }[]; addresses?: { address_purpose?: string; state?: string }[] }[] };
+  const j = (await res.json()) as { result_count?: number; results?: { number: string | number; enumeration_type?: string; basic?: { first_name?: string; last_name?: string; credential?: string }; taxonomies?: { code?: string; desc?: string; primary?: boolean; state?: string }[]; addresses?: { address_purpose?: string; state?: string }[] }[] };
   const r = j.results?.[0];
   if (!r || r.enumeration_type === "NPI-2") return null;
   const tax = r.taxonomies?.find((t) => t.primary) ?? r.taxonomies?.[0];
   const addr = r.addresses?.find((a) => a.address_purpose === "LOCATION") ?? r.addresses?.[0];
   const cap = (s = "") => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-  return { number: String(r.number), first: cap(r.basic?.first_name), last: cap(r.basic?.last_name), credential: (r.basic?.credential ?? "").replace(/\./g, ""), specialty: tax?.desc ?? "", state: addr?.state ?? tax?.state ?? "" };
+  return { number: String(r.number), first: cap(r.basic?.first_name), last: cap(r.basic?.last_name), credential: (r.basic?.credential ?? "").replace(/\./g, ""), specialty: tax?.desc ?? "", state: addr?.state ?? tax?.state ?? "", taxonomyCode: tax?.code ?? undefined };
 }
 
 const norm = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z]/g, "");

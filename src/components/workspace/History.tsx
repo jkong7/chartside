@@ -17,7 +17,7 @@ interface Rev {
   provenance: { total: number; ai: number; edited: number; clinician: number };
 }
 
-const SOURCE: Record<string, string> = { "ai:local": "Drafted by the on-device engine", "ai:claude": "Drafted by Claude", edit: "Edited", dictation: "Dictated", assistant: "Changed by Ask Chartside", suggestion: "Suggestion accepted", restore: "Restored an earlier version", signature: "Signed" };
+const SOURCE: Record<string, string> = { "ai:local": "Drafted by Chartside", "ai:claude": "Drafted by Chartside", edit: "Edited", dictation: "Dictated", assistant: "Changed by Ask Chartside", suggestion: "Suggestion accepted", restore: "Restored an earlier version", signature: "Signed" };
 
 export default function History({ encounterId, open, onClose, locked, onRestored }: { encounterId: string; open: boolean; onClose: () => void; locked: boolean; onRestored: (n: Note, om?: OmissionFlag[]) => void }) {
   const [list, setList] = useState<Rev[] | null>(null);

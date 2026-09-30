@@ -30,6 +30,7 @@ async function openStack(page: Page, link: string) {
 }
 
 async function claim(page: Page, email: string) {
+  if ((await page.getByTestId("claim-banner").getAttribute("data-via")) === "phone") await page.getByTestId("claim-switch").click();
   await page.getByTestId("claim-email").fill(email);
   await page.getByTestId("claim-send").click();
   await expect(page.getByTestId("claim-code")).toBeVisible();

@@ -5,9 +5,11 @@ import { deliver } from "./delivery";
 import { convertGuest, GUEST_EMAIL_DOMAIN, mergeGuest, nameFromEmail } from "./guest";
 import { normalizePhone } from "./notify";
 import { Forbidden, Invalid } from "./policy";
-import { actorFor, audit, orgs, users, type User } from "./repo";
+import { actorFor, audit, j, orgs, users, type User } from "./repo";
+import { cleanProfile, setupNewAccount, type SignupProfile } from "./signup";
 
 const CODE_TTL_MS = 10 * 60 * 1000;
+export const PHONE_EMAIL_DOMAIN = "phone.chartside.invalid";
 const MAX_ATTEMPTS = 5;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -32,6 +34,7 @@ interface LinkRow {
   next_path: string | null;
   expires_at: string;
   used_at: string | null;
+  profile?: string | null;
 }
 
 export function safePath(p: string | null | undefined, fallback = "/today") {
@@ -58,17 +61,17 @@ async function throttle(column: "email" | "phone", value: string, kind: string) 
   if (Number(recent?.n ?? 0) >= 6) throw new Invalid("Too many codes requested. Try again in an hour.");
 }
 
-export async function requestEmailSignIn(emailIn: string, opts: { next?: string | null; origin?: string; guestUserId?: string | null } = {}) {
+export async function requestEmailSignIn(emailIn: string, opts: { next?: string | null; origin?: string; guestUserId?: string | null; profile?: SignupProfile | null } = {}) {
   const email = (emailIn ?? "").trim().toLowerCase();
-  if (!EMAIL.test(email) || email.endsWith(`@${GUEST_EMAIL_DOMAIN}`)) throw new Invalid("Enter a valid email address");
+  if (!EMAIL.test(email) || email.endsWith(`@${GUEST_EMAIL_DOMAIN}`) || email.endsWith(`@${PHONE_EMAIL_DOMAIN}`)) throw new Invalid("Enter a valid email address");
   const sso = await orgs.requiringSso(email.split("@")[1]);
   if (sso) throw new SsoRequired(sso.name);
   await throttle("email", email, "email");
   const id = uid("mag_");
   const code = newCode();
   const token = newToken();
-  const next = safePath(opts.next);
-  await run("INSERT INTO magic_links (id, kind, email, guest_user_id, token_hash, code_hash, next_path, expires_at, created_at) VALUES (?, 'email', ?, ?, ?, ?, ?, ?, ?)", id, email, opts.guestUserId ?? null, sha(token), sha(`${id}:${code}`), next, new Date(Date.now() + CODE_TTL_MS).toISOString(), now());
+  const next = opts.next ? safePath(opts.next) : null;
+  await run("INSERT INTO magic_links (id, kind, email, guest_user_id, token_hash, code_hash, next_path, expires_at, created_at, profile) VALUES (?, 'email', ?, ?, ?, ?, ?, ?, ?, ?)", id, email, opts.guestUserId ?? null, sha(token), sha(`${id}:${code}`), next, new Date(Date.now() + CODE_TTL_MS).toISOString(), now(), opts.profile ? JSON.stringify(cleanProfile(opts.profile)) : null);
   const url = `${publicOrigin(opts.origin)}/m/${token}`;
   const sent = await deliver({ channel: "email", to: email, kind: "magic_code", subject: `${code} is your Chartside sign-in code`, body: `Your Chartside sign-in code is ${code}.\n\nOr open this link on the device you're signing in on:\n${url}\n\nThe code and link expire in 10 minutes and work once. If you didn't ask for this, ignore this email.` });
   await audit.log(null, null, "magic.sent", { id, channel: "email", status: sent.status, transport: sent.transport, claim: !!opts.guestUserId });
@@ -117,7 +120,7 @@ export interface Redeemed {
   claimed: number | null;
 }
 
-export async function redeemMagic(input: { token?: string; email?: string; code?: string }, current: User | null): Promise<Redeemed> {
+export async function redeemMagic(input: { token?: string; email?: string; code?: string; profile?: SignupProfile }, current: User | null): Promise<Redeemed> {
   let r: LinkRow | undefined;
   if (input.token) {
     r = await get<LinkRow>("SELECT * FROM magic_links WHERE token_hash = ?", sha(input.token));
@@ -149,6 +152,9 @@ export async function redeemMagic(input: { token?: string; email?: string; code?
     if (existing) {
       userId = existing.id;
       if (guestId && guestId !== existing.id) claimed = await mergeGuest(guestId, existing.id);
+    } else if (current && !current.guestUntil && current.email.endsWith(`@${PHONE_EMAIL_DOMAIN}`)) {
+      await run("UPDATE users SET email = ? WHERE id = ?", email, current.id);
+      userId = current.id;
     } else if (guestId && (await get<{ id: string }>("SELECT id FROM users WHERE id = ? AND guest_expires_at IS NOT NULL AND guest_expires_at > ?", guestId, now()))) {
       userId = await convertGuest(guestId, email);
       created = true;
@@ -160,10 +166,11 @@ export async function redeemMagic(input: { token?: string; email?: string; code?
       created = true;
     }
   }
+  if (created) await setupNewAccount(userId, { ...j<SignupProfile>(row.profile, {}), ...Object.fromEntries(Object.entries(input.profile ?? {}).filter(([, v]) => v !== undefined && v !== "")) });
   const user = await actorFor(userId);
   if (!user) throw new Forbidden("Your access to Chartside has been disabled. Contact your administrator.");
   await audit.log(user, null, created ? "user.registered" : "magic.redeemed", { id: row.id, kind: row.kind, via: input.token ? "link" : "code", claimed });
-  return { user, next: row.next_path ?? "/today", created, claimed };
+  return { user, next: row.next_path ?? (created ? "/go?welcome=1" : "/today"), created, claimed };
 }
 
 async function markPhoneVerified(userId: string, phone: string) {
@@ -195,6 +202,54 @@ export async function confirmPhoneVerification(u: User, code: string) {
   if (!(await markPhoneVerified(u.id, r!.phone!))) throw new Invalid("That number is already verified on another Chartside account");
   await audit.log(u, null, "phone.verified", {});
   return { phone: maskPhone(r!.phone!) };
+}
+
+export async function guestCallerPhone(guestId: string) {
+  const r = await get<{ phone: string | null }>("SELECT phone FROM users WHERE id = ? AND guest_expires_at IS NOT NULL AND guest_expires_at > ?", guestId, now());
+  return r?.phone && normalizePhone(r.phone) ? r.phone : null;
+}
+
+export async function requestGuestPhoneClaim(u: User) {
+  if (!u.guestUntil) throw new Invalid("Your note is already saved");
+  const phone = await guestCallerPhone(u.id);
+  if (!phone) throw new Invalid("We don't have a phone number for this visit. Save it with your email instead.");
+  await throttle("phone", phone, "phone");
+  const id = uid("mag_");
+  const code = newCode();
+  await run("INSERT INTO magic_links (id, kind, user_id, phone, token_hash, code_hash, expires_at, created_at) VALUES (?, 'phone', ?, ?, ?, ?, ?, ?)", id, u.id, phone, sha(newToken()), sha(`${id}:${code}`), new Date(Date.now() + CODE_TTL_MS).toISOString(), now());
+  const { sendText } = await import("./telephony/sms");
+  try {
+    await sendText(phone, `Your Chartside code is ${code}. It expires in 10 minutes. Didn't ask for it? Ignore this text.`, "claim_code");
+  } catch {
+    await audit.log(u, null, "phone.claim_code_failed", { id });
+    throw new Invalid("We couldn't text that number. Save your note with your email instead.");
+  }
+  await audit.log(u, null, "phone.claim_code_sent", { id });
+  return { phone: maskPhone(phone) };
+}
+
+export async function claimGuestByPhone(u: User, code: string, profile: SignupProfile = {}): Promise<{ user: User; created: boolean; claimed: number }> {
+  if (!u.guestUntil) throw new Invalid("Your note is already saved");
+  const r = await get<LinkRow>("SELECT * FROM magic_links WHERE user_id = ? AND kind = 'phone' AND used_at IS NULL ORDER BY created_at DESC LIMIT 1", u.id);
+  await checkCode(r, code);
+  await consume(r!);
+  const phone = r!.phone!;
+  const owner = await get<{ id: string }>("SELECT id FROM users WHERE phone = ? AND phone_verified_at IS NOT NULL AND guest_expires_at IS NULL AND id <> ?", phone, u.id);
+  if (owner) {
+    const claimed = await mergeGuest(u.id, owner.id);
+    const user = await actorFor(owner.id);
+    if (!user) throw new Forbidden("Your access to Chartside has been disabled. Contact your administrator.");
+    await audit.log(user, null, "phone.claim_signed_in", { claimed });
+    return { user, created: false, claimed };
+  }
+  const claimed = Number((await get<{ n: number }>("SELECT COUNT(*) AS n FROM encounters WHERE user_id = ?", u.id))?.n ?? 0);
+  await run("UPDATE users SET phone = NULL, phone_verified_at = NULL WHERE phone = ? AND id <> ? AND guest_expires_at IS NOT NULL", phone, u.id);
+  await run("UPDATE users SET email = ?, name = ?, guest_expires_at = NULL, phone = ?, phone_verified_at = ? WHERE id = ?", `${u.id}@${PHONE_EMAIL_DOMAIN}`, "Clinician", phone, now(), u.id);
+  await setupNewAccount(u.id, { ...profile, name: profile.name || undefined });
+  const user = await actorFor(u.id);
+  if (!user) throw new Forbidden("Your access to Chartside has been disabled. Contact your administrator.");
+  await audit.log(user, null, "guest.claimed", { into: "phone-account", encounters: claimed });
+  return { user, created: true, claimed };
 }
 
 export async function verifyPhone(userId: string, e164: string) {

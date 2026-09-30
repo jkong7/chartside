@@ -1,3 +1,4 @@
+import { browserTz } from "@/lib/server/tz";
 import { cookies } from "next/headers";
 import { currentUser, endSession, publicUser, startSession } from "@/lib/server/auth";
 import { body, fail, json } from "@/lib/server/http";
@@ -10,11 +11,11 @@ import { clientIp, limited, tooMany } from "@/lib/server/ratelimit";
 
 export async function POST(req: Request) {
   if (limited(`magicv:${clientIp(req)}`, 2 * Number(process.env.CHARTSIDE_AUTH_RATE ?? 30), 3600000)) return tooMany();
-  const b = await body<{ token?: string; email?: string; code?: string }>(req);
+  const b = await body<{ token?: string; email?: string; code?: string; name?: string; npi?: string }>(req);
   if (!b.token && !(b.email && b.code)) return fail("Send the link token, or the email and code");
   const current = await currentUser();
   try {
-    const r = await redeemMagic(b, current);
+    const r = await redeemMagic({ token: b.token, email: b.email, code: b.code, profile: { name: b.name, npi: b.npi, tz: (await browserTz()) ?? undefined } }, current);
     if (current && current.id !== r.user.id) await endSession();
     if ((await mfaStatus(r.user.id)).enabled) return json({ mfa: true, challenge: await createChallenge(r.user.id, r.user.orgId), next: r.next });
     if (r.created) await attributeReferral(r.user.id, (await cookies()).get(REF_COOKIE)?.value);

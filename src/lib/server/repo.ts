@@ -61,6 +61,10 @@ export interface UserPrefs {
   locationId?: string;
   npi?: { number: string; name: string; credential: string; specialty: string; state: string; matched: boolean; reason: string | null; at: string };
   invitePromptSeenAt?: string;
+  tz?: string;
+  simpleNav?: boolean;
+  demoSigned?: number;
+  styleMatchedAt?: string;
 }
 
 export const j = <T>(s: string | null | undefined, fallback: T): T => {

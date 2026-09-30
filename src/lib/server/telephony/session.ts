@@ -1,4 +1,5 @@
 import { appendCaptureAudio, captureAudio, captureNote, captureStatus, finishCaptureFor } from "../capture";
+import { clockTime, tzOf } from "../../tz";
 import { hasPhonePin, mintLoginLink, verifyPhonePin } from "../magic";
 import { runAgent, type AgentTurn } from "../agent";
 import { get, run } from "../../db";
@@ -90,7 +91,7 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
   };
 
   const reviewPath = () => `/go/stack?focus=${encodeURIComponent(encId ?? "")}&ready=1`;
-  const when = () => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: process.env.CHARTSIDE_TZ || "America/Chicago" }).format(new Date(startedAt));
+  const when = () => clockTime(startedAt, tzOf(user));
 
   const deps: PhoneSession["deps"] = {
     caller: { name: user.guestUntil ? null : user.name, guest: !!user.guestUntil, hasPin: !user.guestUntil && !claims.guest && (await hasPhonePin(user.id)) },

@@ -22,7 +22,7 @@ export function assertNotGuest(u: User, what: string) {
 export async function createGuest(opts: { phone?: string | null; loop?: "patient_visit" } = {}): Promise<User> {
   const id = uid("usr_");
   const expires = new Date(Date.now() + guestHours() * 3600000).toISOString();
-  await run("INSERT INTO users (id, email, name, password_hash, specialty, prefs, created_at, phone, guest_expires_at) VALUES (?, ?, ?, '', 'Family Medicine', ?, ?, ?, ?)", id, `${id}@${GUEST_EMAIL_DOMAIN}`, "Guest clinician", JSON.stringify({ defaultTemplate: "soap", state: "IL" }), now(), opts.phone ?? null, expires);
+  await run("INSERT INTO users (id, email, name, password_hash, specialty, prefs, created_at, phone, guest_expires_at) VALUES (?, ?, ?, '', 'Family Medicine', ?, ?, ?, ?)", id, `${id}@${GUEST_EMAIL_DOMAIN}`, "Guest clinician", JSON.stringify({ defaultTemplate: "soap", state: "IL", simpleNav: true }), now(), opts.phone ?? null, expires);
   const org = await orgs.create("Unsaved practice", id);
   const actor = (await actorFor(id, org.id))!;
   await audit.log(actor, null, "guest.created", { via: opts.loop ?? (opts.phone ? "phone" : "web"), expiresAt: expires });

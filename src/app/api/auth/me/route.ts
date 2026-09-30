@@ -1,3 +1,4 @@
+import { validTz } from "@/lib/tz";
 import { currentUser, publicUser } from "@/lib/server/auth";
 import { body, fail, json } from "@/lib/server/http";
 import { users, type UserPrefs } from "@/lib/server/repo";
@@ -17,6 +18,9 @@ export async function PATCH(req: Request) {
   if (b.prefs) {
     delete b.prefs.npi;
     delete b.prefs.invitePromptSeenAt;
+    delete b.prefs.demoSigned;
+    if (b.prefs.tz !== undefined && !validTz(b.prefs.tz)) delete b.prefs.tz;
+    if (b.prefs.simpleNav !== undefined) b.prefs.simpleNav = !!b.prefs.simpleNav;
     const h = b.prefs.clinicNudgeHour;
     if (h !== undefined && h !== null && !(Number.isInteger(h) && h >= 12 && h <= 20)) return fail("Pick an hour between 12 PM and 8 PM");
     if (b.prefs.textOptOut !== undefined) b.prefs.textOptOut = !!b.prefs.textOptOut;

@@ -142,7 +142,8 @@ export async function processEncounter(user: User, encId: string, opts: { templa
     try {
       note = await generateNoteWithClaude({ utterances: utts, patient, template, reason: enc.reason, visitType: enc.visitType, rules, model: opts.model });
     } catch (err) {
-      warnings.push(`Claude (${opts.model || llmModel()}) was unavailable (${err instanceof Error ? err.message : "error"}); used the on-device engine instead.`);
+      warnings.push("The usual note writer was busy, so the backup writer drafted this note. Read it closely before you sign.");
+      console.error("claude note failed", opts.model || llmModel(), err instanceof Error ? err.message : err);
     }
   }
   const sessionMinutes = Math.round((enc.durationS || (utts.at(-1)?.tEnd ?? 0)) / 60);
@@ -198,7 +199,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
       try {
         s = await translateSummaryWithClaude(summaries.en, outLang);
       } catch {
-        warnings.push("Summary translation via Claude failed; showing the on-device version.");
+        warnings.push("The translated summary came from the backup writer. Have a fluent speaker check it.");
       }
     }
     if (s) summaries[outLang] = s;
@@ -434,7 +435,7 @@ export async function assist(user: User, encId: string, message: string, opts: {
       }
       result = { reply: out.reply, citations: out.citations, note: patched, action: patched ? "edit" : "answer" };
     } catch {
-      result = { ...result, reply: `${result.reply}\n\nClaude was unavailable, so this answer comes from the on-device engine.` };
+      result = { ...result, reply: `${result.reply}\n\nThis answer came from the backup writer, so it may be shorter than usual.` };
     }
   }
   if (result.sources?.length && llmEnabled()) {

@@ -96,12 +96,9 @@ test("the unpacked extension records from its side panel and opens the finished 
   try {
     const page = await ctx.newPage();
     page.context().setDefaultTimeout(20000);
-    await page.goto(`${baseURL}/register`);
-    await page.fill("#name", "Dr. Ext Tester");
-    await page.fill("#email", `ext-${Date.now()}@chartside.test`);
-    await page.fill("#password", "correct-horse-9");
-    await page.click("button[type=submit]");
-    await page.waitForURL("**/today");
+    await page.goto(`${baseURL}/login`);
+    expect((await page.request.post(`${baseURL}/api/auth/register`, { data: { name: "Dr. Ext Tester", email: `ext-${Date.now()}@chartside.test`, password: "correct-horse-9", demo: true } })).status()).toBe(201);
+    await page.goto(`${baseURL}/today`);
     const isExt = (w: { url(): string }) => w.url().startsWith("chrome-extension://");
     const worker = ctx.serviceWorkers().find(isExt) ?? (await ctx.waitForEvent("serviceworker", { predicate: isExt }));
     const id = new URL(worker.url()).host;

@@ -1,14 +1,33 @@
 import { expect, type Page } from "@playwright/test";
 
-export async function register(page: Page, name = "Dr. Avery Chen") {
-  const email = `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@chartside.test`;
-  await page.goto("/register");
-  await page.fill("#name", name);
-  await page.fill("#email", email);
-  await page.fill("#password", "correct-horse-9");
-  await page.click("button[type=submit]");
-  await page.waitForURL("**/today");
+export async function register(page: Page, name = "Dr. Avery Chen", opts: { email?: string; fullNav?: boolean } = {}) {
+  const email = opts.email ?? `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@chartside.test`;
+  await page.goto("/login");
+  const res = await page.request.post("/api/auth/register", { data: { name, email, password: "correct-horse-9", demo: true } });
+  expect(res.status(), await res.text()).toBe(201);
+  if (opts.fullNav !== false) expect((await page.request.patch("/api/auth/me", { data: { prefs: { simpleNav: false } } })).ok()).toBe(true);
+  await page.goto("/today");
   return email;
+}
+
+export async function mailCode(page: Page, to: string) {
+  let code: string | null = null;
+  await expect.poll(async () => {
+    const mail = (await (await page.request.get(`http://localhost:3295/messages?to=${encodeURIComponent(to)}`)).json()) as { body: string }[];
+    code = mail.length ? (/\b(\d{6})\b/.exec(mail.at(-1)!.body)?.[1] ?? null) : null;
+    return code;
+  }).toBeTruthy();
+  return code!;
+}
+
+export async function textCode(page: Page, to: string) {
+  let code: string | null = null;
+  await expect.poll(async () => {
+    const sms = (await (await page.request.get(`http://localhost:3295/texts?to=${encodeURIComponent(to)}`)).json()) as { body: string }[];
+    code = sms.length ? (/\b(\d{6})\b/.exec(sms.at(-1)!.body)?.[1] ?? null) : null;
+    return code;
+  }).toBeTruthy();
+  return code!;
 }
 
 export async function openVisit(page: Page, patient: string) {

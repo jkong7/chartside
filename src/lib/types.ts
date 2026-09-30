@@ -406,7 +406,7 @@ export interface PatientSummary {
 
 export interface StyleRule {
   id: string;
-  kind: "max_words" | "format" | "abbreviate" | "drop_phrase" | "always_include" | "pronoun";
+  kind: "max_words" | "format" | "abbreviate" | "drop_phrase" | "always_include" | "pronoun" | "order" | "heading";
   section: string;
   value: string;
   label: string;

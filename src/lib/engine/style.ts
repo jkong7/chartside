@@ -100,9 +100,32 @@ export function applyStyle(note: Note, rules: StyleRule[]): Note {
       for (const s of sentences) if (chosen.has(s.id)) keep.push(s);
       sentences = keep;
     }
-    return { ...sec, format, sentences };
+    const heading = active.find((r) => r.kind === "heading" && r.section === sec.key);
+    const pronoun = active.find((r) => r.kind === "pronoun");
+    if (pronoun) sentences = sentences.map((s) => {
+      const t = pronounText(s.text, pronoun.value);
+      return t === s.text ? s : { ...s, text: t };
+    });
+    return { ...sec, title: heading?.value.slice(0, 60) || sec.title, format, sentences };
   });
-  return { ...note, sections };
+  const order = active.find((r) => r.kind === "order");
+  if (!order) return { ...note, sections };
+  const want = order.value.split(",").map((k) => k.trim()).filter(Boolean);
+  const rank = (k: string) => {
+    const i = want.indexOf(k);
+    return i < 0 ? Number.POSITIVE_INFINITY : i;
+  };
+  const placed = sections.filter((s) => want.includes(s.key)).sort((a, b) => rank(a.key) - rank(b.key));
+  const at = sections.findIndex((s) => want.includes(s.key));
+  if (at < 0) return { ...note, sections };
+  const rest = sections.filter((s) => !want.includes(s.key));
+  return { ...note, sections: [...rest.slice(0, at), ...placed, ...rest.slice(at)] };
+}
+
+export function pronounText(text: string, style: string) {
+  if (style === "client") return text.replace(/\bpatients\b/g, "clients").replace(/\bPatients\b/g, "Clients").replace(/\bpatient\b/g, "client").replace(/\bPatient\b/g, "Client");
+  if (style === "Pt") return text.replace(/\b[Tt]he patient\b/g, (m) => (m[0] === "T" ? "Pt" : "pt")).replace(/^Patient\b/, "Pt");
+  return text;
 }
 
 export function styleInstructions(rules: StyleRule[]) {

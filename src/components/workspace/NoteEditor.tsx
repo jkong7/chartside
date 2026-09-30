@@ -301,7 +301,7 @@ export default function NoteEditor({
         <span className={openFlags.length ? "text-warn" : "text-ink-3"} data-testid="omission-count">{openFlags.length} possible omission{openFlags.length === 1 ? "" : "s"}</span>
         {issues.length > 0 && (<><span className="text-ink-4">·</span><span className="text-rec" data-testid="consistency-count">{issues.length} consistency issue{issues.length === 1 ? "" : "s"}</span></>)}
         {pending.length > 0 && (<><span className="text-ink-4">·</span><span className="text-default-ins-line">{pending.length} suggested normal finding{pending.length === 1 ? "" : "s"}</span></>)}
-        <span className="ml-auto text-xs text-ink-3" data-testid="provenance">{note.meta.engine === "claude" ? `Drafted by ${note.meta.model}` : "Drafted by the on-device engine"} · {prov.edited + prov.clinician} of {prov.total} lines touched by you</span>
+        <span className="ml-auto text-xs text-ink-3" data-testid="provenance">Drafted by Chartside · {prov.edited + prov.clinician} of {prov.total} lines touched by you</span>
         <button className="btn-ghost px-2.5 py-1 text-xs" onClick={() => setHistoryOpen(true)} data-testid="open-history">History</button>
         {onCalculators && <button className="btn-outline px-2.5 py-1 text-xs" onClick={onCalculators} data-testid="open-calculators">Calculators</button>}
         {!locked && (

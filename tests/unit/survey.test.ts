@@ -12,7 +12,28 @@ beforeAll(() => {
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("clinician survey and adoption nudges", () => {
-  it("asks after ten signed notes, respects snooze, and reports NPS", async () => {
+  it("waits for five of the clinician's own signed notes, not sample clinic notes", async () => {
+    const repo = await import("@/lib/server/repo");
+    const { run } = await import("@/lib/db");
+    const sv = await import("@/lib/server/survey");
+    const doc = await newMember("Dr. Ava Stone");
+    const sign = async (n: number) => {
+      for (let i = 0; i < n; i++) {
+        const e = await repo.encounters.create(doc, { scheduledAt: new Date().toISOString(), reason: "x" });
+        await run("UPDATE encounters SET status = 'signed' WHERE id = ?", e.id);
+      }
+    };
+    await sign(11);
+    await repo.users.update(doc.id, { prefs: { demoSigned: 11 } });
+    const fresh = async () => (await repo.actorFor(doc.id, doc.orgId))!;
+    expect(await sv.surveyDue(await fresh())).toBe(false);
+    await sign(4);
+    expect(await sv.surveyDue(await fresh())).toBe(false);
+    await sign(1);
+    expect(await sv.surveyDue(await fresh())).toBe(true);
+  });
+
+  it("asks after enough signed notes, respects snooze, and reports NPS", async () => {
     const repo = await import("@/lib/server/repo");
     const { run } = await import("@/lib/db");
     const sv = await import("@/lib/server/survey");

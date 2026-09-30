@@ -1,8 +1,10 @@
+import { SURVEY_AFTER_SIGNED } from "../nav";
+import { signedByMe } from "./disclosure";
 import { all, get, now, run, uid } from "../db";
 import { Invalid } from "./policy";
 import { audit, users, type User } from "./repo";
 
-export const SURVEY_AFTER_NOTES = 10;
+export const SURVEY_AFTER_NOTES = SURVEY_AFTER_SIGNED;
 const REPEAT_DAYS = 90;
 
 export async function surveyDue(u: User, at = new Date()) {
@@ -10,8 +12,7 @@ export async function surveyDue(u: User, at = new Date()) {
   if (u.prefs.surveySnoozedUntil && u.prefs.surveySnoozedUntil > at.toISOString()) return false;
   const since = new Date(at.getTime() - REPEAT_DAYS * 86400000).toISOString();
   if (await get<{ id: string }>("SELECT id FROM surveys WHERE user_id = ? AND org_id = ? AND created_at >= ? LIMIT 1", u.id, u.orgId, since)) return false;
-  const n = await get<{ n: number }>("SELECT COUNT(*) AS n FROM encounters WHERE user_id = ? AND org_id = ? AND status = 'signed'", u.id, u.orgId);
-  return Number(n?.n ?? 0) >= SURVEY_AFTER_NOTES;
+  return (await signedByMe(u)) >= SURVEY_AFTER_NOTES;
 }
 
 export async function submitSurvey(u: User, input: { score?: number; comment?: string }) {

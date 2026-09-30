@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { twilioSignature } from "./fake-twilio.mjs";
-import { register } from "./helpers";
+import { mailCode, register } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -49,11 +49,13 @@ async function verifiedPhone(page: Page) {
 async function registerVet(page: Page, name: string) {
   await page.goto("/register?specialty=Veterinary%3A%20Equine");
   await expect(page.locator("#specialty")).toHaveValue("Veterinary: Equine");
+  const email = `vet-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@chartside.test`;
   await page.fill("#name", name);
-  await page.fill("#email", `vet-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@chartside.test`);
-  await page.fill("#password", "correct-horse-9");
-  await page.click("button[type=submit]");
-  await page.waitForURL("**/today");
+  await page.fill("#email", email);
+  await page.getByTestId("register-submit").click();
+  await page.getByTestId("register-code").fill(await mailCode(page, email));
+  await page.getByTestId("register-verify").click();
+  await page.waitForURL(/\/go\?welcome=1$/);
 }
 
 async function waitText(request: APIRequestContext, to: string, re: RegExp, timeout = 60_000) {

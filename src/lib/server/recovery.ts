@@ -1,4 +1,5 @@
 import { all } from "../db";
+import { clockTime, tzOf } from "../tz";
 import { recordingMinutesFromEnv } from "../engine/limits";
 import { finishCaptureFor } from "./capture";
 import { mintLoginLink } from "./magic";
@@ -43,7 +44,7 @@ export async function recoverStalledCaptures(at = new Date(), idleMinutes = IDLE
       recovered.push(r.id);
       const call = await artifacts.get<{ phone?: string; startedAt?: string }>(r.id, "phone_call");
       if (call?.phone && !actor.prefs.textOptOut) {
-        const when = call.startedAt ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: process.env.CHARTSIDE_TZ || "America/Chicago" }).format(new Date(call.startedAt)) : "earlier";
+        const when = call.startedAt ? clockTime(call.startedAt, tzOf(actor)) : "earlier";
         const { url } = await mintLoginLink(actor.id, `/go/stack?focus=${encodeURIComponent(r.id)}`, 60, { verifiesPhone: actor.guestUntil ? call.phone : null });
         await sendText(call.phone, `Chartside: your ${when} call dropped before it ended. The note is being written from what was recorded: ${url}`, "call_recovered").catch(() => {});
       }

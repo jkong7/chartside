@@ -238,3 +238,19 @@ export async function playPatientWithClaude(input: { persona: string; facts: Rec
   if (!text || response.stop_reason === "refusal") throw new Error("Patient unavailable");
   return text.replace(/^["“]|["”]$/g, "");
 }
+
+const StyleSchema = z.object({
+  rules: z.array(z.object({ kind: z.enum(["drop_phrase", "always_include"]), section: z.string(), value: z.string(), label: z.string() })),
+});
+
+export async function styleRulesWithClaude(sample: string, sections: { key: string; title: string }[]) {
+  const response = await anthropic().messages.parse({
+    model: llmModel(),
+    max_tokens: 2000,
+    system: "You read one clinical note a clinician pasted as an example of how they write. Find at most 4 habits the structure checks cannot see: a closing line they always add (always_include, exact sentence, 20 words or fewer, no patient details), or a kind of line they never write (drop_phrase, the first 2 to 4 lowercase words of such a line). Use only the section keys given. Labels are short plain English. Return an empty list if nothing is clear.",
+    messages: [{ role: "user", content: `Sections: ${sections.map((s) => `${s.key} (${s.title})`).join(", ")}\n\nExample note:\n${sample.slice(0, 6000)}` }],
+    output_config: { format: zodOutputFormat(StyleSchema) },
+  });
+  const keys = new Set(sections.map((s) => s.key));
+  return (response.parsed_output?.rules ?? []).filter((r) => keys.has(r.section) && r.value.trim() && r.value.split(/\s+/).length <= 20).slice(0, 4);
+}

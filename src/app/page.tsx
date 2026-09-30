@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Logo } from "@/components/icons";
 import { currentUser } from "@/lib/server/auth";
+import { navModeFor } from "@/lib/server/disclosure";
 
 const AREAS = [
   { title: "Clinic", items: ["Ambient notes, dictation, and voice commands", "Visit agenda, ask-the-chart, and outside records", "Orders, order sets, letters, and PDF forms", "Inbox drafts, tasks, and patient messaging"] },
@@ -24,7 +25,8 @@ const FEATURES = [
 ];
 
 export default async function Home() {
-  if (await currentUser()) redirect("/today");
+  const user = await currentUser();
+  if (user) redirect(user.guestUntil || (await navModeFor(user)) === "simple" ? "/go" : "/today");
   return (
     <main className="min-h-screen">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
@@ -34,7 +36,7 @@ export default async function Home() {
         </div>
         <nav className="flex items-center gap-2">
           <Link className="btn-ghost" href="/login">Sign in</Link>
-          <Link className="btn-primary" href="/register">Try it free</Link>
+          <Link className="btn-outline hidden sm:inline-flex" href="/register" data-testid="home-create-top">Create account</Link>
         </nav>
       </header>
 
@@ -49,10 +51,10 @@ export default async function Home() {
             Chartside listens to the visit and drafts a specialty-ready note, codes, orders, and a patient summary. Every sentence links back to the moment it came from.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link className="btn-primary px-5 py-2.5 text-base" href="/go/phone?autopilot=1" data-testid="home-sample">Try a sample call, no signup</Link>
-            <Link className="btn-outline px-5 py-2.5 text-base" href="/register">Start a demo clinic day</Link>
+            <Link className="btn-primary px-5 py-2.5 text-base" href="/go/phone?autopilot=1" data-testid="home-sample">Hear it write a note, no signup</Link>
+            <Link className="btn-outline px-5 py-2.5 text-base" href="/register" data-testid="home-create">Create account</Link>
           </div>
-          <p className="mt-4 text-sm text-ink-3">Your first note is free. Nothing to install.</p>
+          <p className="mt-4 text-sm text-ink-3">About a minute to your first note. Nothing to type, nothing to install.</p>
           <p className="mt-2 text-sm text-ink-3">
             Med student or resident? <Link href="/practice" className="font-medium text-brand hover:underline" data-testid="home-practice">Practice a patient encounter and get graded, free</Link>
           </p>

@@ -10,6 +10,7 @@ import { setTextOptOut } from "../jurisdiction";
 import { limited } from "../ratelimit";
 import { dictateByText, inboundMemo, purgeMemoHolds, resolveHolds, uploadLinkReply } from "./memos";
 import { sendText } from "./sms";
+import { clinicTz, clockTime, dayBounds, localDay, localHour, localMidnight, tzOf } from "../../tz";
 
 const KIND_WORDS: Record<string, [string, string]> = {
   "note.sign": ["note to sign", "notes to sign"],
@@ -39,32 +40,16 @@ async function link(u: User, path = "/go/stack") {
 
 const HELP = "Reply STATUS for what's waiting, SCHEDULE for today, LINK to open what needs your review, NUDGE 5 or BRIEF 7 for daily texts, or call this number before a visit to scribe it. Text a voice memo, or a message starting with NOTE, to get a note. UPLOAD sends a link for big files. Texts never include patient details.";
 
-function offsetMinutes(at: Date, tz: string) {
-  const name = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "shortOffset" }).formatToParts(at).find((p) => p.type === "timeZoneName")?.value ?? "GMT";
-  const m = /GMT([+-])(\d{1,2})(?::(\d{2}))?/.exec(name);
-  return m ? (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] ?? 0)) : 0;
-}
-
-export function localMidnight(day: string, tz: string) {
-  let guess = Date.parse(`${day}T00:00:00Z`);
-  for (let i = 0; i < 3; i++) guess = Date.parse(`${day}T00:00:00Z`) - offsetMinutes(new Date(guess), tz) * 60_000;
-  return new Date(guess);
-}
-
-export function dayBounds(at: Date, tz: string) {
-  const day = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(at);
-  const next = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date(localMidnight(day, tz).getTime() + 36 * 3600_000));
-  return { from: localMidnight(day, tz).toISOString(), to: localMidnight(next, tz).toISOString() };
-}
+export { dayBounds, localMidnight };
 
 export async function dayLine(u: User, at = new Date()) {
-  const tz = process.env.CHARTSIDE_TZ || "America/Chicago";
+  const tz = tzOf(u);
   const { from, to } = dayBounds(at, tz);
   const list = (await encounters.list(u, { from, to, clinicianId: u.id, outpatient: true })).filter((e) => e.status !== "signed");
   if (!list.length) return { count: 0, text: "No visits on your schedule today." };
   const first = list.map((e) => e.scheduledAt).sort()[0];
   const upcoming = list.filter((e) => Date.parse(e.scheduledAt) >= at.getTime()).length;
-  const t = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: tz }).format(new Date(first));
+  const t = clockTime(first, tz);
   return { count: list.length, text: `${list.length} visit${list.length === 1 ? "" : "s"} today, starting at ${t}${upcoming < list.length ? `, ${upcoming} still ahead` : ""}.` };
 }
 
@@ -154,23 +139,18 @@ export async function inboundText(fromRaw: string, bodyRaw: string, origin: stri
   return say(`I can't read or send patient details by text. ${HELP} Open what needs your review: ${await link(user)}`);
 }
 
-function localHour(at: Date, tz: string) {
-  return Number(new Intl.DateTimeFormat("en-US", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(at));
-}
-
-function localDay(at: Date, tz: string) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(at);
-}
-
 export async function sendClinicNudges(at = new Date()) {
-  const tz = process.env.CHARTSIDE_TZ || "America/Chicago";
+  const tz = clinicTz();
   const hour = localHour(at, tz);
   const day = localDay(at, tz);
   const rows = await all<{ id: string; phone: string; prefs: string }>("SELECT id, phone, prefs FROM users WHERE phone IS NOT NULL AND phone_verified_at IS NOT NULL");
   const sent: string[] = [];
   const briefs: string[] = [];
   for (const r of rows) {
-    const prefs = JSON.parse(r.prefs || "{}") as { clinicNudgeHour?: number | null; morningBriefHour?: number | null; textOptOut?: boolean };
+    const prefs = JSON.parse(r.prefs || "{}") as { clinicNudgeHour?: number | null; morningBriefHour?: number | null; textOptOut?: boolean; tz?: string };
+    const mine = tzOf({ prefs });
+    const hour = localHour(at, mine);
+    const day = localDay(at, mine);
     if (!prefs.textOptOut && prefs.morningBriefHour != null && prefs.morningBriefHour === hour) {
       const had = await get<{ n: number }>("SELECT COUNT(*) AS n FROM audit WHERE user_id = ? AND action = 'text.brief' AND created_at >= ?", r.id, new Date(at.getTime() - 20 * 3600_000).toISOString());
       const bu = Number(had?.n ?? 0) === 0 ? await actorFor(r.id) : undefined;
