@@ -83,7 +83,7 @@ const cleanCid = (v: string | undefined) => (v && /^[A-Za-z0-9-]{8,64}$/.test(v)
 const g = globalThis as unknown as { __chartsideCaptureLocks?: Map<string, Promise<unknown>> };
 const locks = (g.__chartsideCaptureLocks ??= new Map<string, Promise<unknown>>());
 
-async function serialized<T>(key: string, fn: () => Promise<T>): Promise<T> {
+export async function serialized<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const prev = locks.get(key) ?? Promise.resolve();
   const run = prev.catch(() => undefined).then(fn);
   const tail = run.catch(() => undefined);
@@ -96,14 +96,34 @@ async function serialized<T>(key: string, fn: () => Promise<T>): Promise<T> {
 }
 const seqOf = (v: string | undefined) => (v !== undefined && /^\d{1,6}$/.test(v) ? Number(v) : undefined);
 
-export async function readCaptureRequest(req: Request): Promise<CaptureInput> {
+export async function readBody(req: Request, limit: number, message = "Recording is larger than 100 MB") {
+  if (!req.body) return Buffer.alloc(0);
+  const reader = req.body.getReader();
+  const parts: Buffer[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel().catch(() => undefined);
+      throw new CaptureAuthError(413, message);
+    }
+    parts.push(Buffer.from(value));
+  }
+  return Buffer.concat(parts, total);
+}
+
+export async function readCaptureRequest(req: Request, maxBytes = MAX_CAPTURE_BYTES, message = "Recording is larger than 100 MB"): Promise<CaptureInput> {
   const url = new URL(req.url);
   const opts: Record<string, string> = Object.fromEntries(url.searchParams.entries());
+  const cap = Math.max(0, Math.min(maxBytes, MAX_CAPTURE_BYTES));
   const declared = Number(req.headers.get("content-length") ?? 0);
-  if (declared > MAX_CAPTURE_BYTES + 64 * 1024) throw new CaptureAuthError(413, "Recording is larger than 100 MB");
+  if (declared > cap + 64 * 1024) throw new CaptureAuthError(413, message);
   const type = req.headers.get("content-type") ?? "";
   if (/^multipart\/form-data/i.test(type)) {
-    const form = await req.formData();
+    const raw = await readBody(req, cap + 64 * 1024, message);
+    const form = await new Response(new Uint8Array(raw), { headers: { "content-type": type } }).formData();
     let audio: Buffer | null = null;
     let mime: string | null = null;
     for (const [k, v] of form.entries()) {
@@ -114,15 +134,25 @@ export async function readCaptureRequest(req: Request): Promise<CaptureInput> {
         if (!mime) throw new CaptureAuthError(415, "Send webm, m4a, mp4, wav, ogg, mp3 or aac audio");
       }
     }
+    if (audio && audio.length > cap) throw new CaptureAuthError(413, message);
     return { audio: audio?.length ? audio : null, mime, opts };
   }
   if (!type || /^application\/(json|x-www-form-urlencoded)/i.test(type)) {
-    if (type.startsWith("application/json")) Object.assign(opts, Object.fromEntries(Object.entries(((await req.json().catch(() => ({}))) as Record<string, unknown>) ?? {}).map(([k, v]) => [k, String(v)])));
+    if (type.startsWith("application/json")) {
+      const raw = await readBody(req, 64 * 1024, "That request is too large");
+      let parsed: Record<string, unknown> = {};
+      try {
+        parsed = (JSON.parse(raw.toString("utf8") || "{}") as Record<string, unknown>) ?? {};
+      } catch {
+        parsed = {};
+      }
+      Object.assign(opts, Object.fromEntries(Object.entries(parsed).map(([k, v]) => [k, String(v)])));
+    }
     return { audio: null, mime: null, opts };
   }
   const mime = normalizeMime(type, opts.filename);
   if (!mime) throw new CaptureAuthError(415, "Send webm, m4a, mp4, wav, ogg, mp3 or aac audio");
-  const audio = Buffer.from(await req.arrayBuffer());
+  const audio = await readBody(req, cap, message);
   return { audio: audio.length ? audio : null, mime, opts };
 }
 
