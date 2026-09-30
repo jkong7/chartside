@@ -53,6 +53,9 @@ export default async function Home() {
             <Link className="btn-outline px-5 py-2.5 text-base" href="/register">Start a demo clinic day</Link>
           </div>
           <p className="mt-4 text-sm text-ink-3">Your first note is free. Nothing to install.</p>
+          <p className="mt-2 text-sm text-ink-3">
+            Med student or resident? <Link href="/practice" className="font-medium text-brand hover:underline" data-testid="home-practice">Practice a patient encounter and get graded, free</Link>
+          </p>
         </div>
         <div className="card overflow-hidden shadow-xl">
           <div className="flex items-center justify-between border-b border-line bg-sunken px-4 py-2.5 text-xs text-ink-3">
