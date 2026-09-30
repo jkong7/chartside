@@ -41,7 +41,7 @@ A free, viral funnel for medical students and residents. A student talks to an A
 
 - **Unit, 34 new** in `tests/unit/practice.test.ts`, `practice-server.test.ts` and `telephony-practice.test.ts`. They cover the case library's completeness; that every checklist question and exam request in every case is answered and credited; intent matching; offline patient behavior (no volunteering, the parent persona, exam findings, defaults, determinism); exact grading math, fixes and timestamps; attending and pimp grading; the reference note; sessions end to end; the time limit; claim and the `.edu` badge; leaderboards; the phone claim token; and the phone state machine (keypad, voice, end, hang-up, time-up).
 - **E2E, 10 new** in `tests/e2e/practice.spec.ts`. They cover landing to scorecard by typing; a voice interview with the fake mic and mock Deepgram, with patient TTS and note dictation; the timer; the public share view, OG image and challenge link; the class leaderboard; the attending by voice with pimp questions; save progress with an emailed code and the Student badge; ownership and input checks; the phone line (press 7, voice history, exam by voice, end, PHI-free text, link to scorecard, note); and axe WCAG 2.1 AA on every practice page. The mock Deepgram gained practice scripts, one each for the encounter, the note and the presentation.
-- The full unit suite (402 tests) passed. See the final report for the full e2e run.
+- Last full runs: 402 unit tests and 164 end-to-end tests, all passing.
 
 ## What's left
 
