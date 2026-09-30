@@ -79,6 +79,7 @@ describe("practice sessions", () => {
     const me = { device: device(), userId: null };
     const s = await p.startPractice({ caseId: "low-back-pain", actor: me });
     const u = await newMember("Riley Park", { email: `riley${Date.now()}@med.northwestern.edu` });
+    await (await import("@/lib/server/emailProof")).trustEmail(u.id);
     expect(await p.claimPractice(me, u.id)).toBe(1);
     const after = (await p.getPractice(s.id))!;
     expect(after).toMatchObject({ userId: u.id, student: true, name: "Riley" });
@@ -87,6 +88,15 @@ describe("practice sessions", () => {
     expect(p.isStudentEmail("a@stanford.edu")).toBe(true);
     const later = await p.startPractice({ caseId: "headache", actor: { device: device(), userId: u.id } });
     expect(later.student).toBe(true);
+  });
+
+  it("gives no Student badge to an .edu email that was never proven", async () => {
+    const p = await P();
+    const me = { device: device(), userId: null };
+    const s = await p.startPractice({ caseId: "headache", actor: me });
+    const u = await newMember("Sam Faker", { email: `faker${Date.now()}@harvard.edu` });
+    await p.claimPractice(me, u.id);
+    expect((await p.getPractice(s.id))!.student).toBe(false);
   });
 
   it("builds a first-name leaderboard per class code with each person's best", async () => {

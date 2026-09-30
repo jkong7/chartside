@@ -1,3 +1,4 @@
+import { emailVerified } from "./emailProof";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { all, get, now, run, uid } from "../db";
 import { generateNoteWithClaude, llmEnabled, playPatientWithClaude } from "../llm";
@@ -206,7 +207,7 @@ export async function startPractice(input: { caseId: string; actor: Actor; name?
     input.claimToken ? sha(input.claimToken) : null,
     input.claimToken ? new Date(Date.now() + claimHours() * 3600_000).toISOString() : null,
     minutes * 60,
-    isStudentEmail(user?.email) ? 1 : 0,
+    user && isStudentEmail(user.email) && (await emailVerified(user.id)) ? 1 : 0,
     llmEnabled() ? "claude" : "local",
     ts,
     ts,
@@ -358,7 +359,7 @@ export async function claimPractice(a: Actor, userId: string) {
   const u = await users.byId(userId);
   if (!u) throw new Forbidden("Sign in first");
   if (!a.device) return 0;
-  const student = isStudentEmail(u.email) ? 1 : 0;
+  const student = isStudentEmail(u.email) && (await emailVerified(u.id)) ? 1 : 0;
   const r = await run("UPDATE practice_sessions SET user_id = ?, student = ? WHERE device = ? AND (user_id IS NULL OR user_id = ?)", u.id, student, a.device, u.id);
   const name = cleanName(u.name);
   if (name) await run("UPDATE practice_sessions SET name = ? WHERE user_id = ? AND name = ''", name, u.id);

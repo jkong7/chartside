@@ -104,7 +104,7 @@ A review of texted memos, WhatsApp, the upload link and vet owner texts (`teleph
 
 ## Chartside Practice (`/practice`, press 7 on the line)
 
-Every practice patient is fictional, so these findings are about cost abuse, account boundaries and score integrity, not PHI. Finding 5 of that review (the `.edu` Student badge trusts an unverified email) is tracked separately with the email-verified flag.
+Every practice patient is fictional, so these findings are about cost abuse, account boundaries and score integrity, not PHI. Finding 5 of that review (the `.edu` Student badge trusted an unverified email) is fixed with the email-verified flag from finding 32: the badge needs a proven email.
 
 | # | Area | Finding | Severity | Status |
 |---|---|---|---|---|
