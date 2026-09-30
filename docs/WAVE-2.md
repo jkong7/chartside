@@ -45,10 +45,36 @@ Run on local production builds on 2026-09-30.
 - **Memos:** real Deepgram transcribed WhatsApp OGG/Opus, iPhone M4A and 3GPP/AAC correctly. AMR-NB is still unchecked.
 - **Vet sign-up from `/barn`:** the account kept its specialty, the equine template, the browser time zone and the veterinary jurisdiction.
 
+## Independent security review (2026-09-30)
+
+Four reviewers read the wave 2 diff: the patient loop, texting and Barn Line, sign-in, and Practice. They confirmed findings with tests before anything was fixed. The findings are 30 through 51 in `docs/SECURITY-GHOST.md`. The fixes were made on `fix/memo-review`, `fix/patient-review` and `fix/practice-review` (merged here), plus sign-in fixes committed directly on this branch.
+
+- **High, fixed:**
+  - A phone-only account could have its email taken over through an attacker's link.
+  - Google, Microsoft and SSO callbacks weren't bound to the browser that started them.
+  - A password sign-up could squat on someone else's email. Password sign-ups now confirm the email with a code first.
+  - Anyone with a patient's draft offer link could claim the transcript. The claim is now bound to the clinician's email, phone or NPI.
+- **Medium, fixed:**
+  - Owner care texts could reach the wrong client.
+  - The Practice speech and voice endpoints could be abused for cost. Speech now goes through a server-side relay, and there are caps in the database.
+  - A Practice session could be read after sign-out on a shared computer.
+  - One NPI match unlocked other offers.
+  - Anonymous uploads had no byte limit.
+  - A texted phone code could sign into a practice that requires SSO.
+- **Low, fixed:**
+  - open redirects
+  - audit rows that could hold a patient's name
+  - a full sign-in link sent as the upload link
+  - guest STOP handling
+  - held memos after a guest merge
+  - Practice resubmission and link reuse
+  - the Student badge without a proven email
+
 ## Tests
 
-- Unit: 511 passing, up from 368.
-- E2E: 186 passing, up from 154. There's a new spec per branch: `practice`, `patient-visit`, `memo` and `onboard`.
+- Unit: 565 passing, up from 368.
+- E2E: 192 passing, up from 154. There's a new spec per branch: `practice`, `patient-visit`, `memo` and `onboard`.
+- After the review fixes, a live run with real Claude and Deepgram checked the Practice voice relay (it transcribed live speech and the Claude patient answered) and the password fallback on a server without email.
 - Axe WCAG 2.1 AA scans cover every new page.
 
 ## Before any of this goes live
