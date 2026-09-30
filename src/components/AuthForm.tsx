@@ -6,6 +6,7 @@ import { useState } from "react";
 import { api } from "@/lib/client";
 import { Logo, Shield } from "./icons";
 import { Spinner } from "./ui";
+import { ProviderButtons } from "./RegisterForm";
 
 interface InviteInfo {
   token: string;
@@ -20,7 +21,7 @@ interface SsoInfo {
   orgName: string | null;
 }
 
-export default function AuthForm({ mode, next, invite, error: initialError }: { mode: "login" | "register"; next?: string; invite?: InviteInfo; error?: string }) {
+export default function AuthForm({ mode, next, invite, error: initialError, providers = [] }: { mode: "login" | "register"; next?: string; invite?: InviteInfo; error?: string; providers?: { id: string; label: string }[] }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(initialError ?? null);
@@ -156,6 +157,7 @@ export default function AuthForm({ mode, next, invite, error: initialError }: { 
             <h1 className="text-lg font-semibold">{mode === "login" ? "Sign in" : invite ? "Create your account" : "Create your clinician account"}</h1>
             <p className="mt-1 text-sm text-ink-3">{mode === "login" ? "Welcome back." : invite ? "Set a name and password to join your team." : "Your workspace comes with a demo clinic day you can record against."}</p>
           </div>
+          {mode === "login" && !passwordless && <ProviderButtons providers={providers} next={next} />}
           {mode === "register" && (
             <>
               <div>
