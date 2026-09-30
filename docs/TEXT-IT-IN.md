@@ -55,6 +55,9 @@ Branch `interface/memo`. Research: `docs/research/_raw-messaging-2.md` (bets 1 a
 
 ## Tests
 
+Last full runs: unit 406 passed (89 files, 38 new tests in 5 files), e2e 163 passed (9 new in `memo.spec.ts`).
+
+
 - Unit: `memo.test.ts` (media fields, SSRF guard, durations for wav, m4a, ogg and amr, intents, consent hold state machine, message splitting), `memo-flow.test.ts` (YES, NO, timeout, ALWAYS and ALWAYS OFF, guest, oversize, non-audio, dictation, all against a local fake Twilio and Deepgram), `whatsapp.test.ts` (eligibility, owner-only jurisdiction, refusal, inline vet reply, 24-hour window), `vet.test.ts` (vocabulary, species, AAEP grade, animal markers, splitting, template choice, owner text), `barn.test.ts` (texted farm call split into 3 records, owner text on sign, STOP honored).
 - E2E `tests/e2e/memo.spec.ts`: MMS YES path with deletion and PHI-free link, then sign; NO path; text dictation; oversize upload link to `/go/upload`; WhatsApp refusal for a US practice and an unknown sender; WhatsApp inline record for a vet; Barn Line farm call split and owner text after signing; owner-only jurisdiction toggle; axe checks on `/barn` and `/go/upload`, plus the OG image.
 
