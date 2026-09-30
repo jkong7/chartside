@@ -57,7 +57,7 @@ export async function dayLine(u: User, at = new Date()) {
 
 export async function inboundSms(params: Record<string, string>, origin: string): Promise<string> {
   const items = mediaItems(params);
-  if (!items.length) return inboundText(params.From ?? "", params.Body ?? "", origin);
+  if (!items.length) return inboundText(params.From ?? "", params.Body ?? "", origin, params.MessageSid ?? null);
   const from = normalizePhone(params.From ?? "");
   if (!from) return "Chartside couldn't read your number.";
   const verified = await userByPhone(from);
@@ -66,15 +66,15 @@ export async function inboundSms(params: Record<string, string>, origin: string)
   return inboundMemo({ user, phone: from, channel: "mms", items, messageSid: params.MessageSid ?? null, origin });
 }
 
-export async function inboundText(fromRaw: string, bodyRaw: string, origin: string): Promise<string> {
+export async function inboundText(fromRaw: string, bodyRaw: string, origin: string, messageSid: string | null = null): Promise<string> {
   const from = normalizePhone(fromRaw ?? "");
   const body = (bodyRaw ?? "").trim().toLowerCase();
   if (!from) return "Chartside couldn't read your number.";
   await purgeMemoHolds();
   const intent = memoIntent(bodyRaw ?? "");
   if (intent === "yes" || intent === "no" || intent === "always") {
-    const resolved = await resolveHolds(from, intent, "mms");
-    if (resolved) return resolved;
+    const resolved = await resolveHolds(from, intent, "mms", messageSid);
+    if (resolved !== null) return resolved;
   }
   const user = await userByPhone(from);
   if (!user) {

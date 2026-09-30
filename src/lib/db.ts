@@ -803,6 +803,10 @@ CREATE TABLE IF NOT EXISTS messaging_sessions (
   last_inbound_at TEXT NOT NULL,
   PRIMARY KEY (phone, channel)
 );
+CREATE TABLE IF NOT EXISTS inbound_messages (
+  sid TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS text_optouts (
   phone TEXT PRIMARY KEY,
   created_at TEXT NOT NULL

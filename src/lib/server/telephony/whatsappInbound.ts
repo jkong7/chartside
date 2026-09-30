@@ -31,8 +31,8 @@ export async function inboundWhatsApp(params: Record<string, string>, origin: st
   const body = params.Body ?? "";
   const intent = memoIntent(body);
   if (intent === "yes" || intent === "no" || intent === "always") {
-    const r = await resolveHolds(phone, intent, "whatsapp");
-    if (r) return r;
+    const r = await resolveHolds(phone, intent, "whatsapp", params.MessageSid ?? null);
+    if (r !== null) return r;
   }
   if (intent === "note") return dictateByText(user, phone, "whatsapp", body);
   return HELP;

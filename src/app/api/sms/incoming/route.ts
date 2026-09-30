@@ -9,5 +9,5 @@ export async function POST(req: Request) {
   const u = new URL(req.url);
   if (!validSignature(token, `${origin}${u.pathname}${u.search}`, params, req.headers.get("x-twilio-signature"))) return new Response("Invalid signature", { status: 403 });
   const reply = await inboundSms(params, origin);
-  return new Response(twiml([{ message: reply }]), { headers: { "content-type": "text/xml; charset=utf-8" } });
+  return new Response(twiml(reply ? [{ message: reply }] : []), { headers: { "content-type": "text/xml; charset=utf-8" } });
 }
