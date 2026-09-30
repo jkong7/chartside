@@ -247,6 +247,16 @@ test("speech never hands out a Deepgram token and stops when the encounter ends"
   expect((await page.request.post("/api/practice/speech", { data: { session: s.id, purpose: "encounter" } })).status()).toBe(422);
 });
 
+test("each patient reply is voiced once, however often it is replayed", async ({ page, request }) => {
+  const s = (await (await page.request.post("/api/practice", { data: { caseId: "chest-pain" } })).json()) as { id: string };
+  const turn = (await (await page.request.post(`/api/practice/${s.id}/turn`, { data: { text: "Do you smoke?" } })).json()) as { added: { id: string; role: string; text: string }[] };
+  const reply = turn.added.find((t) => t.role === "patient")!;
+  const count = async () => (await spoken(request)).filter((x) => x === reply.text).length;
+  const n = await count();
+  for (let i = 0; i < 3; i++) expect((await page.request.get(`/api/practice/${s.id}/speak?turn=${reply.id}`)).status()).toBe(200);
+  expect((await count()) - n).toBe(1);
+});
+
 test("a student calls the line, presses 7, takes a history by voice, and gets a PHI-free scorecard text", async ({ page, request, baseURL }) => {
   const call = await dial({
     base: baseURL!,

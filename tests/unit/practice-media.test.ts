@@ -100,3 +100,40 @@ describe("practice speech grants", () => {
     expect(await sp.acceptListen(req(`bearer, ${next.token}`))).toBeNull();
   });
 });
+
+describe("practice patient voice", () => {
+  it("synthesizes each reply once, keeps it sealed on disk, and caps new clips per session and per day", async () => {
+    const p = await P();
+    const v = await import("@/lib/server/practiceVoice");
+    const me = { device: device(), userId: null };
+    const s = await p.startPractice({ caseId: "chest-pain", actor: me });
+    await p.askPatient(s.id, me, { text: "What brings you in today?" });
+    await p.askPatient(s.id, me, { text: "Do you smoke?" });
+    await p.askPatient(s.id, me, { text: "Does it go anywhere?" });
+    const live = (await p.getPractice(s.id))!;
+    const replies = live.turns.filter((t) => t.role === "patient").map((t) => t.id);
+    const before = spoken.length;
+    const a = await v.patientClip(live, replies[0]);
+    const again = await v.patientClip(live, replies[0]);
+    expect(a!.length).toBe(800);
+    expect(again!.equals(a!)).toBe(true);
+    expect(spoken.length - before).toBe(1);
+    const folder = path.join(dir, "practice-voice", s.id);
+    const file = readFileSync(path.join(folder, readdirSync(folder)[0]));
+    expect(file.subarray(0, 4).toString()).toBe("CSB1");
+    expect(await v.patientClip(live, "t999")).toBeNull();
+    process.env.CHARTSIDE_PRACTICE_VOICE_PER_SESSION = "2";
+    await v.patientClip(live, replies[1]);
+    await expect(v.patientClip(live, replies[2])).rejects.toThrow(/used up/);
+    delete process.env.CHARTSIDE_PRACTICE_VOICE_PER_SESSION;
+    const { run } = await import("@/lib/db");
+    await run("DELETE FROM usage_daily WHERE kind = 'practice-voice'");
+    process.env.CHARTSIDE_PRACTICE_VOICE_DAILY = "0";
+    const other = await p.startPractice({ caseId: "headache", actor: me });
+    await p.askPatient(other.id, me, { text: "What brings you in today?" });
+    const o = (await p.getPractice(other.id))!;
+    await expect(v.patientClip(o, o.turns[1].id)).rejects.toThrow(/busy today/);
+    delete process.env.CHARTSIDE_PRACTICE_VOICE_DAILY;
+    expect(spoken.length - before).toBe(2);
+  });
+});
