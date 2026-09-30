@@ -93,11 +93,11 @@ test("typing an NPI fills name, specialty, the verified badge and the specialty 
   await expect(page.getByTestId("register-specialty")).toHaveValue("Physical Therapy");
   await page.getByTestId("npi-input").fill("1234567890");
   await expect(page.getByText("That isn't a valid 10-digit NPI")).toBeVisible();
-  await signUp(page, { npi: "1234567893" });
+  await signUp(page, { npi: "1588667703" });
   const me = (await (await page.request.get("/api/auth/me")).json()).user;
-  expect(me).toMatchObject({ name: "Avery Chen, MD", specialty: "Family Medicine" });
-  expect(me.prefs.npi).toMatchObject({ number: "1234567893", matched: true });
-  expect(me.prefs.defaultTemplate).toBe("soap");
+  expect(me).toMatchObject({ name: "Morgan Blake, LCSW", specialty: "Psychotherapy" });
+  expect(me.prefs.npi).toMatchObject({ number: "1588667703", matched: true });
+  expect(me.prefs).toMatchObject({ defaultTemplate: "bh_dap" });
 });
 
 test("a phone guest saves the note with a code texted to the number that called", async ({ page, baseURL, request }) => {

@@ -70,7 +70,7 @@ export async function requestEmailSignIn(emailIn: string, opts: { next?: string 
   const id = uid("mag_");
   const code = newCode();
   const token = newToken();
-  const next = safePath(opts.next);
+  const next = opts.next ? safePath(opts.next) : null;
   await run("INSERT INTO magic_links (id, kind, email, guest_user_id, token_hash, code_hash, next_path, expires_at, created_at, profile) VALUES (?, 'email', ?, ?, ?, ?, ?, ?, ?, ?)", id, email, opts.guestUserId ?? null, sha(token), sha(`${id}:${code}`), next, new Date(Date.now() + CODE_TTL_MS).toISOString(), now(), opts.profile ? JSON.stringify(cleanProfile(opts.profile)) : null);
   const url = `${publicOrigin(opts.origin)}/m/${token}`;
   const sent = await deliver({ channel: "email", to: email, kind: "magic_code", subject: `${code} is your Chartside sign-in code`, body: `Your Chartside sign-in code is ${code}.\n\nOr open this link on the device you're signing in on:\n${url}\n\nThe code and link expire in 10 minutes and work once. If you didn't ask for this, ignore this email.` });
@@ -170,8 +170,7 @@ export async function redeemMagic(input: { token?: string; email?: string; code?
   const user = await actorFor(userId);
   if (!user) throw new Forbidden("Your access to Chartside has been disabled. Contact your administrator.");
   await audit.log(user, null, created ? "user.registered" : "magic.redeemed", { id: row.id, kind: row.kind, via: input.token ? "link" : "code", claimed });
-  const next = row.next_path ?? "/today";
-  return { user, next: created && next === "/today" ? "/go?welcome=1" : next, created, claimed };
+  return { user, next: row.next_path ?? (created ? "/go?welcome=1" : "/today"), created, claimed };
 }
 
 async function markPhoneVerified(userId: string, phone: string) {

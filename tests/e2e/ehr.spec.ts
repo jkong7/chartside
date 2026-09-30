@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { draftNote, register } from "./helpers";
+import { draftNote, mailCode, register } from "./helpers";
 
 const ISS = "http://localhost:3297/fhir";
 
@@ -13,10 +13,13 @@ test("Epic EHR launch: sign in, import chart and encounter, document, sign, and 
   await expect(page).toHaveURL(/\/login\?next=/);
   await expect(page.getByText("Sign in to continue launching Chartside from your EHR.")).toBeVisible();
   await page.getByRole("link", { name: "Create an account" }).click();
+  await expect(page).toHaveURL(/\/register\?next=/);
+  const email = `ehr-${Date.now()}@chartside.test`;
   await page.fill("#name", "Dr. Avery Chen");
-  await page.fill("#email", `ehr-${Date.now()}@chartside.test`);
-  await page.fill("#password", "correct-horse-9");
-  await page.click("button[type=submit]");
+  await page.fill("#email", email);
+  await page.getByTestId("register-submit").click();
+  await page.getByTestId("register-code").fill(await mailCode(page, email));
+  await page.getByTestId("register-verify").click();
 
   await expect(page).toHaveURL(/\/encounters\/enc_/, { timeout: 30_000 });
   await expect(page.getByTestId("patient-name")).toHaveText("Elena Vasquez");

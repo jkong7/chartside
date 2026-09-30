@@ -178,7 +178,9 @@ For developers, `POST /api/capture` is the one capture endpoint behind every doo
 | `CHARTSIDE_SIM_RATE` / `CHARTSIDE_SIM_DAILY_CAP` | Browser phone calls allowed per IP per hour (default 12) and across all visitors per day (default 300). |
 | `CHARTSIDE_LINE_NUMBER` | The E.164 number shown on `/line` and in the vCard |
 | `CHARTSIDE_LINE_DISPLAY` | The label for the browser phone at `/go/phone` (default `Demo line`) |
-| `CHARTSIDE_TZ` | The time zone for spoken times and the schedule-aware greeting (default `America/Chicago`) |
+| `CHARTSIDE_TZ` | Fallback time zone when a clinician's browser zone isn't known yet (default `America/Chicago`). Each clinician's browser zone is saved to their profile at signup and on page loads, and spoken times, texts, the stack, `/today` and the sample clinic day use it. |
+| `CHARTSIDE_GOOGLE_CLIENT_ID`, `CHARTSIDE_GOOGLE_CLIENT_SECRET` | Show **Continue with Google** on sign-up and sign-in. Register `{CHARTSIDE_PUBLIC_URL}/sso/callback` as the redirect URI. Hidden when unset. `CHARTSIDE_GOOGLE_ISSUER` overrides the issuer (tests use the mock). |
+| `CHARTSIDE_MICROSOFT_CLIENT_ID`, `CHARTSIDE_MICROSOFT_CLIENT_SECRET` | Show **Continue with Microsoft**. Default issuer is the multi-tenant `https://login.microsoftonline.com/common/v2.0`; set `CHARTSIDE_MICROSOFT_ISSUER` to a single tenant if you prefer. Turn on the `xms_edov` optional claim (or `email_verified`), because Chartside only accepts a verified email. Hidden when unset. |
 | `CHARTSIDE_PHONE_VOICE` | The Deepgram Aura voice for prompts (default `aura-2-thalia-en`) |
 | `CHARTSIDE_PHONE_VOICE_ES` | The Spanish voice for the patient consent script (default `aura-2-celeste-es`) |
 | `CHARTSIDE_CRON_SECRET` | Bearer secret for `POST /api/cron/nudges`. Schedule it hourly, for example with Cloud Scheduler, to send end-of-clinic texts. |
