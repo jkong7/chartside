@@ -35,6 +35,7 @@ interface LinkRow {
   expires_at: string;
   used_at: string | null;
   profile?: string | null;
+  requester_id?: string | null;
 }
 
 export function safePath(p: string | null | undefined, fallback = "/today") {
@@ -61,7 +62,7 @@ async function throttle(column: "email" | "phone", value: string, kind: string) 
   if (Number(recent?.n ?? 0) >= 6) throw new Invalid("Too many codes requested. Try again in an hour.");
 }
 
-export async function requestEmailSignIn(emailIn: string, opts: { next?: string | null; origin?: string; guestUserId?: string | null; profile?: SignupProfile | null } = {}) {
+export async function requestEmailSignIn(emailIn: string, opts: { next?: string | null; origin?: string; guestUserId?: string | null; requesterId?: string | null; profile?: SignupProfile | null } = {}) {
   const email = (emailIn ?? "").trim().toLowerCase();
   if (!EMAIL.test(email) || email.endsWith(`@${GUEST_EMAIL_DOMAIN}`) || email.endsWith(`@${PHONE_EMAIL_DOMAIN}`)) throw new Invalid("Enter a valid email address");
   const sso = await orgs.requiringSso(email.split("@")[1]);
@@ -71,7 +72,7 @@ export async function requestEmailSignIn(emailIn: string, opts: { next?: string 
   const code = newCode();
   const token = newToken();
   const next = opts.next ? safePath(opts.next) : null;
-  await run("INSERT INTO magic_links (id, kind, email, guest_user_id, token_hash, code_hash, next_path, expires_at, created_at, profile) VALUES (?, 'email', ?, ?, ?, ?, ?, ?, ?, ?)", id, email, opts.guestUserId ?? null, sha(token), sha(`${id}:${code}`), next, new Date(Date.now() + CODE_TTL_MS).toISOString(), now(), opts.profile ? JSON.stringify(cleanProfile(opts.profile)) : null);
+  await run("INSERT INTO magic_links (id, kind, email, guest_user_id, token_hash, code_hash, next_path, expires_at, created_at, profile, requester_id) VALUES (?, 'email', ?, ?, ?, ?, ?, ?, ?, ?, ?)", id, email, opts.guestUserId ?? null, sha(token), sha(`${id}:${code}`), next, new Date(Date.now() + CODE_TTL_MS).toISOString(), now(), opts.profile ? JSON.stringify(cleanProfile(opts.profile)) : null, opts.requesterId ?? null);
   const url = `${publicOrigin(opts.origin)}/m/${token}`;
   const sent = await deliver({ channel: "email", to: email, kind: "magic_code", subject: `${code} is your Chartside sign-in code`, body: `Your Chartside sign-in code is ${code}.\n\nOr open this link on the device you're signing in on:\n${url}\n\nThe code and link expire in 10 minutes and work once. If you didn't ask for this, ignore this email.` });
   await audit.log(null, null, "magic.sent", { id, channel: "email", status: sent.status, transport: sent.transport, claim: !!opts.guestUserId });
@@ -152,7 +153,7 @@ export async function redeemMagic(input: { token?: string; email?: string; code?
     if (existing) {
       userId = existing.id;
       if (guestId && guestId !== existing.id) claimed = await mergeGuest(guestId, existing.id);
-    } else if (current && !current.guestUntil && current.email.endsWith(`@${PHONE_EMAIL_DOMAIN}`)) {
+    } else if (current && !current.guestUntil && current.email.endsWith(`@${PHONE_EMAIL_DOMAIN}`) && row.requester_id === current.id) {
       await run("UPDATE users SET email = ? WHERE id = ?", email, current.id);
       userId = current.id;
     } else if (guestId && (await get<{ id: string }>("SELECT id FROM users WHERE id = ? AND guest_expires_at IS NOT NULL AND guest_expires_at > ?", guestId, now()))) {
@@ -232,9 +233,11 @@ export async function claimGuestByPhone(u: User, code: string, profile: SignupPr
   if (!u.guestUntil) throw new Invalid("Your note is already saved");
   const r = await get<LinkRow>("SELECT * FROM magic_links WHERE user_id = ? AND kind = 'phone' AND used_at IS NULL ORDER BY created_at DESC LIMIT 1", u.id);
   await checkCode(r, code);
-  await consume(r!);
   const phone = r!.phone!;
-  const owner = await get<{ id: string }>("SELECT id FROM users WHERE phone = ? AND phone_verified_at IS NOT NULL AND guest_expires_at IS NULL AND id <> ?", phone, u.id);
+  const owner = await get<{ id: string; email: string }>("SELECT id, email FROM users WHERE phone = ? AND phone_verified_at IS NOT NULL AND guest_expires_at IS NULL AND id <> ?", phone, u.id);
+  const sso = owner ? await orgs.requiringSso(owner.email.split("@")[1] ?? "") : null;
+  if (sso) throw new SsoRequired(sso.name);
+  await consume(r!);
   if (owner) {
     const claimed = await mergeGuest(u.id, owner.id);
     const user = await actorFor(owner.id);

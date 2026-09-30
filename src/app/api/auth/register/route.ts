@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     if (limited(`magic:${clientIp(req)}`, Number(process.env.CHARTSIDE_AUTH_RATE ?? 30), 3600000)) return tooMany();
     const current = await currentUser();
     try {
-      const sent = await requestEmailSignIn(email, { next: b.next || "/go?welcome=1", origin: new URL(req.url).origin, guestUserId: current?.guestUntil ? current.id : null, profile: { name, specialty: b.specialty, npi: b.npi, demo: b.demo === true, tz: tz ?? undefined } });
+      const sent = await requestEmailSignIn(email, { next: b.next || "/go?welcome=1", origin: new URL(req.url).origin, guestUserId: current?.guestUntil ? current.id : null, requesterId: current && !current.guestUntil ? current.id : null, profile: { name, specialty: b.specialty, npi: b.npi, demo: b.demo === true, tz: tz ?? undefined } });
       return json({ codeSent: true, ...sent });
     } catch (err) {
       if (err instanceof SsoRequired) return json({ error: err.message, sso: true }, 403);
