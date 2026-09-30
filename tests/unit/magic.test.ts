@@ -62,15 +62,16 @@ describe("magic sign-in", () => {
     expect(ok.user.role).toBe("owner");
     expect((await repo.users.byEmail(email))?.password_hash).toBe("");
     await expect(m.redeemMagic({ token: tokenOf(sent[0]) }, null)).rejects.toThrow("already used");
+    await m.requestEmailSignIn(email);
     await expect(m.requestEmailSignIn(email)).rejects.toThrow("Wait 30 seconds");
     const { run } = await import("@/lib/db");
     await run("UPDATE magic_links SET created_at = ? WHERE email = ?", new Date(Date.now() - 60000).toISOString(), email);
     await m.requestEmailSignIn(email);
-    expect(await m.linkInfo(tokenOf(sent[1]))).toMatchObject({ valid: true, kind: "email" });
-    const again = await m.redeemMagic({ token: tokenOf(sent[1]) }, null);
+    expect(await m.linkInfo(tokenOf(sent.at(-1)!))).toMatchObject({ valid: true, kind: "email" });
+    const again = await m.redeemMagic({ token: tokenOf(sent.at(-1)!) }, null);
     expect(again.created).toBe(false);
     expect(again.user.id).toBe(ok.user.id);
-    expect(await m.linkInfo(tokenOf(sent[1]))).toMatchObject({ valid: false });
+    expect(await m.linkInfo(tokenOf(sent.at(-1)!))).toMatchObject({ valid: false });
   });
 
   it("locks out after five wrong codes and rejects expired codes", async () => {
