@@ -4,8 +4,19 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import { Kpi, Spinner } from "./ui";
 
+type Jurisdiction = "us_hipaa" | "veterinary" | "non_us";
+
+const JURISDICTIONS: { value: Jurisdiction; label: string; hint: string }[] = [
+  { value: "us_hipaa", label: "People, in the US", hint: "HIPAA applies. Texts only ever carry a sign-in link, and WhatsApp is turned off." },
+  { value: "veterinary", label: "Animals (veterinary)", hint: "HIPAA does not apply. Texts and WhatsApp replies can carry the record, and owners can get care instructions by text." },
+  { value: "non_us", label: "People, outside the US", hint: "HIPAA does not apply. WhatsApp voice notes work, and replies can carry the note. Follow your local privacy law." },
+];
+
 interface LineData {
   operator: boolean;
+  jurisdiction: Jurisdiction;
+  owner: boolean;
+  whatsappUrl: string | null;
   scope: "org" | "all";
   config: { number: string | null; publicUrl: string | null; voiceUrl: string | null; smsUrl: string | null; checks: Record<"speech" | "twilio" | "publicUrl" | "notes" | "cron", boolean> };
   calls: { at: string; caller: string; simulator: boolean; verifiedBy: string | null; outcome: string; texted: boolean; summaryQueued: boolean }[];
@@ -21,7 +32,7 @@ const CHECKS: { key: keyof LineData["config"]["checks"]; label: string; fix: str
   { key: "cron", label: "End-of-clinic texts", fix: "Set CHARTSIDE_CRON_SECRET and schedule POST /api/cron/nudges hourly" },
 ];
 
-const CHANNELS: Record<string, string> = { phone: "Phone line", "phone-sim": "Browser phone", go: "One-tap web", extension: "EHR side panel", shortcut: "iPhone Shortcut", token: "API or device key", session: "Web app" };
+const CHANNELS: Record<string, string> = { "text-memo": "Texted voice memo", "text-note": "Texted note", whatsapp: "WhatsApp", "upload-link": "Upload link", phone: "Phone line", "phone-sim": "Browser phone", go: "One-tap web", extension: "EHR side panel", shortcut: "iPhone Shortcut", token: "API or device key", session: "Web app" };
 
 export default function LinePanel() {
   const [d, setD] = useState<LineData | null>(null);
@@ -32,6 +43,18 @@ export default function LinePanel() {
   const [scope, setScope] = useState<"org" | "all">("org");
   const [check, setCheck] = useState<{ ok: boolean; tts: { ms: number } | null; listen: { ms: number } | null; error: string | null } | null>(null);
   const [checking, setChecking] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
+  const saveJurisdiction = async (value: Jurisdiction) => {
+    setSaved(null);
+    setError(null);
+    try {
+      await api("/admin/line", { body: { jurisdiction: value } });
+      setSaved("Saved.");
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save");
+    }
+  };
   const runCheck = async () => {
     setChecking(true);
     setCheck(await api<NonNullable<typeof check>>("/admin/line", { body: { check: "speech" } }).catch((err) => ({ ok: false, tts: null, listen: null, error: err instanceof Error ? err.message : "Check failed" })));
@@ -74,6 +97,25 @@ export default function LinePanel() {
         <Kpi label="Marked ready on a call" value={s.readyOnCall} hint={`${s.agentTurns} spoken requests`} tone="brand" />
         <Kpi label="Texts" value={s.texted + s.textReplies + s.nudges} hint={`${s.texted} note links · ${s.textReplies} replies · ${s.nudges} nudges`} />
       </div>
+      <section className="card p-4" data-testid="line-jurisdiction">
+        <h2 className="font-semibold">Who your practice treats</h2>
+        <p className="text-xs text-ink-3">This decides what texts may say and whether WhatsApp can be used. Only the practice owner can change it, and every change is logged.</p>
+        <fieldset className="mt-3 grid gap-2 sm:grid-cols-3" disabled={!d.owner}>
+          <legend className="sr-only">Who your practice treats</legend>
+          {JURISDICTIONS.map((j) => (
+            <label key={j.value} className={`flex cursor-pointer flex-col gap-1 rounded-lg border p-3 text-sm ${d.jurisdiction === j.value ? "border-brand bg-brand-50" : "border-line"} ${d.owner ? "" : "cursor-not-allowed opacity-70"}`}>
+              <span className="flex items-center gap-2 font-medium text-ink">
+                <input type="radio" name="jurisdiction" value={j.value} checked={d.jurisdiction === j.value} onChange={() => saveJurisdiction(j.value)} data-testid={`jurisdiction-${j.value}`} />
+                {j.label}
+              </span>
+              <span className="text-xs text-ink-3">{j.hint}</span>
+            </label>
+          ))}
+        </fieldset>
+        {!d.owner && <p className="mt-2 text-xs text-ink-3">Ask your practice owner to change this.</p>}
+        {saved && <p className="mt-2 text-sm text-ok" role="status" data-testid="jurisdiction-saved">{saved}</p>}
+        {d.jurisdiction !== "us_hipaa" && d.whatsappUrl && <p className="mt-2 text-xs text-ink-2">WhatsApp webhook: <span className="font-mono">{d.whatsappUrl}</span></p>}
+      </section>
       <section className="card p-4">
         <h2 className="font-semibold">Where visits came in</h2>
         <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2" data-testid="line-channels">
