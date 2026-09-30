@@ -5,6 +5,7 @@ import { dial } from "./fake-twilio.mjs";
 const MOCK_DG = process.env.MOCK_DG_URL ?? "http://localhost:3299";
 const MOCK_MAIL = process.env.MOCK_MAIL_URL ?? "http://localhost:3295";
 const spoken = async (request: APIRequestContext) => ((await (await request.get(`${MOCK_DG}/stats`)).json()) as { spoken: string[] }).spoken;
+const dgStats = async (request: APIRequestContext) => (await (await request.get(`${MOCK_DG}/stats`)).json()) as { grants: number; practiceProxied?: number; spoken: string[] };
 
 const NOTE = `S: 58M with 2 hours of chest pressure radiating to the left arm and jaw. Smoker.
 O: Heart tachycardic, regular rhythm, no murmur.
@@ -85,11 +86,13 @@ test("a student finds practice from the landing page, interviews by typing, exam
 test("a student interviews by voice with the fake mic and hears the patient, then dictates the note", async ({ page, request }) => {
   await startCase(page, "chest-pain");
   const before = ((await (await request.get(`${MOCK_DG}/stats`)).json()) as { practiceConnections?: number }).practiceConnections ?? 0;
+  const proxied = (await dgStats(request)).practiceProxied ?? 0;
   await page.getByTestId("practice-mic").click();
   await expect(page.locator("[data-role=student]").filter({ hasText: "What brings you in today?" })).toBeVisible({ timeout: 20_000 });
   await expect(page.locator("[data-role=patient]").filter({ hasText: "left arm" })).toBeVisible({ timeout: 20_000 });
   await expect(page.locator("[data-role=patient]").filter({ hasText: "pack a day" })).toBeVisible({ timeout: 20_000 });
   expect((((await (await request.get(`${MOCK_DG}/stats`)).json()) as { practiceConnections?: number }).practiceConnections ?? 0) - before).toBeGreaterThanOrEqual(1);
+  expect(((await dgStats(request)).practiceProxied ?? 0) - proxied).toBeGreaterThanOrEqual(1);
   await expect.poll(async () => (await spoken(request)).some((s) => s.includes("pack a day")), { timeout: 15_000 }).toBe(true);
   await page.getByTestId("practice-mic").click();
   await page.getByTestId("practice-ask-input").fill("end encounter");
@@ -225,6 +228,23 @@ test("guests can't play someone else's session and bad input is refused", async 
   const speak = await page.request.get(`/api/practice/${s.id}/speak?turn=t2`);
   expect(speak.status()).toBe(200);
   expect(speak.headers()["content-type"]).toBe("audio/basic");
+});
+
+test("speech never hands out a Deepgram token and stops when the encounter ends", async ({ page, request }) => {
+  const s = (await (await page.request.post("/api/practice", { data: { caseId: "chest-pain" } })).json()) as { id: string };
+  const grants = (await dgStats(request)).grants;
+  const early = await page.request.post("/api/practice/speech", { data: { session: s.id, purpose: "note" } });
+  expect(early.status()).toBe(422);
+  const providers: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    const r = (await (await page.request.post("/api/practice/speech", { data: { session: s.id, purpose: "encounter" } })).json()) as { provider: string; url: string | null; token: string | null };
+    providers.push(r.provider);
+    if (r.provider === "deepgram") expect(r.url).toBe("/api/voice/practice");
+  }
+  expect(providers).toEqual(["deepgram", "deepgram", "deepgram", "browser"]);
+  expect((await dgStats(request)).grants).toBe(grants);
+  await page.request.post(`/api/practice/${s.id}/end`, { data: {} });
+  expect((await page.request.post("/api/practice/speech", { data: { session: s.id, purpose: "encounter" } })).status()).toBe(422);
 });
 
 test("a student calls the line, presses 7, takes a history by voice, and gets a PHI-free scorecard text", async ({ page, request, baseURL }) => {

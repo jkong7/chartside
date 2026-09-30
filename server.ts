@@ -22,7 +22,9 @@ const sweep = async () => {
 };
 setTimeout(sweep, 30_000).unref();
 setInterval(sweep, 5 * 60_000).unref();
+const { LISTEN_PATH, acceptListen, pipeListen } = await import("./src/lib/server/practiceSpeech");
 const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
+const listenWss = new WebSocketServer({ noServer: true, maxPayload: 256 * 1024, handleProtocols: (p) => (p.has("bearer") ? "bearer" : false) });
 const openByIp = new Map<string, number>();
 let openTotal = 0;
 const MAX_PER_IP = Number(process.env.CHARTSIDE_WS_PER_IP || 30);
@@ -30,25 +32,43 @@ const MAX_TOTAL = Number(process.env.CHARTSIDE_WS_TOTAL || 60);
 const hopsFor = (h: string | string[] | undefined) => (Array.isArray(h) ? h.join(",") : h ?? "").split(",").map((x) => x.trim()).filter(Boolean);
 
 const server = createServer((req, res) => handle(req, res));
+const ipOf = (req: import("node:http").IncomingMessage) => {
+  const hops = hopsFor(req.headers["x-forwarded-for"]);
+  return hops[Math.max(0, hops.length - Math.max(1, Number(process.env.CHARTSIDE_PROXY_HOPS || 1)))] || req.socket.remoteAddress || "local";
+};
+const track = (ws: import("ws").WebSocket, ip: string) => {
+  openTotal++;
+  openByIp.set(ip, (openByIp.get(ip) ?? 0) + 1);
+  ws.on("close", () => {
+    openTotal--;
+    const n = (openByIp.get(ip) ?? 1) - 1;
+    if (n <= 0) openByIp.delete(ip);
+    else openByIp.set(ip, n);
+  });
+};
+const refuse = (socket: import("node:stream").Duplex, status: string) => {
+  socket.write(`HTTP/1.1 ${status}\r\n\r\n`);
+  socket.destroy();
+};
 server.on("upgrade", (req, socket, head) => {
   const path = (req.url || "/").split("?")[0];
-  if (path === "/api/voice/stream") {
-    const hops = hopsFor(req.headers["x-forwarded-for"]);
-    const ip = hops[Math.max(0, hops.length - Math.max(1, Number(process.env.CHARTSIDE_PROXY_HOPS || 1)))] || req.socket.remoteAddress || "local";
-    if (openTotal >= MAX_TOTAL || (openByIp.get(ip) ?? 0) >= MAX_PER_IP) {
-      socket.write("HTTP/1.1 429 Too Many Requests\r\n\r\n");
-      socket.destroy();
+  if (path === "/api/voice/stream" || path === LISTEN_PATH) {
+    const ip = ipOf(req);
+    if (openTotal >= MAX_TOTAL || (openByIp.get(ip) ?? 0) >= MAX_PER_IP) return refuse(socket, "429 Too Many Requests");
+    if (path === LISTEN_PATH) {
+      void acceptListen(req)
+        .catch(() => null)
+        .then((grant) => {
+          if (!grant) return refuse(socket, "401 Unauthorized");
+          listenWss.handleUpgrade(req, socket, head, (ws) => {
+            track(ws, ip);
+            pipeListen(ws, grant);
+          });
+        });
       return;
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
-      openTotal++;
-      openByIp.set(ip, (openByIp.get(ip) ?? 0) + 1);
-      ws.on("close", () => {
-        openTotal--;
-        const n = (openByIp.get(ip) ?? 1) - 1;
-        if (n <= 0) openByIp.delete(ip);
-        else openByIp.set(ip, n);
-      });
+      track(ws, ip);
       handleMediaStream(ws);
     });
     return;

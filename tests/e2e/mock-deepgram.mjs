@@ -140,7 +140,8 @@ server.on("upgrade", (req, socket, head) => {
   }
   const protos = (req.headers["sec-websocket-protocol"] || "").split(",").map((s) => s.trim());
   const url = new URL(req.url, `http://localhost:${PORT}`);
-  if (url.pathname !== "/v1/listen" || protos[0] !== "bearer" || protos[1] !== TOKEN || url.searchParams.get("diarize") !== "true") {
+  const serverSide = req.headers.authorization === `Token ${KEY}`;
+  if (url.pathname !== "/v1/listen" || (!serverSide && (protos[0] !== "bearer" || protos[1] !== TOKEN)) || url.searchParams.get("diarize") !== "true") {
     socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
     return socket.destroy();
   }
@@ -150,7 +151,10 @@ server.on("upgrade", (req, socket, head) => {
     stats.lastKeyterms = url.searchParams.getAll("keyterm");
   }
   const practiceTag = url.searchParams.getAll("tag").find((t) => PRACTICE[t]);
-  if (practiceTag) stats.practiceConnections = (stats.practiceConnections ?? 0) + 1;
+  if (practiceTag) {
+    stats.practiceConnections = (stats.practiceConnections ?? 0) + 1;
+    if (serverSide) stats.practiceProxied = (stats.practiceProxied ?? 0) + 1;
+  }
   const script = practiceTag ? PRACTICE[practiceTag].map((t, i) => [0, i * 2, i * 2 + 1.5, t]) : dictation ? DICTATION.map((t, i) => [0, i * 2, i * 2 + 1.5, t]) : LIVE;
   wss.handleUpgrade(req, socket, head, (ws) => {
     stats.wsConnections++;
