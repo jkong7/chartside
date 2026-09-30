@@ -226,8 +226,14 @@ function persona(c: PracticeCase) {
   return `${who} Setting: ${c.door.setting}. How you come across: ${p.affect}\nIf asked an open question about why you came, say: "${p.opening}" If asked to say more, say: "${p.story}"`;
 }
 
+async function claudeBudget(id: string) {
+  if (!llmEnabled()) return false;
+  if (!(await spendSession(id, "llm_calls", envCount("CHARTSIDE_PRACTICE_LLM_PER_SESSION", 60)))) return false;
+  return !limited("practice-llm:all", Number(process.env.CHARTSIDE_PRACTICE_LLM_DAILY || 3000), 86400_000);
+}
+
 async function patientSays(c: PracticeCase, s: PracticeSession, text: string, offline: string) {
-  if (s.engine !== "claude" || !llmEnabled() || limited("practice-llm:all", Number(process.env.CHARTSIDE_PRACTICE_LLM_DAILY || 3000), 86400_000)) return { text: offline, engine: "local" as const };
+  if (s.engine !== "claude" || !(await claudeBudget(s.id))) return { text: offline, engine: "local" as const };
   try {
     const history = s.turns.filter((t) => t.role === "student" || t.role === "patient").map((t) => ({ role: t.role as "student" | "patient", text: t.text }));
     return { text: await playPatientWithClaude({ persona: persona(c), facts: c.facts, history, question: text }), engine: "claude" as const };
@@ -301,9 +307,9 @@ export async function endPractice(id: string, a: Actor) {
   return (await getPractice(id))!;
 }
 
-async function chartsideNote(c: PracticeCase, turns: Turn[]) {
+async function chartsideNote(id: string, c: PracticeCase, turns: Turn[]) {
   const local = referenceNote(c, turns);
-  if (!llmEnabled() || limited("practice-llm:all", Number(process.env.CHARTSIDE_PRACTICE_LLM_DAILY || 3000), 86400_000)) return { text: local.text, engine: "local" };
+  if (!(await claudeBudget(id))) return { text: local.text, engine: "local" };
   try {
     const note = await generateNoteWithClaude({ utterances: practiceUtterances(turns), patient: practicePatient(c), template: systemTemplate("soap")!, reason: c.title, visitType: "new", rules: [] });
     return { text: noteToText(note), engine: "claude" };
@@ -319,7 +325,7 @@ export async function submitNote(id: string, a: Actor, noteIn: unknown) {
   const note = String(noteIn ?? "").slice(0, 8000);
   const c = practiceCase(s.caseId)!;
   const grade = scorecard(c, s.turns, note);
-  const ref = await chartsideNote(c, s.turns);
+  const ref = await chartsideNote(s.id, c, s.turns);
   const refScore = scorecard(c, s.turns, ref.text).note?.score ?? 0;
   const done = await run("UPDATE practice_sessions SET status = 'graded', note = ?, grade = ?, score = ?, reference = ?, graded_at = ? WHERE id = ? AND status <> 'graded'", note, JSON.stringify(grade), grade.overall, JSON.stringify({ ...ref, score: refScore }), now(), s.id);
   if (done.changes === 0) throw new Invalid("This case is already graded. Start the case again to try another note.");
