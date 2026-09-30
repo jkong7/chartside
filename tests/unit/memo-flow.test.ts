@@ -161,6 +161,9 @@ describe("text a voice memo to the line", () => {
     expect(list).toHaveLength(2);
     const methods = await Promise.all(list.map(async (e) => (await repo.consents.latest(e.id))?.method));
     expect(methods.sort()).toEqual(["standing", "standing"]);
+    expect(await inboundText("+15550140004", "always off", "https://line.test")).toContain("Standing consent is off");
+    expect((await repo.users.byId(doc.id))!.prefs.memoStandingConsent).toBeNull();
+    expect(await inboundSms(mms("+15550140004", [addMedia()]), "https://line.test")).toContain("Reply YES");
   });
 
   it("gives an unknown number a guest note it can claim", async () => {

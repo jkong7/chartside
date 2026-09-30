@@ -106,6 +106,11 @@ export async function inboundText(fromRaw: string, bodyRaw: string, origin: stri
     await audit.log(user, null, "text.reply", { command: body.split(/\s+/)[0]?.slice(0, 12) ?? "" });
     return text;
   };
+  if (/^always (off|stop|no)$/.test(body)) {
+    await users.update(user.id, { prefs: { ...user.prefs, memoStandingConsent: null } });
+    await audit.log(user, null, "memo.standing_consent", { on: false });
+    return say("Standing consent is off. I'll ask you to confirm each memo again.");
+  }
   if (intent === "upload") return say(await uploadLinkReply(user, origin, from));
   if (intent === "note" && !user.guestUntil) return say(await dictateByText(user, from, "mms", bodyRaw));
   if (/^(stop|stopall|unsubscribe|cancel|end|quit)$/.test(body)) {

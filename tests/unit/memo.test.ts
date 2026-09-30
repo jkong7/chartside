@@ -46,6 +46,7 @@ describe("what a text means", () => {
     expect(memoIntent("y")).toBe("yes");
     expect(memoIntent("No.")).toBe("no");
     expect(memoIntent("Always")).toBe("always");
+    expect(memoIntent("always off")).toBe("other");
     expect(memoIntent("upload")).toBe("upload");
     expect(memoIntent("Note: knee pain better, continue PT, recheck 6 weeks")).toBe("note");
     expect(memoIntent("status")).toBe("other");

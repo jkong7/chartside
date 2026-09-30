@@ -20,7 +20,7 @@ export function memoIntent(raw: string): MemoIntent {
   const body = (raw ?? "").trim().toLowerCase().replace(/[.!]+$/, "");
   if (/^(yes|y|yep|yeah|agreed|consented|ok yes)$/.test(body)) return "yes";
   if (/^(no|n|nope|declined|did not agree|they said no)$/.test(body)) return "no";
-  if (/^always\b/.test(body)) return "always";
+  if (/^always\b/.test(body) && !/\b(off|stop|no)\b/.test(body)) return "always";
   if (/^(upload|big|too big|file)$/.test(body)) return "upload";
   if (/^note\b[\s:,.-]*\S/.test(body)) return "note";
   if (!COMMANDS.test(body) && !/^(brief|morning|nudge|remind)\b/.test(body) && wordCount(body) >= DICTATION_MIN_WORDS) return "note";
