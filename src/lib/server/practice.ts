@@ -148,7 +148,8 @@ export interface Actor {
 }
 
 export function owns(s: PracticeSession, a: Actor) {
-  return (!!a.device && s.device === a.device) || (!!a.userId && s.userId === a.userId);
+  if (s.userId) return !!a.userId && s.userId === a.userId;
+  return !!a.device && s.device === a.device;
 }
 
 export function envCount(name: string, fallback: number) {
@@ -364,7 +365,7 @@ export async function openWithClaim(id: string, token: string, device: string) {
 
 export async function historyFor(a: Actor) {
   if (!a.device && !a.userId) return [];
-  const rows = await all<Row>("SELECT * FROM practice_sessions WHERE (device = ? OR user_id = ?) ORDER BY created_at DESC LIMIT 30", a.device ?? "-", a.userId ?? "-");
+  const rows = await all<Row>("SELECT * FROM practice_sessions WHERE ((device = ? AND user_id IS NULL) OR user_id = ?) ORDER BY created_at DESC LIMIT 30", a.device ?? "-", a.userId ?? "-");
   return rows.map(toSession);
 }
 

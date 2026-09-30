@@ -120,6 +120,26 @@ describe("practice sessions", () => {
     expect(await p.getPractice("../etc")).toBeNull();
   });
 
+  it("stops the browser cookie from reading a session once it's saved to an account", async () => {
+    const p = await P();
+    const shared = device();
+    const alice = await newMember("Alice Shared");
+    const bob = await newMember("Bob Shared");
+    const s = await p.startPractice({ caseId: "chest-pain", actor: { device: shared, userId: null } });
+    expect(p.owns(s, { device: shared, userId: null })).toBe(true);
+    expect(await p.claimPractice({ device: shared, userId: alice.id }, alice.id)).toBe(1);
+    const claimed = (await p.getPractice(s.id))!;
+    expect(p.owns(claimed, { device: shared, userId: null })).toBe(false);
+    expect(p.owns(claimed, { device: shared, userId: bob.id })).toBe(false);
+    expect(p.owns(claimed, { device: null, userId: alice.id })).toBe(true);
+    await expect(p.askPatient(s.id, { device: shared, userId: null }, { text: "Hi" })).rejects.toThrow(/belongs to someone else/);
+    expect((await p.historyFor({ device: shared, userId: null })).map((x) => x.id)).not.toContain(s.id);
+    expect((await p.historyFor({ device: shared, userId: bob.id })).map((x) => x.id)).not.toContain(s.id);
+    expect((await p.historyFor({ device: null, userId: alice.id })).map((x) => x.id)).toContain(s.id);
+    expect(await p.claimPractice({ device: shared, userId: bob.id }, bob.id)).toBe(0);
+    expect((await p.getPractice(s.id))!.userId).toBe(alice.id);
+  });
+
   it("keeps daily caps in the database and per-session counters atomic", async () => {
     const p = await P();
     const { spendDaily, resetLimits } = await import("@/lib/server/ratelimit");

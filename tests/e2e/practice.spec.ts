@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { dial } from "./fake-twilio.mjs";
+import { register } from "./helpers";
 
 const MOCK_DG = process.env.MOCK_DG_URL ?? "http://localhost:3299";
 const MOCK_MAIL = process.env.MOCK_MAIL_URL ?? "http://localhost:3295";
@@ -255,6 +256,35 @@ test("each patient reply is voiced once, however often it is replayed", async ({
   const n = await count();
   for (let i = 0; i < 3; i++) expect((await page.request.get(`/api/practice/${s.id}/speak?turn=${reply.id}`)).status()).toBe(200);
   expect((await count()) - n).toBe(1);
+});
+
+test("on a shared computer, saving is an explicit button and signing out locks the scorecard", async ({ page, baseURL }) => {
+  const s = await quickScore(page.request, "headache", ["What brings you in today?"]);
+  await register(page, "Alice Shared");
+  await page.goto(`/practice/s/${s.id}`);
+  await expect(page.getByTestId("scorecard")).toHaveAttribute("data-owner", "1");
+  await expect(page.getByTestId("save-to-account")).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId("save-to-account")).toBeVisible();
+  await expect(page.getByTestId("saved-as")).toHaveCount(0);
+  const cookie = async () => (await page.context().cookies()).find((c) => c.name === "cs_prac")?.value ?? null;
+  const before = await cookie();
+  expect(before).toBeTruthy();
+  await page.getByTestId("save-to-account-button").click();
+  await expect(page.getByTestId("saved-as")).toBeVisible();
+  const rotated = await cookie();
+  expect(rotated).toBeTruthy();
+  expect(rotated).not.toBe(before);
+  expect((await page.request.post("/api/auth/logout")).ok()).toBe(true);
+  expect(await cookie()).toBeNull();
+  await page.goto(`/practice/s/${s.id}`);
+  await expect(page.getByTestId("scorecard")).toHaveAttribute("data-owner", "0");
+  await expect(page.getByTestId("transcript")).toHaveCount(0);
+  await page.context().addCookies([{ name: "cs_prac", value: before!, url: baseURL! }]);
+  await page.reload();
+  await expect(page.getByTestId("scorecard")).toHaveAttribute("data-owner", "0");
+  expect((await page.request.get(`/api/practice/${s.id}`)).ok()).toBe(true);
+  expect(JSON.stringify(await (await page.request.get(`/api/practice/${s.id}`)).json())).not.toContain("What brings you in today?");
 });
 
 test("a student calls the line, presses 7, takes a history by voice, and gets a PHI-free scorecard text", async ({ page, request, baseURL }) => {
