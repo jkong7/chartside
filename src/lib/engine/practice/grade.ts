@@ -1,5 +1,5 @@
 import { normalize } from "./intent";
-import { firstName } from "./patient";
+import { firstName, respond } from "./patient";
 import type { PracticeCase, Turn } from "./types";
 
 export interface ItemResult {
@@ -174,7 +174,9 @@ export function buildFixes(c: PracticeCase, turns: Turn[], enc: EncounterGrade, 
     if (cue.role !== "patient" || !cue.cue) continue;
     const next = turns.slice(k + 1).find((t) => t.role === "student");
     if (!next || next.topics?.includes("empathy")) continue;
-    const quote = cue.text.length > 90 ? `${cue.text.slice(0, 87)}...` : cue.text;
+    const asked = turns.slice(0, k).findLastIndex((t) => t.role === "student");
+    const said = asked >= 0 ? respond(c, turns[asked].text, turns.slice(0, asked)).text : cue.text;
+    const quote = said.length > 90 ? `${said.slice(0, 87)}...` : said;
     out.push({ kind: "empathy", at: cue.t, turnId: cue.id, title: "Acknowledge the emotion before moving on", detail: `At ${clock(cue.t)} ${who} said "${quote}" and the next question skipped past it. Try: "That sounds really frightening. We're going to take good care of you."` });
     break;
   }
