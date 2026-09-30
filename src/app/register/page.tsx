@@ -1,13 +1,15 @@
 import { redirect } from "next/navigation";
 import RegisterForm from "@/components/RegisterForm";
 import { currentUser } from "@/lib/server/auth";
+import { safePath } from "@/lib/server/magic";
 import { consumerProviders } from "@/lib/server/consumer";
 import { emailReady } from "@/lib/server/delivery";
 
 export const metadata = { title: "Create your account · Chartside" };
 
 function safeNext(n?: string) {
-  return n && n.startsWith("/") && !n.startsWith("//") ? n : undefined;
+  const p = safePath(n, "");
+  return p || undefined;
 }
 
 export default async function Register({ searchParams }: { searchParams: Promise<{ next?: string; specialty?: string }> }) {

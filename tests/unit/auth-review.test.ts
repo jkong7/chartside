@@ -66,3 +66,18 @@ describe("sign-in review fixes", () => {
     await expect(m.claimGuestByPhone(guest, codeOf(sent.at(-1)!), {})).rejects.toBeInstanceOf(m.SsoRequired);
   });
 });
+
+describe("patient visit holders", () => {
+  it("can't be sent a sign-in code", async () => {
+    const m = await import("@/lib/server/magic");
+    await expect(m.requestEmailSignIn("usr_abc@patient.chartside.invalid", {})).rejects.toThrow("Enter a valid email address");
+  });
+});
+
+describe("next paths after sign-in", () => {
+  it("keeps same-site paths and drops tricks that browsers read as another site", async () => {
+    const { safePath } = await import("@/lib/server/magic");
+    expect(safePath("/go?welcome=1", "")).toBe("/go?welcome=1");
+    for (const bad of ["//evil.test", "/\\evil.test", "https://evil.test", "/\\/evil.test"]) expect(safePath(bad, "")).toBe("");
+  });
+});

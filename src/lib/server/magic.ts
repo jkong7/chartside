@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto
 import { get, now, run, uid } from "../db";
 import { hashPassword, verifyPassword } from "./auth";
 import { deliver } from "./delivery";
-import { convertGuest, GUEST_EMAIL_DOMAIN, mergeGuest, nameFromEmail } from "./guest";
+import { convertGuest, GUEST_EMAIL_DOMAIN, HOLDER_EMAIL_DOMAIN, mergeGuest, nameFromEmail } from "./guest";
 import { normalizePhone } from "./notify";
 import { Forbidden, Invalid } from "./policy";
 import { actorFor, audit, j, orgs, users, type User } from "./repo";
@@ -64,7 +64,7 @@ async function throttle(column: "email" | "phone", value: string, kind: string) 
 
 export async function requestEmailSignIn(emailIn: string, opts: { next?: string | null; origin?: string; guestUserId?: string | null; requesterId?: string | null; profile?: SignupProfile | null } = {}) {
   const email = (emailIn ?? "").trim().toLowerCase();
-  if (!EMAIL.test(email) || email.endsWith(`@${GUEST_EMAIL_DOMAIN}`) || email.endsWith(`@${PHONE_EMAIL_DOMAIN}`)) throw new Invalid("Enter a valid email address");
+  if (!EMAIL.test(email) || email.endsWith(`@${GUEST_EMAIL_DOMAIN}`) || email.endsWith(`@${PHONE_EMAIL_DOMAIN}`) || email.endsWith(`@${HOLDER_EMAIL_DOMAIN}`)) throw new Invalid("Enter a valid email address");
   const sso = await orgs.requiringSso(email.split("@")[1]);
   if (sso) throw new SsoRequired(sso.name);
   await throttle("email", email, "email");

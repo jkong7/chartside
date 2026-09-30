@@ -5,6 +5,7 @@ import { Forbidden } from "./policy";
 import { actorFor, audit, orgs, users, type BaseUser, type User } from "./repo";
 
 export const GUEST_EMAIL_DOMAIN = "guest.chartside.invalid";
+export const HOLDER_EMAIL_DOMAIN = "patient.chartside.invalid";
 
 export function guestHours() {
   const h = Number(process.env.CHARTSIDE_GUEST_HOURS ?? 2);

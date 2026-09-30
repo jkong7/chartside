@@ -1,6 +1,7 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { HOLDER_EMAIL_DOMAIN } from "./guest";
 import { can, type Permission } from "./policy";
 import { sessions, users, type Role, type User } from "./repo";
 
@@ -31,6 +32,7 @@ export async function sessionToken() {
 }
 
 export async function startSession(userId: string, orgId: string | null = null, days = 14) {
+  if ((await users.byId(userId))?.email.endsWith(`@${HOLDER_EMAIL_DOMAIN}`)) throw new Error("This account can't sign in");
   const token = await sessions.create(userId, orgId, days, (await headers()).get("user-agent"));
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,

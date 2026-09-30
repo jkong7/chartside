@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
 import AuthForm from "@/components/AuthForm";
 import { currentUser } from "@/lib/server/auth";
+import { safePath } from "@/lib/server/magic";
 import { consumerProviders } from "@/lib/server/consumer";
 
 function safeNext(n?: string) {
-  return n && n.startsWith("/") && !n.startsWith("//") ? n : undefined;
+  const p = safePath(n, "");
+  return p || undefined;
 }
 
 export default async function Login({ searchParams }: { searchParams: Promise<{ next?: string; error?: string }> }) {
