@@ -59,7 +59,7 @@ const mask = (email: string) => email.replace(/^(.)[^@]*(@.*)$/, "$1•••$2"
 const maskPhone = (p: string) => p.replace(/\d(?=\d{4})/g, "•");
 
 async function throttle(column: "email" | "phone", value: string, kind: string) {
-  const recent = await get<{ n: number; last: string | null }>(`SELECT COUNT(*) AS n, MAX(created_at) AS last FROM magic_links WHERE ${column} = ? AND kind = ? AND created_at > ?`, value, kind, new Date(Date.now() - 3600000).toISOString());
+  const recent = await get<{ n: number; last: string | null }>(`SELECT COUNT(*) AS n, MAX(CASE WHEN used_at IS NULL THEN created_at END) AS last FROM magic_links WHERE ${column} = ? AND kind = ? AND created_at > ?`, value, kind, new Date(Date.now() - 3600000).toISOString());
   if (recent?.last && Date.now() - new Date(recent.last).getTime() < 30000) throw new Invalid("A code was just sent. Wait 30 seconds before asking again.");
   if (Number(recent?.n ?? 0) >= 6) throw new Invalid("Too many codes requested. Try again in an hour.");
 }

@@ -10,6 +10,7 @@ export interface SignupProfile {
   npi?: string;
   demo?: boolean;
   tz?: string;
+  orgName?: string;
 }
 
 export function cleanProfile(p: SignupProfile | null | undefined): SignupProfile {
@@ -20,6 +21,7 @@ export function cleanProfile(p: SignupProfile | null | undefined): SignupProfile
     npi: npiValid(npi) ? npi : undefined,
     demo: !!p?.demo,
     tz: validTz(p?.tz) ? p!.tz : undefined,
+    orgName: String(p?.orgName ?? "").trim().slice(0, 120) || undefined,
   };
 }
 
@@ -46,8 +48,8 @@ export async function setupNewAccount(userId: string, input: SignupProfile | nul
       await audit.log(actor, null, "org.jurisdiction", { from: org.settings.jurisdiction ?? "us_hipaa", to: "veterinary", via: "signup" });
     }
   }
-  if (p.name && actor.role === "owner") {
-    for (const m of await orgs.memberships(userId)) if (m.role === "owner" && /(?:'s practice|'s clinic|^Unsaved practice)$/.test(m.name)) await orgs.update(m.org_id, { name: `${p.name}'s practice` });
+  if ((p.name || p.orgName) && actor.role === "owner") {
+    for (const m of await orgs.memberships(userId)) if (m.role === "owner" && /(?:'s practice|'s clinic|^Unsaved practice)$/.test(m.name)) await orgs.update(m.org_id, { name: p.orgName ?? `${p.name}'s practice` });
     actor = (await actorFor(userId, actor.orgId)) ?? actor;
   }
   if (p.npi && !vet) {

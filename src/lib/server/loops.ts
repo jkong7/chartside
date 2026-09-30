@@ -1,3 +1,4 @@
+import { emailVerified } from "./emailProof";
 import { createHash } from "node:crypto";
 import { all, get, now, run, uid } from "../db";
 
@@ -87,6 +88,7 @@ export function isOperator(email: string) {
 
 export async function isVerifiedOperator(u: { id: string; email: string }) {
   if (!isOperator(u.email)) return false;
+  if (await emailVerified(u.id)) return true;
   if (await get<{ id: string }>("SELECT id FROM magic_links WHERE email = ? AND used_at IS NOT NULL LIMIT 1", u.email.toLowerCase())) return true;
   return !!(await get<{ id: string }>("SELECT id FROM audit WHERE user_id = ? AND action = 'user.login' AND detail LIKE '%\"method\":\"sso\"%' LIMIT 1", u.id));
 }

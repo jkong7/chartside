@@ -9,12 +9,13 @@ const codeIn = (body: string) => /\b(\d{6})\b/.exec(body)![1];
 test("sign in with an emailed code from the login page", async ({ page, browser }) => {
   const email = await register(page);
   const fresh = await (await browser.newContext()).newPage();
+  const sentBefore = (await inbox(fresh.request, email)).length;
   await fresh.goto("/login");
   await fresh.fill("#email", email);
   await fresh.getByTestId("magic-button").click();
   await expect(fresh.getByTestId("magic-code-form")).toContainText("e•••@chartside.test");
-  await expect.poll(async () => (await inbox(fresh.request, email)).length).toBe(1);
-  const mail = (await inbox(fresh.request, email))[0].body;
+  await expect.poll(async () => (await inbox(fresh.request, email)).length).toBe(sentBefore + 1);
+  const mail = (await inbox(fresh.request, email)).at(-1)!.body;
   await fresh.getByTestId("magic-code").fill(codeIn(mail) === "000000" ? "111111" : "000000");
   await fresh.getByTestId("magic-submit").click();
   await expect(fresh.locator("form [role=alert]")).toHaveText("That code isn't right");

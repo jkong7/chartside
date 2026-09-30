@@ -109,9 +109,9 @@ test("an existing user accepts an invitation and switches between organizations"
   await other.page.waitForURL("**/today");
   const sw = other.page.getByTestId("org-switch");
   await expect(sw).toBeVisible();
-  await expect(sw.locator("option:checked")).toContainText("Dr. Grace Hall's clinic · Clinician");
+  await expect(sw.locator("option:checked")).toContainText("Dr. Grace Hall's practice · Clinician");
   await expect(other.page.getByTestId("visit-row")).toHaveCount(0);
-  await sw.selectOption({ label: "Dr. Ken Ito's clinic · Owner" });
+  await sw.selectOption({ label: "Dr. Ken Ito's practice · Owner" });
   await expect(other.page.getByTestId("visit-row")).toHaveCount(8);
   await expect(other.page.getByTestId("nav").getByRole("link", { name: "Admin" })).toBeVisible();
   await other.page.goto(link);
@@ -145,9 +145,9 @@ test("SSO: an admin connects an OIDC provider, new users are provisioned on firs
   await u.page.goto("/login");
   await u.page.fill("#email", `riley.chen@${domain}`);
   await u.page.locator("#email").blur();
-  await expect(u.page.getByTestId("sso-required")).toContainText("Dr. Hana Mori's clinic signs in with single sign-on.");
+  await expect(u.page.getByTestId("sso-required")).toContainText("Dr. Hana Mori's practice signs in with single sign-on.");
   await expect(u.page.locator("#password")).toHaveCount(0);
-  await u.page.getByRole("button", { name: "Continue with Dr. Hana Mori's clinic" }).click();
+  await u.page.getByRole("button", { name: "Continue with Dr. Hana Mori's practice" }).click();
   await u.page.waitForURL("**/today");
   await expect(u.page.getByTestId("org-name")).toContainText("Clinician");
   await expect(u.page.getByText("Dr. Riley Chen")).toBeVisible();

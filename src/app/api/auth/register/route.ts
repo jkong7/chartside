@@ -37,7 +37,7 @@ export async function POST(req: Request) {
   if (!b.invite && emailReady()) {
     const current = await currentUser();
     try {
-      const sent = await requestEmailSignIn(email, { next: b.next || "/go?welcome=1", origin: new URL(req.url).origin, guestUserId: current?.guestUntil ? current.id : null, requesterId: current && !current.guestUntil ? current.id : null, passwordHash: hashPassword(b.password!), profile: { name, specialty: b.specialty, npi: b.npi, demo: b.demo !== false, tz: tz ?? undefined } });
+      const sent = await requestEmailSignIn(email, { next: b.next || "/go?welcome=1", origin: new URL(req.url).origin, guestUserId: current?.guestUntil ? current.id : null, requesterId: current && !current.guestUntil ? current.id : null, passwordHash: hashPassword(b.password!), profile: { name, specialty: b.specialty, npi: b.npi, demo: b.demo !== false, tz: tz ?? undefined, orgName: b.orgName } });
       return json({ codeSent: true, ...sent });
     } catch (err) {
       if (err instanceof SsoRequired) return json({ error: err.message, sso: true }, 403);

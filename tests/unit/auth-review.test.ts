@@ -155,3 +155,16 @@ describe("password sign-up when email works", () => {
     expect((await db.get<{ password_hash: string }>("SELECT password_hash FROM users WHERE id = ?", u.id))!.password_hash).toBe(before);
   });
 });
+
+describe("Chartside operators", () => {
+  it("count as verified only once their email is proven", async () => {
+    process.env.CHARTSIDE_OPERATOR_EMAILS = "ops@chartside.test";
+    const repo = await import("@/lib/server/repo");
+    const { isVerifiedOperator } = await import("@/lib/server/loops");
+    const { trustEmail } = await import("@/lib/server/emailProof");
+    const u = await repo.users.create({ email: "ops@chartside.test", name: "Ops", passwordHash: "x", specialty: "Family Medicine" });
+    expect(await isVerifiedOperator(u)).toBe(false);
+    await trustEmail(u.id);
+    expect(await isVerifiedOperator(u)).toBe(true);
+  });
+});
