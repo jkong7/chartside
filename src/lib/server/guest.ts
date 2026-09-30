@@ -64,6 +64,7 @@ export async function mergeGuest(guestId: string, targetUserId: string) {
     moved = encs.length;
     await run("UPDATE encounters SET user_id = ?, org_id = ? WHERE user_id = ?", target.id, target.orgId, guestId);
     await run("UPDATE patients SET user_id = ?, org_id = ? WHERE user_id = ?", target.id, target.orgId, guestId);
+    if (!(await get("SELECT id FROM style_rules WHERE user_id = ? LIMIT 1", target.id))) await run("UPDATE style_rules SET user_id = ? WHERE user_id = ?", target.id, guestId);
     for (const orgId of guestOrgs) await run("UPDATE audit SET org_id = ? WHERE org_id = ?", target.orgId, orgId);
     const targetPhone = await get<{ phone_verified_at: string | null }>("SELECT phone_verified_at FROM users WHERE id = ?", target.id);
     if (guest.phone && guest.phone_verified_at && !targetPhone?.phone_verified_at) {

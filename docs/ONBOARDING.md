@@ -87,7 +87,6 @@ How to read these numbers:
 
 - **Sign in by text code on `/login`.** A phone-only account signs in again by calling the line (texted sign-in links) or by adding an email. There is no "text me a sign-in code" on `/login` yet.
 - **Microsoft sign-in with a real tenant.** Try it against a real Azure app registration and document the `xms_edov` claim setup.
-- **Style rules when a guest merges into an existing account.** They are not moved (converted guests keep them).
 - **Edit a style rule in place.** Rules can be toggled and deleted, but not edited.
 - **Specialty-matched sample scripts and "set up by phone"** (research upgrade 5) are not built.
 - **Guessing a caller's time zone from the area code** is not built. Callers who never open a browser get `CHARTSIDE_TZ`.
