@@ -688,7 +688,8 @@ CREATE TABLE IF NOT EXISTS magic_links (
   used_at TEXT,
   created_at TEXT NOT NULL,
   profile TEXT,
-  requester_id TEXT
+  requester_id TEXT,
+  password_hash TEXT
 );
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id TEXT PRIMARY KEY,
@@ -885,6 +886,7 @@ const INDEXES = [
 const LEGACY_COLUMNS: [string, string, string][] = [
   ["magic_links", "profile", "TEXT"],
   ["magic_links", "requester_id", "TEXT"],
+  ["magic_links", "password_hash", "TEXT"],
   ["admissions", "cdi", "TEXT NOT NULL DEFAULT '{}'"],
   ["patients", "external_system", "TEXT"],
   ["patients", "external_id", "TEXT"],

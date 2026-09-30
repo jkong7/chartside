@@ -3,11 +3,20 @@ import { expect, type Page } from "@playwright/test";
 export async function register(page: Page, name = "Dr. Avery Chen", opts: { email?: string; fullNav?: boolean } = {}) {
   const email = opts.email ?? `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@chartside.test`;
   await page.goto("/login");
-  const res = await page.request.post("/api/auth/register", { data: { name, email, password: "correct-horse-9", demo: true } });
-  expect(res.status(), await res.text()).toBe(201);
+  await passwordSignUp(page, { name, email, password: "correct-horse-9", demo: true });
   if (opts.fullNav !== false) expect((await page.request.patch("/api/auth/me", { data: { prefs: { simpleNav: false } } })).ok()).toBe(true);
   await page.goto("/today");
   return email;
+}
+
+export async function passwordSignUp(page: Page, data: Record<string, unknown> & { email: string }, base = "") {
+  const res = await page.request.post(`${base}/api/auth/register`, { data });
+  expect(res.ok(), await res.text()).toBe(true);
+  if ((await res.json()).codeSent) {
+    const verified = await page.request.post(`${base}/api/auth/magic/verify`, { data: { email: data.email, code: await mailCode(page, data.email) } });
+    expect(verified.ok(), await verified.text()).toBe(true);
+  }
+  return res;
 }
 
 export async function mailCode(page: Page, to: string) {

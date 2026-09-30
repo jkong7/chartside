@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, request as pwRequest, test, type APIRequestContext, type Page } from "@playwright/test";
 import { dial } from "./fake-twilio.mjs";
+import { passwordSignUp } from "./helpers";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -23,8 +24,7 @@ async function signTop(page: Page) {
 test("a clinic day through every door: a PIN call, the one-tap recorder, and the Shortcut, then match and sign from the stack", async ({ page, baseURL, request }) => {
   test.setTimeout(240_000);
   const email = `clinicday-${Date.now()}@clinic.test`;
-  const reg = await page.request.post("/api/auth/register", { data: { email, password: "correct-horse-9", name: "Dr. Casey Day", demo: false } });
-  expect(reg.status()).toBe(201);
+  await passwordSignUp(page, { email, password: "correct-horse-9", name: "Dr. Casey Day", demo: false });
 
   const now = Date.now();
   const names = ["Harriet Quimby", "Bessie Coleman", "Amelia Earhart"];

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { register } from "./helpers";
+import { passwordSignUp, register } from "./helpers";
 
 const EHR = `<!doctype html><html><body>
 <h1>MiniEHR</h1>
@@ -97,7 +97,7 @@ test("the unpacked extension records from its side panel and opens the finished 
     const page = await ctx.newPage();
     page.context().setDefaultTimeout(20000);
     await page.goto(`${baseURL}/login`);
-    expect((await page.request.post(`${baseURL}/api/auth/register`, { data: { name: "Dr. Ext Tester", email: `ext-${Date.now()}@chartside.test`, password: "correct-horse-9", demo: true } })).status()).toBe(201);
+    await passwordSignUp(page, { name: "Dr. Ext Tester", email: `ext-${Date.now()}@chartside.test`, password: "correct-horse-9", demo: true }, baseURL);
     await page.goto(`${baseURL}/today`);
     const isExt = (w: { url(): string }) => w.url().startsWith("chrome-extension://");
     const worker = ctx.serviceWorkers().find(isExt) ?? (await ctx.waitForEvent("serviceworker", { predicate: isExt }));

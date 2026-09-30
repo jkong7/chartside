@@ -126,3 +126,32 @@ describe("sign-in browser binding", () => {
     expect(bindingMatches(null, mine.value)).toBe(false);
   });
 });
+
+describe("password sign-up when email works", () => {
+  it("keeps the password on a new account only after its email code is used", async () => {
+    const m = await import("@/lib/server/magic");
+    const { hashPassword, verifyPassword } = await import("@/lib/server/auth");
+    const db = await import("@/lib/db");
+    await m.requestEmailSignIn("newdoc@clinic.test", { passwordHash: hashPassword("my-own-pass-1") });
+    expect(await db.get("SELECT id FROM users WHERE email = ?", "newdoc@clinic.test")).toBeUndefined();
+    const red = await m.redeemMagic({ email: "newdoc@clinic.test", code: codeOf(sent.at(-1)!) }, null);
+    const row = await db.get<{ password_hash: string; email_verified_at: string | null }>("SELECT password_hash, email_verified_at FROM users WHERE id = ?", red.user.id);
+    expect(row!.email_verified_at).toBeTruthy();
+    expect(verifyPassword("my-own-pass-1", row!.password_hash)).toBe(true);
+  });
+
+  it("never sets a password on an account that already exists", async () => {
+    const m = await import("@/lib/server/magic");
+    const repo = await import("@/lib/server/repo");
+    const { hashPassword } = await import("@/lib/server/auth");
+    const { trustEmail } = await import("@/lib/server/emailProof");
+    const db = await import("@/lib/db");
+    const u = await repo.users.create({ email: "owner@clinic.test", name: "Owner", passwordHash: hashPassword("owner-pass-1"), specialty: "Family Medicine" });
+    await repo.orgs.create("Owner clinic", u.id);
+    await trustEmail(u.id);
+    const before = (await db.get<{ password_hash: string }>("SELECT password_hash FROM users WHERE id = ?", u.id))!.password_hash;
+    await m.requestEmailSignIn("owner@clinic.test", { passwordHash: hashPassword("attacker-pass") });
+    await m.redeemMagic({ email: "owner@clinic.test", code: codeOf(sent.at(-1)!) }, null);
+    expect((await db.get<{ password_hash: string }>("SELECT password_hash FROM users WHERE id = ?", u.id))!.password_hash).toBe(before);
+  });
+});

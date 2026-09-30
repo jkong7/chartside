@@ -9,6 +9,7 @@ import { isVetSpecialty } from "@/lib/engine/templates";
 import { requestEmailSignIn, SsoRequired } from "@/lib/server/magic";
 import { setupNewAccount } from "@/lib/server/signup";
 import { trustEmail } from "@/lib/server/emailProof";
+import { emailReady } from "@/lib/server/delivery";
 import { browserTz } from "@/lib/server/tz";
 import { clientIp, limited, tooMany } from "@/lib/server/ratelimit";
 
@@ -33,6 +34,16 @@ export async function POST(req: Request) {
   if ((b.password ?? "").length < 8) return fail("Password must be at least 8 characters");
   const sso = await orgs.requiringSso(email.split("@")[1]);
   if (sso) return json({ error: `${sso.name} requires single sign-on. Continue with SSO.`, sso: true }, 403);
+  if (!b.invite && emailReady()) {
+    const current = await currentUser();
+    try {
+      const sent = await requestEmailSignIn(email, { next: b.next || "/go?welcome=1", origin: new URL(req.url).origin, guestUserId: current?.guestUntil ? current.id : null, requesterId: current && !current.guestUntil ? current.id : null, passwordHash: hashPassword(b.password!), profile: { name, specialty: b.specialty, npi: b.npi, demo: b.demo !== false, tz: tz ?? undefined } });
+      return json({ codeSent: true, ...sent });
+    } catch (err) {
+      if (err instanceof SsoRequired) return json({ error: err.message, sso: true }, 403);
+      return fail(err instanceof Error ? err.message : "Could not send a code", 422);
+    }
+  }
   const invite = b.invite ? await invites.get(b.invite) : undefined;
   if (b.invite && (!invite || invite.acceptedAt || new Date(invite.expiresAt) < new Date())) return fail("This invitation is no longer valid", 410);
   if (invite && invite.email !== email) return fail(`This invitation was sent to ${invite.email}`, 403);

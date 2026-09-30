@@ -37,6 +37,7 @@ interface LinkRow {
   used_at: string | null;
   profile?: string | null;
   requester_id?: string | null;
+  password_hash?: string | null;
 }
 
 export function safePath(p: string | null | undefined, fallback = "/today") {
@@ -63,7 +64,7 @@ async function throttle(column: "email" | "phone", value: string, kind: string) 
   if (Number(recent?.n ?? 0) >= 6) throw new Invalid("Too many codes requested. Try again in an hour.");
 }
 
-export async function requestEmailSignIn(emailIn: string, opts: { next?: string | null; origin?: string; guestUserId?: string | null; requesterId?: string | null; profile?: SignupProfile | null } = {}) {
+export async function requestEmailSignIn(emailIn: string, opts: { next?: string | null; origin?: string; guestUserId?: string | null; requesterId?: string | null; passwordHash?: string | null; profile?: SignupProfile | null } = {}) {
   const email = (emailIn ?? "").trim().toLowerCase();
   if (!EMAIL.test(email) || email.endsWith(`@${GUEST_EMAIL_DOMAIN}`) || email.endsWith(`@${PHONE_EMAIL_DOMAIN}`) || email.endsWith(`@${HOLDER_EMAIL_DOMAIN}`)) throw new Invalid("Enter a valid email address");
   const sso = await orgs.requiringSso(email.split("@")[1]);
@@ -73,7 +74,7 @@ export async function requestEmailSignIn(emailIn: string, opts: { next?: string 
   const code = newCode();
   const token = newToken();
   const next = opts.next ? safePath(opts.next) : null;
-  await run("INSERT INTO magic_links (id, kind, email, guest_user_id, token_hash, code_hash, next_path, expires_at, created_at, profile, requester_id) VALUES (?, 'email', ?, ?, ?, ?, ?, ?, ?, ?, ?)", id, email, opts.guestUserId ?? null, sha(token), sha(`${id}:${code}`), next, new Date(Date.now() + CODE_TTL_MS).toISOString(), now(), opts.profile ? JSON.stringify(cleanProfile(opts.profile)) : null, opts.requesterId ?? null);
+  await run("INSERT INTO magic_links (id, kind, email, guest_user_id, token_hash, code_hash, next_path, expires_at, created_at, profile, requester_id, password_hash) VALUES (?, 'email', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", id, email, opts.guestUserId ?? null, sha(token), sha(`${id}:${code}`), next, new Date(Date.now() + CODE_TTL_MS).toISOString(), now(), opts.profile ? JSON.stringify(cleanProfile(opts.profile)) : null, opts.requesterId ?? null, opts.passwordHash ?? null);
   const url = `${publicOrigin(opts.origin)}/m/${token}`;
   const sent = await deliver({ channel: "email", to: email, kind: "magic_code", subject: `${code} is your Chartside sign-in code`, body: `Your Chartside sign-in code is ${code}.\n\nOr open this link on the device you're signing in on:\n${url}\n\nThe code and link expire in 10 minutes and work once. If you didn't ask for this, ignore this email.` });
   await audit.log(null, null, "magic.sent", { id, channel: "email", status: sent.status, transport: sent.transport, claim: !!opts.guestUserId });
@@ -169,6 +170,7 @@ export async function redeemMagic(input: { token?: string; email?: string; code?
     }
   }
   if (row.kind === "email") await markEmailProven(userId, "email_code");
+  if (created && row.password_hash) await run("UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ''", row.password_hash, userId);
   if (created) await setupNewAccount(userId, { ...j<SignupProfile>(row.profile, {}), ...Object.fromEntries(Object.entries(input.profile ?? {}).filter(([, v]) => v !== undefined && v !== "")) });
   const user = await actorFor(userId);
   if (!user) throw new Forbidden("Your access to Chartside has been disabled. Contact your administrator.");
