@@ -239,12 +239,7 @@ test("the nudge job refuses callers without the cron secret", async ({ request }
 });
 
 test("Admin → Line shows setup and call stats, and an operator points the Twilio number at Chartside", async ({ page, request }) => {
-  await page.goto("/register");
-  await page.fill("#name", "Operator Olu");
-  await page.fill("#email", "operator@chartside.test");
-  await page.fill("#password", "correct-horse-9");
-  await page.click("button[type=submit]");
-  await page.waitForURL("**/today");
+  await register(page, "Operator Olu", { email: "operator@chartside.test" });
   await page.goto("/admin?tab=line");
   await expect(page.getByTestId("line-panel")).toContainText("A Chartside operator connects the phone number");
   expect((await page.request.post("/api/auth/magic", { data: { email: "operator@chartside.test" } })).ok()).toBe(true);

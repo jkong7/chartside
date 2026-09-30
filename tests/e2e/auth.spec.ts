@@ -4,7 +4,7 @@ import { register } from "./helpers";
 test("landing page explains the product and routes to sign up", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Talk to your patient");
-  await page.getByRole("link", { name: "Start a demo clinic day" }).click();
+  await page.getByRole("link", { name: "Create account" }).first().click();
   await expect(page).toHaveURL(/\/register$/);
 });
 
@@ -33,9 +33,10 @@ test("register seeds a clinic day, then sign out and back in", async ({ page }) 
 test("registration validates input", async ({ page }) => {
   await page.goto("/register");
   await page.fill("#name", "Dr. Test");
-  await page.fill("#email", "bad@example.com");
-  await page.fill("#password", "short");
-  await page.locator("#password").evaluate((el) => el.removeAttribute("minlength"));
-  await page.click("button[type=submit]");
-  await expect(page.locator("form [role=alert]")).toHaveText("Password must be at least 8 characters");
+  await page.fill("#email", "bad@example");
+  await page.locator("#email").evaluate((el) => el.setAttribute("type", "text"));
+  await page.getByTestId("register-submit").click();
+  await expect(page.locator("form [role=alert]")).toHaveText("Enter a valid email address");
+  const short = await page.request.post("/api/auth/register", { data: { name: "Dr. Test", email: "short@example.com", password: "short" } });
+  expect(await short.json()).toMatchObject({ error: "Password must be at least 8 characters" });
 });

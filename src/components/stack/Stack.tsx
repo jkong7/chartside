@@ -173,6 +173,7 @@ export default function Stack({ initial, user, focus, justClaimed = false, sampl
             <p className="mt-1 text-sm text-ink-3">Nothing is waiting on you. Close the laptop.</p>
           </div>
         ) : (
+          <>
           <div className="relative">
             {cards[1] && <div className="card absolute inset-x-3 -bottom-2 h-full opacity-60" aria-hidden />}
             <article
@@ -227,6 +228,7 @@ export default function Stack({ initial, user, focus, justClaimed = false, sampl
               )}
               <a className="mt-3 block text-center text-sm text-brand" href={top.openUrl} data-testid="stack-open">Open in the full app</a>
             </article>
+          </div>
             <p className="mt-4 text-center text-xs text-ink-4">Swipe right to {approveSpec?.label.toLowerCase() ?? "open"}, left for later</p>
             {styleOffer && top.kind === "note.sign" && top.encounterId && (
               <div className="mt-4">
@@ -240,7 +242,7 @@ export default function Stack({ initial, user, focus, justClaimed = false, sampl
                 />
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
     </main>
