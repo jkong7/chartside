@@ -3,7 +3,7 @@ import Link from "next/link";
 export const metadata = {
   title: "Barn Line · Your vet scribe is a phone number",
   description: "For ambulatory, equine and farm vets. Call from the truck, keep your gloves on, and every animal on the farm call gets its own record.",
-  openGraph: { title: "Your vet scribe is a phone number", description: "Call from the truck. Every animal on the farm call gets its own record, and the owner gets their care instructions by text.", type: "website" },
+  openGraph: { title: "Your vet scribe is a phone number", description: "Call from the truck. Every animal on the farm call gets its own record, and the owner can get their care instructions by text.", type: "website" },
   twitter: { card: "summary_large_image", title: "Your vet scribe is a phone number", description: "Call from the truck. Every animal on the farm call gets its own record." },
 };
 
@@ -30,7 +30,7 @@ const FAQ: [string, string][] = [
   ["How does it split a farm call into animals?", "Say the animal as you move on: \"next horse, Duchess\", \"moving on to cow 214\", \"first one is Biscuit\". Each animal gets its own record under its own name or tag, with the farm and owner filled in once."],
   ["Does it know horse and cattle drugs?", "Yes. Xylazine, detomidine, Banamine, bute, Excede, Draxxin, ivermectin and the rest are spelled right, and animal words are never turned into human diagnoses or billing codes."],
   ["What about withdrawal times?", "The record says exactly what you said. Chartside never makes up a withdrawal time. If you don't say one, the record doesn't have one."],
-  ["What does the owner get?", "After you sign, the owner can get a short text with the care instructions in plain words, like stall rest and medicine times, with a small \"Prepared with Chartside\" line. Only transactional texts, never marketing, and STOP always works."],
+  ["What does the owner get?", "If you turn on owner texts in Admin and confirm the owner's phone on the record, the owner gets a short text after you sign with the care instructions in plain words, like stall rest and medicine times, with a small \"Prepared with Chartside\" line. It is off until you turn it on. Only transactional texts, never marketing, and STOP always works."],
   ["Is this covered by HIPAA?", "Vets aren't covered by HIPAA, so your texts and WhatsApp replies can carry the record itself. We still encrypt the audio, record the owner's consent, and log every step."],
   ["Can I use WhatsApp?", "Yes, for veterinary practices. Send a voice note to the Line on WhatsApp and the record comes back in the chat, with a link to edit and sign."],
   ["Does it work with my practice software?", "Copy each record from Chartside into your practice software. Direct connections come later."],
@@ -113,7 +113,7 @@ export default function BarnPage() {
             {[
               ["1. Say who's next", "\"First horse is Biscuit.\" \"Next horse, Duchess.\" \"Moving on to cow 214.\" Names, ear tags and breeds all work."],
               ["2. Hang up", "Chartside splits the call at each animal, fills in the farm and owner once, and picks the right form: lameness exam with AAEP grade, herd visit, repro exam, or a general exam."],
-              ["3. Two texts", "You get the records with a link to edit and sign. After you sign, the owner gets plain care instructions for each animal."],
+              ["3. Two texts", "You get the records with a link to edit and sign. If you turn on owner texts and confirm the phone, the owner gets plain care instructions after you sign."],
             ].map(([t, d]) => (
               <div key={t}>
                 <h3 className="font-serif text-2xl font-semibold text-ink">{t}</h3>
@@ -136,7 +136,7 @@ export default function BarnPage() {
           </div>
         </div>
         <div className="card p-5" data-testid="barn-owner-text">
-          <p className="label">What the owner gets after you sign</p>
+          <p className="label">What the owner can get after you sign</p>
           <div className="mt-2 max-w-sm rounded-2xl rounded-bl-sm bg-paper p-3 text-sm text-ink">
             Care instructions for Biscuit from Dr. Lee:
             <br />- Stall rest for 3 days.

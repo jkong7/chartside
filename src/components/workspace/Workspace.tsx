@@ -14,6 +14,7 @@ import Assistant from "./Assistant";
 import BillingPanel from "./BillingPanel";
 import Capture from "./Capture";
 import NoteEditor from "./NoteEditor";
+import OwnerPhone from "./OwnerPhone";
 import { AuditPanel, CodesPanel, OrdersPanel, SummaryPanel } from "./Panels";
 import DocumentsPanel from "./DocumentsPanel";
 import PreVisit from "./PreVisit";
@@ -128,6 +129,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
           {p?.chart.allergies.map((a) => <span key={a.substance} className="pill bg-rec-50 text-[10px] text-rec">{a.substance}</span>)}
         </div>
         <p className="truncate text-xs text-ink-3">{enc.reason || "No reason given"} · {fmtDate(enc.scheduledAt)} {fmtTime(enc.scheduledAt)}{b.clinician.id !== b.access.userId ? <span data-testid="visit-clinician"> · {b.clinician.name}</span> : null}</p>
+        {p?.chart.animal && <OwnerPhone key={`${p.id}:${p.chart.animal.ownerPhone ?? ""}`} patientId={p.id} animal={p.chart.animal} editable={b.access.edit} onSaved={load} />}
       </div>
       <div className="flex flex-wrap items-center gap-2 md:ml-auto">
         {b.group && (

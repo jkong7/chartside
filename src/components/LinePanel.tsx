@@ -15,6 +15,7 @@ const JURISDICTIONS: { value: Jurisdiction; label: string; hint: string }[] = [
 interface LineData {
   operator: boolean;
   jurisdiction: Jurisdiction;
+  ownerTexts: boolean;
   owner: boolean;
   whatsappUrl: string | null;
   scope: "org" | "all";
@@ -55,6 +56,18 @@ export default function LinePanel() {
       load();
     } catch (err) {
       setD((cur) => (cur && prev ? { ...cur, jurisdiction: prev } : cur));
+      setError(err instanceof Error ? err.message : "Could not save");
+    }
+  };
+  const saveOwnerTexts = async (on: boolean) => {
+    setSaved(null);
+    setError(null);
+    setD((cur) => (cur ? { ...cur, ownerTexts: on } : cur));
+    try {
+      await api("/admin/line", { body: { ownerTexts: on } });
+      setSaved(on ? "Saved. Owners get care instructions after you sign, once you confirm their phone on the record." : "Saved. Owners won't get texts.");
+    } catch (err) {
+      setD((cur) => (cur ? { ...cur, ownerTexts: !on } : cur));
       setError(err instanceof Error ? err.message : "Could not save");
     }
   };
@@ -115,6 +128,15 @@ export default function LinePanel() {
             </label>
           ))}
         </fieldset>
+        {d.jurisdiction === "veterinary" && (
+          <label className={`mt-3 flex items-start gap-3 rounded-lg border border-line p-3 text-sm ${d.owner ? "cursor-pointer" : "cursor-not-allowed opacity-70"}`}>
+            <input type="checkbox" className="mt-0.5 h-5 w-5" checked={d.ownerTexts} disabled={!d.owner} onChange={(e) => saveOwnerTexts(e.target.checked)} data-testid="owner-texts" />
+            <span>
+              <span className="font-medium text-ink">Text owners care instructions after I sign</span>
+              <span className="mt-0.5 block text-xs text-ink-3">Off by default. The owner gets one text per visit, only after you confirm their phone number on the animal&apos;s record. They can reply STOP.</span>
+            </span>
+          </label>
+        )}
         {!d.owner && <p className="mt-2 text-xs text-ink-3">Ask your practice owner to change this.</p>}
         {saved && <p className="mt-2 text-sm text-ok" role="status" data-testid="jurisdiction-saved">{saved}</p>}
         {d.jurisdiction !== "us_hipaa" && d.whatsappUrl && <p className="mt-2 text-xs text-ink-2">WhatsApp webhook: <span className="font-mono">{d.whatsappUrl}</span></p>}

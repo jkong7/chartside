@@ -10,6 +10,7 @@ export interface AnimalProfile {
   tag?: string | null;
   owner?: string | null;
   ownerPhone?: string | null;
+  ownerPhoneConfirmedAt?: string | null;
   herd?: string | null;
 }
 
@@ -211,7 +212,7 @@ export function profileFrom(text: string, shared = "", kind: string | null = nul
   const weight = /\b(\d{2,4})\s*(pounds|lbs?|kilos|kg)\b/i.exec(text);
   const tag = /\b(?:ear tag|tag|number|#)\s*(\d{1,6})\b/i.exec(text);
   const both = `${shared} ${text}`;
-  const owner = /\bowner(?:'s name)? is ([A-Z][a-z]+(?: [A-Z][a-z]+)?)/.exec(both) ?? /\b(?:for|client is) ([A-Z][a-z]+ [A-Z][a-z]+)\b/.exec(both);
+  const owner = /\b(?i:owner(?:'s name)? is) ([A-Z][a-z]+(?: [A-Z][a-z]+)?)/.exec(both) ?? /\b(?i:for|client is) ([A-Z][a-z]+ [A-Z][a-z]+)\b/.exec(both);
   const phone = /\b(?:owner'?s?|client'?s?)(?: cell| phone)? (?:number|phone|cell)(?: is)?[:\s]+(\+?1?[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/i.exec(both) ?? /\btext (?:the )?(?:owner|client) at (\+?1?[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/i.exec(both);
   const herd = /\b(?:at|at the)\s+([A-Z][a-z]+(?:'s)?(?:\s(?:barn|farm|ranch|stables?|dairy))?)/.exec(both) ?? /\b([A-Z][a-z]+ (?:barn|farm|ranch|stables|dairy))\b/i.exec(both);
   return {

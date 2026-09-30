@@ -1,20 +1,33 @@
-import { get } from "../db";
+import { get, now } from "../db";
 import { systemTemplate } from "../engine/templates";
 import { buildVetNote, ownerInstructions, ownerText, pickVetTemplate, splitAnimals, type AnimalSegment } from "../engine/vet";
 import { generateNoteWithClaude } from "../llm";
 import type { Encounter, Note, Patient, Template } from "../types";
 import { orgJurisdiction, textOptedOut } from "./jurisdiction";
 import { normalizePhone } from "./notify";
+import { assertCan, Forbidden, Invalid } from "./policy";
 import { recordConsent } from "./pipeline";
 import { artifacts, audit, consents, encounters, notes, orgs, patients, templates, utterances, users, type User } from "./repo";
 import { sendText } from "./telephony/sms";
 
+const same = (a: string | null | undefined, b: string | null | undefined) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+
+export function sameAnimal(p: Patient, seg: AnimalSegment) {
+  const a = p.chart.animal;
+  if (!a || p.name.toLowerCase() !== seg.name.toLowerCase()) return false;
+  if (!same(a.species, seg.profile.species) || same(a.species, "Unknown")) return false;
+  if (!same(a.owner, seg.profile.owner) && !same(a.herd, seg.profile.herd)) return false;
+  const phone = seg.profile.ownerPhone ? normalizePhone(seg.profile.ownerPhone) : null;
+  return !(a.ownerPhone && phone && normalizePhone(a.ownerPhone) !== phone);
+}
+
 async function upsertAnimal(u: User, seg: AnimalSegment): Promise<Patient> {
-  const existing = (await patients.list(u)).find((p) => p.chart.animal && p.name.toLowerCase() === seg.name.toLowerCase() && (!seg.profile.owner || !p.chart.animal.owner || p.chart.animal.owner === seg.profile.owner) && (!seg.profile.herd || !p.chart.animal.herd || p.chart.animal.herd === seg.profile.herd));
+  const existing = (await patients.list(u)).find((p) => sameAnimal(p, seg));
   if (existing) {
-    const fresh = Object.fromEntries(Object.entries({ ...seg.profile, ownerPhone: seg.profile.ownerPhone ? normalizePhone(seg.profile.ownerPhone) : null }).filter(([, v]) => v !== null && v !== undefined && v !== "Unknown"));
-    const merged = { ...existing.chart.animal!, ...fresh };
-    if (JSON.stringify(merged) !== JSON.stringify(existing.chart.animal)) await patients.updateChart(u, existing.id, { ...existing.chart, animal: merged });
+    const prior = existing.chart.animal!;
+    const fresh = Object.fromEntries(Object.entries({ ...seg.profile, ownerPhone: !prior.ownerPhone && seg.profile.ownerPhone ? normalizePhone(seg.profile.ownerPhone) : null }).filter(([, v]) => v !== null && v !== undefined && v !== "Unknown"));
+    const merged = { ...prior, ...fresh, ...(prior.ownerPhone ? { ownerPhone: prior.ownerPhone, ownerPhoneConfirmedAt: prior.ownerPhoneConfirmedAt ?? null } : { ownerPhoneConfirmedAt: null }) };
+    if (JSON.stringify(merged) !== JSON.stringify(prior)) await patients.updateChart(u, existing.id, { ...existing.chart, animal: merged });
     return (await patients.get(u, existing.id)) ?? existing;
   }
   const year = seg.profile.ageYears ? new Date().getFullYear() - seg.profile.ageYears : null;
@@ -25,7 +38,7 @@ async function upsertAnimal(u: User, seg: AnimalSegment): Promise<Patient> {
     sex: seg.profile.sex === "Female" ? "F" : seg.profile.sex === "Male" ? "M" : "X",
     pronouns: "",
     language: "en",
-    chart: { problems: [], medications: [], allergies: [], animal: { ...seg.profile, ownerPhone: seg.profile.ownerPhone ? normalizePhone(seg.profile.ownerPhone) : null } },
+    chart: { problems: [], medications: [], allergies: [], animal: { ...seg.profile, ownerPhone: seg.profile.ownerPhone ? normalizePhone(seg.profile.ownerPhone) : null, ownerPhoneConfirmedAt: null } },
   });
   await audit.log(u, null, "barn.animal_created", { patientId: created.id, species: seg.profile.species });
   return created;
@@ -93,10 +106,14 @@ export async function afterVetSign(u: User, encId: string) {
   if (!enc?.patientId || !enc.templateId?.startsWith("vet_")) return { sent: false as const, reason: "not_vet" };
   if ((await orgJurisdiction(u.orgId)) !== "veterinary") return { sent: false as const, reason: "not_veterinary_org" };
   const org = await orgs.get(u.orgId);
-  if (org?.settings.ownerTexts === false) return { sent: false as const, reason: "off" };
+  if (org?.settings.ownerTexts !== true) return { sent: false as const, reason: "off" };
   const patient = await patients.get(u, enc.patientId);
   const phone = normalizePhone(patient?.chart.animal?.ownerPhone ?? "");
   if (!patient || !phone) return { sent: false as const, reason: "no_owner_phone" };
+  if (!patient.chart.animal?.ownerPhoneConfirmedAt) {
+    await audit.log(u, enc.id, "barn.owner_text_skipped", { reason: "unconfirmed_phone" });
+    return { sent: false as const, reason: "unconfirmed_phone" };
+  }
   if (await textOptedOut(phone)) {
     await audit.log(u, enc.id, "barn.owner_text_skipped", { reason: "opted_out" });
     return { sent: false as const, reason: "opted_out" };
@@ -115,4 +132,29 @@ export async function afterVetSign(u: User, encId: string) {
     await audit.log(u, enc.id, "barn.owner_text_failed", { error: err instanceof Error ? err.message.slice(0, 120) : "error" });
     return { sent: false as const, reason: "failed" };
   }
+}
+
+export async function setOwnerPhone(u: User, patientId: string, input: { phone?: string | null; confirm?: boolean }) {
+  assertCan(u, "patients.write");
+  const p = await patients.get(u, patientId);
+  if (!p?.chart.animal) throw new Invalid("This isn't an animal's record");
+  const raw = (input.phone ?? "").trim();
+  const phone = raw ? normalizePhone(raw) : null;
+  if (raw && !phone) throw new Invalid("Enter a 10 digit phone number");
+  const prior = p.chart.animal.ownerPhone ?? null;
+  if (input.confirm && !phone) throw new Invalid("Add the owner's phone number first");
+  const animal = { ...p.chart.animal, ownerPhone: phone, ownerPhoneConfirmedAt: phone ? now() : null };
+  await patients.updateChart(u, p.id, { ...p.chart, animal });
+  await audit.log(u, null, "barn.owner_phone", { patientId: p.id, changed: prior !== phone, removed: !phone, confirmed: !!phone, last4: phone ? phone.slice(-4) : null });
+  return animal;
+}
+
+export async function setOwnerTexts(u: User, on: boolean) {
+  if (u.role !== "owner") throw new Forbidden("Only the practice owner can change this");
+  const org = await orgs.get(u.orgId);
+  if (!org) throw new Invalid("Practice not found");
+  const from = org.settings.ownerTexts === true;
+  await orgs.update(u.orgId, { settings: { ...org.settings, ownerTexts: on } });
+  await audit.log(u, null, "org.owner_texts", { from, to: on });
+  return on;
 }
