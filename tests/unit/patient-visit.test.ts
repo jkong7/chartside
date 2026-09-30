@@ -230,3 +230,45 @@ describe("clinician offer and claim", () => {
     expect(pv.nameMatches(null, "Chen")).toBe(false);
   });
 });
+
+describe("abuse limits", () => {
+  it("caps visits per IP per day, with a much higher cap for everyone", async () => {
+    const pv = await import("@/lib/server/patientVisit");
+    process.env.CHARTSIDE_VISIT_IP_DAILY_CAP = "2";
+    try {
+      const a = pv.ipKey("203.0.113.9");
+      expect(a).toMatch(/^[0-9a-f]{32}$/);
+      expect(pv.ipKey("local")).toBeNull();
+      await pv.createVisit({ state: "IL", ipKey: a });
+      await pv.createVisit({ state: "IL", ipKey: a });
+      await expect(pv.createVisit({ state: "IL", ipKey: a })).rejects.toThrow(/a lot of visits today/);
+      await pv.createVisit({ state: "IL", ipKey: pv.ipKey("198.51.100.4") });
+      process.env.CHARTSIDE_VISIT_DAILY_CAP = "1";
+      await expect(pv.createVisit({ state: "IL", ipKey: pv.ipKey("198.51.100.5") })).rejects.toThrow(/busy/);
+    } finally {
+      delete process.env.CHARTSIDE_VISIT_IP_DAILY_CAP;
+      delete process.env.CHARTSIDE_VISIT_DAILY_CAP;
+    }
+  });
+
+  it("caps the audio one patient visit can hold, and stops a chunked upload early", async () => {
+    const pv = await import("@/lib/server/patientVisit");
+    const { token } = await pv.createVisit({ state: "IL" });
+    await pv.recordVisitConsent((await pv.visitByToken(token))!, { decision: "granted" });
+    process.env.CHARTSIDE_VISIT_MAX_MB = String(3000 / 1024 / 1024);
+    try {
+      const v = (await pv.visitByToken(token))!;
+      expect((await pv.appendVisitAudio(v, { audio: Buffer.alloc(2000, 1), mime: "audio/webm", opts: { seq: "0" } })).audioBytes).toBe(2000);
+      await expect(pv.appendVisitAudio(v, { audio: Buffer.alloc(2000, 1), mime: "audio/webm", opts: { seq: "1" } })).rejects.toMatchObject({ status: 413 });
+      const { POST } = await import("@/app/api/visit/[token]/audio/route");
+      let pulls = 0;
+      const body = new ReadableStream<Uint8Array>({ pull(c) { pulls++; if (pulls > 500) return c.close(); c.enqueue(new Uint8Array(1024).fill(1)); } });
+      const res = await POST(new Request(`http://localhost/api/visit/${token}/audio?seq=1`, { method: "POST", headers: { "content-type": "audio/webm" }, body, duplex: "half" } as RequestInit), { params: Promise.resolve({ token }) });
+      expect(res.status).toBe(413);
+      expect(pulls).toBeLessThan(10);
+      expect(await pv.visitAudioBytes(v)).toBe(2000);
+    } finally {
+      delete process.env.CHARTSIDE_VISIT_MAX_MB;
+    }
+  });
+});

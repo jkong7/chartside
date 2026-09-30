@@ -874,6 +874,8 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS decision_proposals_user ON decision_proposals(user_id, status)",
   "CREATE INDEX IF NOT EXISTS patient_visits_family ON patient_visits(family_hash)",
   "CREATE INDEX IF NOT EXISTS patient_visits_offer ON patient_visits(offer_hash)",
+  "CREATE INDEX IF NOT EXISTS patient_visits_ip ON patient_visits(ip_key, created_at)",
+  "CREATE INDEX IF NOT EXISTS patient_visits_created ON patient_visits(created_at)",
   "CREATE INDEX IF NOT EXISTS loop_events_at ON loop_events(at, loop_id, kind)",
   "CREATE INDEX IF NOT EXISTS practice_cohort ON practice_sessions(cohort, score)",
   "CREATE INDEX IF NOT EXISTS practice_device ON practice_sessions(device, created_at)",

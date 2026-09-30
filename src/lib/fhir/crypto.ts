@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { dataDir } from "../db";
@@ -19,6 +19,10 @@ function secretKey() {
   }
   key = createHash("sha256").update(secret).digest();
   return key;
+}
+
+export function keyedHash(label: string, value: string) {
+  return createHmac("sha256", secretKey()).update(`${label}\u0000${value}`).digest("hex");
 }
 
 export function seal(plain: string) {

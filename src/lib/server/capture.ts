@@ -64,6 +64,7 @@ export interface CaptureAuth {
   user: User;
   tokenId: string | null;
   device?: boolean;
+  limit?: { bytes: number; message: string };
 }
 
 interface CaptureOrigin {
@@ -159,7 +160,7 @@ export async function readCaptureRequest(req: Request, maxBytes = MAX_CAPTURE_BY
 const truthy = (v: string | undefined) => v === "1" || v === "true" || v === "yes" || v === "on";
 const falsy = (v: string | undefined) => v === "0" || v === "false" || v === "no" || v === "off";
 
-async function storeAudio(encId: string, audio: Buffer, mime: string, durationS: number | null) {
+async function storeAudio(encId: string, audio: Buffer, mime: string, durationS: number | null, limit?: CaptureAuth["limit"]) {
   const owner = await get<{ user_id: string }>("SELECT user_id FROM encounters WHERE id = ?", encId);
   if (owner) await touchGuest(owner.user_id);
   if (audio.length > MAX_CAPTURE_BYTES) throw new CaptureAuthError(413, "Recording is larger than 100 MB");
@@ -167,6 +168,7 @@ async function storeAudio(encId: string, audio: Buffer, mime: string, durationS:
   if (existing.length && existing[0].mime !== mime) throw new Invalid(`This visit is recording ${existing[0].mime}; send the rest in the same format`);
   const already = existing.reduce((n, c) => n + c.bytes, 0);
   if (already + audio.length > MAX_CAPTURE_BYTES) throw new CaptureAuthError(413, "Recording is larger than 100 MB");
+  if (limit && already + audio.length > limit.bytes) throw new CaptureAuthError(413, limit.message);
   let seq = existing.length ? existing.at(-1)!.seq + 1 : 0;
   const baseMs = existing.at(-1)?.tMs ?? 0;
   for (let off = 0; off < audio.length; off += CHUNK_BYTES) {
@@ -326,7 +328,7 @@ async function appendCaptureNow(auth: CaptureAuth, encId: string, input: Capture
   const seq = seqOf(input.opts.seq);
   const origin = await artifacts.get<CaptureOrigin>(enc.id, "capture_origin");
   const duplicate = seq !== undefined && origin?.lastSeq !== undefined && seq <= origin.lastSeq;
-  const bytes = input.audio && !duplicate ? await storeAudio(enc.id, input.audio, input.mime!, null) : (await audioChunks.list(enc.id)).reduce((n, c) => n + c.bytes, 0);
+  const bytes = input.audio && !duplicate ? await storeAudio(enc.id, input.audio, input.mime!, null, auth.limit) : (await audioChunks.list(enc.id)).reduce((n, c) => n + c.bytes, 0);
   if (input.audio && !duplicate && seq !== undefined && origin) await artifacts.set(enc.id, "capture_origin", { ...origin, lastSeq: seq });
   if (durationS) await encounters.update(auth.user, enc.id, { durationS });
   const finish = truthy(input.opts.finish);

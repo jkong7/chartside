@@ -211,7 +211,8 @@ A patient records their own visit on their phone. The clinician taps Agree on th
 | `CHARTSIDE_GUEST_HOURS` | How long an unclaimed guest visit is kept (default 2) |
 | `CHARTSIDE_VISIT_DAYS` / `CHARTSIDE_VISIT_SAVED_DAYS` | How long a patient's own recording and recap at `/visit` are kept: unsaved (default 7) and after the patient saves the link (default 90) |
 | `CHARTSIDE_VISIT_OFFER_DAYS` / `CHARTSIDE_VISIT_FAMILY_DAYS` | How long a draft offer to the clinician and a family link last (default 7 each) |
-| `CHARTSIDE_VISIT_RATE` / `CHARTSIDE_VISIT_DAILY_CAP` | Patient visits started (and save links sent) per IP per hour (default 10), and patient visits per day across everyone (default 500) |
+| `CHARTSIDE_VISIT_RATE` / `CHARTSIDE_VISIT_IP_DAILY_CAP` / `CHARTSIDE_VISIT_DAILY_CAP` | Patient visits started (and save links sent) per IP per hour (default 10), patient visits one IP can start per day (default 30), and patient visits per day across everyone (default 20000, a last-resort ceiling well above normal use) |
+| `CHARTSIDE_VISIT_MAX_MB` | Most audio one patient visit can hold, in MB (default 60, about two hours at the recorder's 32 kbps and an hour even on phones that record at 128 kbps). Uploads past it get a 413 and the recorder finishes with what was saved |
 | `CHARTSIDE_VISIT_OFFERS_PER_CONTACT` | Draft offers one clinician phone or email can receive per day (default 5) |
 | `CHARTSIDE_VISIT_UPLOAD_RATE` | Audio uploads per IP per hour on patient visits (default 2000) |
 | `CHARTSIDE_DELIVERY` | `file` writes outgoing email and SMS to `data/outbox/` instead of sending, and `none` disables delivery. By default, outside production, messages go to `data/outbox/` when no provider is configured. |

@@ -6,6 +6,7 @@ import { buildVisitRecap, recapText, type VisitRecap } from "../engine/visitReca
 import { llmEnabled, visitRecapWithClaude } from "../llm";
 import { textPdf } from "../pdf";
 import type { ConsentRecord } from "../types";
+import { keyedHash } from "../fhir/crypto";
 import { deleteAudio } from "./audio";
 import { appendCapture, type CaptureInput } from "./capture";
 import { CaptureAuthError } from "./captureTokens";
@@ -89,12 +90,16 @@ export function parseContact(raw: unknown): { phone: string | null; email: strin
   return { phone, email: null };
 }
 
+export const visitMaxBytes = () => days("CHARTSIDE_VISIT_MAX_MB", 60) * 1024 * 1024;
+export const ipKey = (ip: string | null | undefined) => (ip && ip !== "local" ? keyedHash("pv-ip", ip).slice(0, 32) : null);
+
 export async function createVisit(input: { patientName?: unknown; state?: unknown; ipKey?: string | null }) {
   await purgeGuests();
   const state = String(input.state ?? "").toUpperCase();
   if (!STATE_NAMES[state]) throw new Invalid("Pick the state you're in");
-  const cap = days("CHARTSIDE_VISIT_DAILY_CAP", 500);
-  if (Number((await get<{ n: number }>("SELECT COUNT(*) AS n FROM patient_visits WHERE created_at > ?", new Date(Date.now() - 86400000).toISOString()))?.n ?? 0) >= cap) throw new Invalid("Chartside is busy right now. Try again tomorrow.");
+  const since = new Date(Date.now() - 86400000).toISOString();
+  if (input.ipKey && Number((await get<{ n: number }>("SELECT COUNT(*) AS n FROM patient_visits WHERE ip_key = ? AND created_at > ?", input.ipKey, since))?.n ?? 0) >= days("CHARTSIDE_VISIT_IP_DAILY_CAP", 30)) throw new Invalid("You've started a lot of visits today. Try again tomorrow.");
+  if (Number((await get<{ n: number }>("SELECT COUNT(*) AS n FROM patient_visits WHERE created_at > ?", since))?.n ?? 0) >= days("CHARTSIDE_VISIT_DAILY_CAP", 20000)) throw new Invalid("Chartside is busy right now. Try again tomorrow.");
   const id = uid("pv_");
   const holderId = uid("usr_");
   const token = newToken();
@@ -144,9 +149,15 @@ export async function recordVisitConsent(v: VisitRow, input: { decision?: unknow
 export async function appendVisitAudio(v: VisitRow, input: CaptureInput) {
   if (v.status !== "recording" || !v.encounter_id) throw new Invalid(v.status === "declined" ? "Recording was declined" : v.status === "consent" ? "The clinician needs to agree first" : "This visit is already being written up");
   const holder = await holderOf(v);
-  const r = await appendCapture({ user: holder, tokenId: null }, v.encounter_id, input);
+  const r = await appendCapture({ user: holder, tokenId: null, limit: { bytes: visitMaxBytes(), message: TOO_LONG } }, v.encounter_id, input);
   if (r.status === "processing") await run("UPDATE patient_visits SET status = 'processing' WHERE id = ? AND status = 'recording'", v.id);
   return { status: r.status === "processing" ? "processing" : "recording", audioBytes: r.audioBytes };
+}
+
+export const TOO_LONG = "This recording reached the longest a visit can be, so we stopped here and wrote your recap from what was saved.";
+
+export async function visitAudioBytes(v: VisitRow) {
+  return v.encounter_id ? (await audioChunks.list(v.encounter_id)).reduce((n, c) => n + c.bytes, 0) : 0;
 }
 
 export async function refreshVisit(v: VisitRow): Promise<VisitRow> {
