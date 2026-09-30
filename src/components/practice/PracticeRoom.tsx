@@ -342,7 +342,7 @@ export default function PracticeRoom({ card, challenge, resume, classCode, defau
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className={`rounded-full px-3 py-1 font-mono text-sm tabular-nums ${low ? "bg-rec-50 text-rec" : "bg-sunken text-ink"}`} role="timer" aria-label={`${clock(remaining)} left`} data-testid="practice-timer">{clock(remaining)}</span>
-            <button className="btn-outline px-3 py-1.5 text-sm" onClick={end} data-testid="practice-end">End<span className="hidden sm:inline">&nbsp;encounter</span></button>
+            <button className="btn-outline px-3 py-1.5 text-sm" onClick={end} data-testid="practice-end"><span className="sm:hidden">End</span><span className="hidden sm:inline">End encounter</span></button>
           </div>
         </div>
         {transcript}

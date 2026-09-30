@@ -69,13 +69,15 @@ test("a student finds practice from the landing page, interviews by typing, exam
   expect(overall).toBeLessThan(90);
   for (const k of ["history", "exam", "communication", "note"]) await expect(page.getByTestId(`cat-${k}`)).toBeVisible();
   await expect(page.getByTestId("fix")).toHaveCount(3);
-  await expect(page.getByTestId("fix-time").first()).toHaveText(/^\d+:\d\d$/);
+  await expect(page.getByTestId("fix-time")).toHaveCount(0);
   await expect(page.getByTestId("red-flags")).toContainText("Exertional pattern");
   await expect(page.getByTestId("chartside-note")).toContainText("SUBJECTIVE");
   await expect(page.getByTestId("my-note")).toContainText("Acute coronary syndrome");
   await expect(page.getByTestId("rubric-item").filter({ hasText: "Radiation to arm or jaw" })).toHaveAttribute("data-hit", "1");
   await expect(page.getByTestId("transcript")).toContainText("left arm");
-  const href = (await page.getByTestId("fix-time").first().getAttribute("href"))!;
+  const stamp = page.getByTestId("rubric-item").filter({ hasText: "Radiation to arm or jaw" }).locator("a");
+  await expect(stamp).toHaveText(/^\d+:\d\d$/);
+  const href = (await stamp.getAttribute("href"))!;
   expect(href).toMatch(/^#turn-t\d+$/);
   await expect(page.locator(href)).toBeVisible();
 });
