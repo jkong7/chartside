@@ -87,6 +87,7 @@ export default defineConfig({
         TWILIO_BASE_URL: "http://localhost:3295",
         CHARTSIDE_CRON_SECRET: "test-cron",
         CHARTSIDE_SIM_RATE: "500",
+        CHARTSIDE_VISIT_RATE: "1000",
         CHARTSIDE_WS_PER_IP: "100",
         CHARTSIDE_VAPID_PUBLIC: "BGudtAMbymjXKQFProCqX4_fxCCDT9IGdDcxkBMlXd7oC70pqE_eDc50AyxPeKwUNHbBXCeH-th3HviJ9sO9PHo",
         CHARTSIDE_VAPID_PRIVATE: "h60y-RKd-geWI4rQS_A8FQ3CWJeOwIeGKN_BfuYuSI0",
