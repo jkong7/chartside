@@ -112,7 +112,7 @@ test("a patient records with the clinician's OK, shares a recap, and the clinici
   await expect(doc.getByTestId("stack-title")).toContainText("from a patient's recording");
   await expect(doc.getByTestId("stack-from-patient")).toHaveText("From a patient's recording");
   await doc.getByTestId("stack-patient-transcript").locator("summary").click();
-  await expect(doc.getByTestId("stack-patient-transcript")).toContainText("dry cough");
+  await expect(doc.getByTestId("stack-patient-transcript").getByText(/dry cough/)).toBeVisible();
   await expect(doc.getByTestId("claim-banner")).toHaveCount(0);
   await signTop(doc);
 

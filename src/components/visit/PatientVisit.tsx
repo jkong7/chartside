@@ -201,6 +201,7 @@ function Ready({ token, v, reload }: { token: string; v: View; reload: () => Pro
     }
   }
 
+  const canShare = typeof navigator !== "undefined" && "share" in navigator;
   const share = async (url: string, text: string) => {
     const nav = navigator as Navigator & { share?: (d: { title?: string; text?: string; url?: string }) => Promise<void> };
     if (nav.share) await nav.share({ title: "Visit notes", text, url }).catch(() => undefined);
@@ -245,18 +246,19 @@ function Ready({ token, v, reload }: { token: string; v: View; reload: () => Pro
       <div className="mt-4 grid gap-4">
         <section className="card p-5" data-testid="pv-family">
           <h2 className="font-semibold text-ink">Share with family</h2>
-          <p className="mt-1 text-sm text-ink-3">A read-only link to your recap. It stops working after 7 days, or whenever you turn it off.</p>
+          <p className="mt-1 text-sm text-ink-3">A read-only link to your {declined ? "notes" : "recap"}. It stops working after 7 days, or whenever you turn it off.</p>
           {family ? (
             <div className="mt-3 space-y-2">
               <Copy text={family} label="Family link" testid="pv-family-url" />
               <div className="flex flex-wrap gap-2">
-                <button className="btn-primary" onClick={() => share(family, "My visit notes")}>Share</button>
+                {canShare && <button className="btn-primary" onClick={() => share(family, "My visit notes")}>Share</button>}
                 <button className="btn-ghost text-rec" disabled={busy === "unshare"} onClick={() => act("unshare", async () => { await call(`/api/visit/${token}/family`, "DELETE"); setFamily(null); await reload(); })} data-testid="pv-family-stop">Stop sharing</button>
               </div>
             </div>
           ) : v.family.active ? (
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="text-sm text-ok">A family link is on until {day(v.family.expiresAt!)}.</span>
+              <button className="btn-ghost" disabled={busy === "family"} onClick={() => act("family", async () => setFamily((await call<{ url: string }>(`/api/visit/${token}/family`, "POST")).url))} data-testid="pv-family-new">Make a new link</button>
               <button className="btn-ghost text-rec" onClick={() => act("unshare", async () => { await call(`/api/visit/${token}/family`, "DELETE"); await reload(); })} data-testid="pv-family-stop">Stop sharing</button>
             </div>
           ) : (
@@ -279,7 +281,7 @@ function Ready({ token, v, reload }: { token: string; v: View; reload: () => Pro
                 <p className="text-sm text-ink-2">Send this to your clinician&apos;s office. It has nothing about your health in it, and they confirm who they are before they see the draft.</p>
                 <Copy text={offer.url} label="Link for your doctor" testid="pv-offer-url" />
                 <div className="flex flex-wrap gap-2">
-                  <button className="btn-primary" onClick={() => share(offer.url, offer.message)}>Share</button>
+                  {canShare && <button className="btn-primary" onClick={() => share(offer.url, offer.message)}>Share</button>}
                   <button className="btn-ghost text-sm" onClick={() => act("withdraw", async () => { await call(`/api/visit/${token}/offer`, "DELETE"); setOffer(null); await reload(); })}>Take the offer back</button>
                 </div>
               </div>
@@ -333,7 +335,7 @@ function Ready({ token, v, reload }: { token: string; v: View; reload: () => Pro
         </details>
       )}
       <p className="mt-8 text-xs text-ink-3">This page is private to you. Anyone with the link can open it, so share it only with people you trust.</p>
-      <RecapFooter />
+      <RecapFooter recorded={!declined} />
     </div>
   );
 }

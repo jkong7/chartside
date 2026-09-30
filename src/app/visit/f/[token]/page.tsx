@@ -30,7 +30,7 @@ export default async function FamilyPage({ params }: { params: Promise<{ token: 
                 <p className="mt-2 whitespace-pre-wrap text-ink-2">{d.notes}</p>
               </section>
             )}
-            <RecapFooter />
+            <RecapFooter recorded={!!d.recap} />
           </div>
         )}
       </div>

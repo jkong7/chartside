@@ -190,7 +190,7 @@ export default function Stack({ initial, user, focus, justClaimed = false, sampl
                 </p>
               )}
               {typeof top.detail.fromPatient === "object" && top.detail.fromPatient && (
-                <details className="mt-3 rounded-lg bg-sunken px-3 py-2 text-sm" data-testid="stack-patient-transcript">
+                <details className="mt-3 rounded-lg bg-sunken px-3 py-2 text-sm" data-testid="stack-patient-transcript" data-noswipe>
                   <summary className="cursor-pointer font-medium text-brand">Read the conversation the patient recorded</summary>
                   <p className="mt-1 text-xs text-ink-3">{(top.detail.fromPatient as { help: string }).help}</p>
                   <div className="mt-2 max-h-72 space-y-1.5 overflow-y-auto">

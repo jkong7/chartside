@@ -71,10 +71,10 @@ export default function Recap({ recap }: { recap: VisitRecap }) {
   );
 }
 
-export function RecapFooter() {
+export function RecapFooter({ recorded = true }: { recorded?: boolean }) {
   return (
     <footer className="mt-10 border-t border-line pt-4 text-xs text-ink-3" data-testid="visit-footer">
-      <p>Recorded with Chartside. <a className="font-medium text-brand" href="/line?src=patient_visit" data-testid="visit-footer-cta">Clinicians: get this note as a draft, free.</a></p>
+      <p>{recorded ? "Recorded with Chartside." : "Notes kept with Chartside."} <a className="font-medium text-brand" href="/line?src=patient_visit" data-testid="visit-footer-cta">Clinicians: get this note as a draft, free.</a></p>
       <p className="mt-1">Want this for your next visit? <a className="text-brand" href="/visit">Record a visit</a></p>
     </footer>
   );

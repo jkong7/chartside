@@ -407,7 +407,7 @@ async function copyToClinician(clinician: User, v: VisitRow) {
   if (!utts.length) throw new Invalid("This recording has no conversation in it");
   const consent = await consents.latest(src.id);
   const at = v.recorded_at ?? src.startedAt ?? src.scheduledAt;
-  const enc = await encounters.create(clinician, { scheduledAt: at, status: "recording", patientId: null, visitType: "follow-up", reason: PATIENT_LABEL });
+  const enc = await encounters.create(clinician, { scheduledAt: at, status: "recording", patientId: null, visitType: "follow-up", reason: "" });
   await encounters.update(clinician, enc.id, { startedAt: at, endedAt: src.endedAt ?? now(), ...(src.durationS ? { durationS: src.durationS } : {}) });
   await utterances.append(enc.id, utts.map(({ id: _id, seq: _seq, ...u }) => ({ ...u, source: "final" as const })));
   if (consent) await consents.add({ encounterId: enc.id, userId: clinician.id, decision: consent.decision, method: consent.method, state: consent.state, allParty: consent.allParty, othersPresent: consent.othersPresent, scriptVersion: consent.scriptVersion, statement: consent.statement, digest: consent.digest });
