@@ -75,3 +75,29 @@ describe("memo ready texts decide content at send time", () => {
     expect(simMessages("+15550170004")).toHaveLength(0);
   });
 });
+
+describe("phone-level STOP", () => {
+  it("keeps a guest's ready text from going to a number that replied STOP", async () => {
+    const { notifyReady } = await import("@/lib/server/telephony/memos");
+    const { simMessages } = await import("@/lib/server/telephony/sms");
+    const { setTextOptOut } = await import("@/lib/server/jurisdiction");
+    const { guestForPhone } = await import("@/lib/server/guest");
+    const { captureTyped, settleCaptures } = await import("@/lib/server/capture");
+    const repo = await import("@/lib/server/repo");
+    const all = await import("@/lib/db");
+    const phone = "+15550170009";
+    const guest = await guestForPhone(phone);
+    await captureTyped(guest, "Follow up for knee pain, doing better with therapy. Continue physical therapy.", { channel: "text-note" });
+    await settleCaptures();
+    const ids = (await repo.encounters.list(guest, {})).map((e) => e.id);
+    expect(ids.length).toBe(1);
+    await setTextOptOut(phone, true);
+    await notifyReady(guest, phone, "mms", 30, { ok: true, encounterIds: ids });
+    expect(simMessages(phone)).toHaveLength(0);
+    const skipped = await all.get<{ n: number }>("SELECT COUNT(*) AS n FROM audit WHERE user_id = ? AND action = 'memo.text_skipped'", guest.id);
+    expect(Number(skipped!.n)).toBe(1);
+    await setTextOptOut(phone, false);
+    await notifyReady(guest, phone, "mms", 30, { ok: true, encounterIds: ids });
+    expect(simMessages(phone)).toHaveLength(1);
+  });
+});

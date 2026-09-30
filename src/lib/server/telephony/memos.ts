@@ -6,7 +6,7 @@ import { audioSeconds, type MediaItem } from "../../engine/media";
 import { dictationText, formatClock, holdExpiry, nextHold, splitNumbered, type MemoHoldState } from "../../engine/memo";
 import { noteToText } from "../../engine/note";
 import { captureAudio, captureTyped, finishCaptureFor, normalizeMime, onDrafted } from "../capture";
-import { hipaaApplies, orgJurisdiction } from "../jurisdiction";
+import { hipaaApplies, orgJurisdiction, textOptedOut } from "../jurisdiction";
 import { mintLoginLink } from "../magic";
 import { actorFor, audit, encounters, notes, patients, users, type User } from "../repo";
 import { deleteMedia, downloadMedia, maxMemoBytes } from "./media";
@@ -104,7 +104,7 @@ async function noteBodies(user: User, ids: string[]) {
 export async function notifyReady(user: User, phone: string, channel: MemoChannel, secs: number | null, r: { ok: true; encounterIds: string[] } | { ok: false; error: string }, source: "memo" | "text" = "memo") {
   const fresh = (await actorFor(user.id, user.orgId).catch(() => undefined)) ?? user;
   const what = source === "text" ? "text" : `${clockLabel(secs)}`;
-  if (fresh.prefs.textOptOut && channel === "mms") {
+  if (channel === "mms" && (fresh.prefs.textOptOut || (await textOptedOut(phone)))) {
     await audit.log(fresh, null, "memo.text_skipped", { reason: "opted_out" });
     return;
   }
