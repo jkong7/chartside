@@ -109,7 +109,9 @@ export default async function Home() {
           </div>
         </div>
       </section>
-      <footer className="mx-auto max-w-6xl px-6 py-8 text-xs text-ink-3">Chartside is a demonstration product. Do not use it with real patient data without a HIPAA business associate agreement and your organization&apos;s approval.</footer>
+      <footer className="mx-auto max-w-6xl px-6 py-8 text-xs text-ink-3">
+        <p className="mb-3 text-sm text-ink-2">Seeing a doctor yourself? <Link className="font-medium text-brand" href="/visit" data-testid="home-visit">Record your visit and get a plain-English recap</Link>.</p>
+        Chartside is a demonstration product. Do not use it with real patient data without a HIPAA business associate agreement and your organization&apos;s approval.</footer>
     </main>
   );
 }

@@ -72,6 +72,11 @@ export default async function LinePage({ searchParams }: { searchParams: Promise
               {from} invited you. You both get a free month.
             </p>
           )}
+          {sp.src === "patient_visit" && !from && (
+            <p className="mb-4 inline-flex rounded-full bg-brand-50 px-3 py-1 text-sm text-brand" data-testid="line-patient-visit">
+              Patients are recording visits with Chartside. Here&apos;s the version for you.
+            </p>
+          )}
           {sp.src === "recap" && !from && (
             <p className="mb-4 inline-flex rounded-full bg-brand-50 px-3 py-1 text-sm text-brand" data-testid="line-recap">
               A patient of yours sent you this.
