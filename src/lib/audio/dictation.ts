@@ -3,6 +3,7 @@ export type DictationStatus = "idle" | "starting" | "listening" | "error";
 export interface DictationConfig {
   provider: "deepgram" | "browser";
   url: string | null;
+  token?: string | null;
 }
 
 interface Handlers {
@@ -53,9 +54,12 @@ export class Dictation {
   }
 
   private async startDeepgram(url: string) {
-    const r = await fetch("/api/speech/token", { method: "POST" });
-    if (!r.ok) throw new Error("Speech service unavailable");
-    const { token } = (await r.json()) as { token: string };
+    let token = this.cfg.token ?? null;
+    if (!token) {
+      const r = await fetch("/api/speech/token", { method: "POST" });
+      if (!r.ok) throw new Error("Speech service unavailable");
+      token = ((await r.json()) as { token: string }).token;
+    }
     this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
     const ws = new WebSocket(url, ["bearer", token]);
     this.ws = ws;
