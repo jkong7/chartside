@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
+import { SIMPLE_NAV_HREFS, SIMPLE_NAV_LABELS, type NavMode } from "@/lib/nav";
 import { roleLabel, type Role } from "@/lib/roles";
 import { Alert, Bed, Calendar, Chart, Check, Gear, Inbox, Layout, Logo, Logout, Mic, Receipt, Search, Shield, Users } from "./icons";
 import { Avatar } from "./ui";
@@ -43,7 +44,29 @@ export interface SidebarUser {
   orgs: { id: string; name: string; role: Role }[];
 }
 
-const navFor = (role: Role) => NAV.filter((n) => !n.roles || n.roles.includes(role));
+const navFor = (role: Role, mode: NavMode = "full") =>
+  mode === "simple"
+    ? SIMPLE_NAV_HREFS.map((href) => NAV.find((n) => n.href === href)!).filter((n) => !n.roles || n.roles.includes(role)).map((n) => ({ ...n, label: SIMPLE_NAV_LABELS[n.href] ?? n.label, group: "Care" }))
+    : NAV.filter((n) => !n.roles || n.roles.includes(role));
+
+function ShowAll({ className = "" }: { className?: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      className={className}
+      disabled={busy}
+      data-testid="show-all-tools"
+      onClick={async () => {
+        setBusy(true);
+        await api("/auth/me", { method: "PATCH", body: { prefs: { simpleNav: false } } }).catch(() => {});
+        router.refresh();
+      }}
+    >
+      Show all tools
+    </button>
+  );
+}
 
 function useInboxCount(enabled: boolean) {
   const path = usePathname();
@@ -92,20 +115,20 @@ function OrgSwitcher({ user }: { user: SidebarUser }) {
   );
 }
 
-export default function Sidebar({ user, engine }: { user: SidebarUser; engine: string }) {
+export default function Sidebar({ user, mode = "full" }: { user: SidebarUser; mode?: NavMode }) {
   const path = usePathname();
   const router = useRouter();
   const inbox = useInboxCount(["owner", "admin", "clinician", "scribe"].includes(user.role));
   return (
     <aside className="sticky top-0 hidden h-screen w-[220px] shrink-0 flex-col border-r border-line bg-surface md:flex">
-      <Link href="/today" className="flex items-center gap-2.5 px-5 py-5">
+      <Link href={mode === "simple" ? "/go" : "/today"} className="flex items-center gap-2.5 px-5 py-5">
         <Logo size={26} />
         <span className="font-serif text-xl">Chartside</span>
       </Link>
       <OrgSwitcher user={user} />
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3" data-testid="nav">
-        {navFor(user.role).map((n, i, list) => {
-          const active = path.startsWith(n.href) || (n.href === "/today" && path.startsWith("/encounters"));
+      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3" data-testid="nav" data-mode={mode}>
+        {navFor(user.role, mode).map((n, i, list) => {
+          const active = isActive(path, n.href, list.map((x) => x.href));
           const Icon = n.icon;
           const heading = i > 0 && list[i - 1].group !== n.group ? <p key={`h-${n.group}`} className="px-3 pb-0.5 pt-3 text-[10px] font-semibold uppercase tracking-wider text-ink-4">{n.group}</p> : null;
           return [heading,
@@ -116,10 +139,8 @@ export default function Sidebar({ user, engine }: { user: SidebarUser; engine: s
             </Link>,
           ];
         })}
+        {mode === "simple" && <ShowAll className="mt-3 w-full rounded-lg px-3 py-1.5 text-left text-sm text-brand hover:bg-sunken" />}
       </nav>
-      <div className="mx-3 mb-3 rounded-lg bg-sunken px-3 py-2 text-[11px] text-ink-3" data-testid="engine-badge">
-        Engine: <span className="font-medium text-ink-2">{engine}</span>
-      </div>
       <div className="flex items-center gap-2.5 border-t border-line px-4 py-3">
         <Avatar name={user.name} size={32} />
         <div className="min-w-0 flex-1">
@@ -142,20 +163,28 @@ export default function Sidebar({ user, engine }: { user: SidebarUser; engine: s
   );
 }
 
-export function MobileNav({ role }: { role: Role }) {
+function isActive(path: string, href: string, all: string[]) {
+  if (href === "/today" && path.startsWith("/encounters")) return true;
+  if (!(path === href || path.startsWith(`${href}/`))) return false;
+  return !all.some((o) => o !== href && o.startsWith(`${href}/`) && (path === o || path.startsWith(`${o}/`)));
+}
+
+export function MobileNav({ role, mode = "full" }: { role: Role; mode?: NavMode }) {
   const path = usePathname();
+  const items = navFor(role, mode);
   return (
-    <nav className="sticky top-0 z-30 flex items-center gap-1 overflow-x-auto border-b border-line bg-surface px-3 py-2 md:hidden" aria-label="Main">
-      <Link href="/today" className="mr-1 shrink-0"><Logo size={24} /></Link>
-      {navFor(role).map((n) => {
+    <nav className="sticky top-0 z-30 flex items-center gap-1 overflow-x-auto border-b border-line bg-surface px-3 py-2 md:hidden" aria-label="Main" data-mode={mode}>
+      <Link href={mode === "simple" ? "/go" : "/today"} className="mr-1 shrink-0" aria-label="Chartside home"><Logo size={24} /></Link>
+      {items.map((n) => {
         const Icon = n.icon;
-        const active = path.startsWith(n.href) || (n.href === "/today" && path.startsWith("/encounters"));
+        const active = isActive(path, n.href, items.map((x) => x.href));
         return (
           <Link key={n.href} href={n.href} className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm ${active ? "bg-brand-50 text-brand" : "text-ink-2"}`}>
             <Icon size={15} /> {n.label}
           </Link>
         );
       })}
+      {mode === "simple" && <ShowAll className="shrink-0 rounded-lg px-2.5 py-1.5 text-sm text-brand" />}
     </nav>
   );
 }
