@@ -2,19 +2,28 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import type { OutboundMessage } from "@/lib/server/delivery";
 import { demo } from "./helpers";
 import { newMember } from "./org-helpers";
 
 const dir = mkdtempSync(path.join(tmpdir(), "chartside-pv-"));
 
-beforeAll(() => {
+const mail: OutboundMessage[] = [];
+const lastCode = (to: string) => /\b(\d{6})\b/.exec(mail.filter((m) => m.to === to).at(-1)!.body)![1];
+
+beforeAll(async () => {
   process.env.CHARTSIDE_DB = path.join(dir, "t.db");
   process.env.CHARTSIDE_SECRET = "unit-test-secret";
   process.env.CHARTSIDE_ENGINE = "local";
   process.env.CHARTSIDE_PUBLIC_URL = "https://chartside.test";
+  (await import("@/lib/server/delivery")).setTransport(async (m) => {
+    mail.push(m);
+    return { status: "sent", transport: "test" };
+  });
 });
 
-afterAll(() => {
+afterAll(async () => {
+  (await import("@/lib/server/delivery")).setTransport(null);
   vi.unstubAllGlobals();
   rmSync(dir, { recursive: true, force: true });
 });
@@ -161,18 +170,46 @@ describe("clinician offer and claim", () => {
     expect(simMessages(to)).toHaveLength(1);
   });
 
-  it("makes the clinician verify, copies the draft into their stack, and the offer is single use", async () => {
+  it("keeps only a keyed hash and a sealed copy of the clinician's contact", async () => {
     const to = phone();
     const { v, pv } = await recorded("IL", { clinicianContact: to });
-    const { simMessages } = await import("@/lib/server/telephony/sms");
+    expect(v.clinician_contact_kind).toBe("sms");
+    expect(v.clinician_contact_hmac).toBe(pv.contactKey("sms", to));
+    expect(v.clinician_contact_sealed).toBeTruthy();
+    expect(JSON.stringify(v)).not.toContain(to.slice(2));
+  });
+
+  it("a text offer needs the code texted to that number, and a signed-in account", async () => {
+    const to = phone();
+    const { v, pv } = await recorded("IL", { clinicianContact: to });
+    const { simMessages, looksLikePhi } = await import("@/lib/server/telephony/sms");
     const tok = simMessages(to)[0].body.split("/visit/c/")[1];
     const info = await pv.offerInfo(tok);
-    expect(info).toMatchObject({ state: "open", clinicianName: "Dr. Avery Chen", npiAllowed: true });
+    expect(info).toMatchObject({ state: "open", mode: "sms", sentTo: `the number ending in ${to.slice(-4)}`, ready: false });
     expect(JSON.stringify(info)).not.toMatch(/Maria|diabetes/i);
+    const stranger = await newMember("Mallory Stranger");
+    await expect(pv.claimOffer(stranger, tok)).rejects.toThrow(/code we text/);
+    await expect(pv.claimWithNpi(tok, { npi: "1234567893", state: "IL" })).rejects.toThrow(/offered to a phone or email/);
+    await expect(pv.requestOfferEmailCode(tok, "mallory@evil.test")).rejects.toThrow(/offered by text/);
+    await pv.sendOfferTextCode(tok);
+    await expect(pv.sendOfferTextCode(tok)).rejects.toThrow(/Wait 30 seconds/);
+    const text = simMessages(to).at(-1)!.body;
+    expect(text).toMatch(/^Your Chartside code is \d{6}\. It expires in 10 minutes\./);
+    expect(looksLikePhi(text)).toBe(false);
+    const code = /(\d{6})/.exec(text)![1];
+    await expect(pv.checkOfferTextCode(tok, code === "000000" ? "111111" : "000000")).rejects.toThrow(/isn't right/);
+    const { cookie } = await pv.checkOfferTextCode(tok, code);
+    await expect(pv.checkOfferTextCode(tok, code)).rejects.toThrow(/expired/);
+    expect((await pv.offerInfo(tok, { cookie })).phoneConfirmed).toBe(true);
+    const otherPhone = phone();
+    await recorded("IL", { clinicianContact: otherPhone });
+    const otherTok = simMessages(otherPhone)[0].body.split("/visit/c/")[1];
+    await expect(pv.claimOffer(stranger, otherTok, { cookie })).rejects.toThrow(/code we text/);
     const { createGuest } = await import("@/lib/server/guest");
-    await expect(pv.claimOffer(await createGuest(), tok)).rejects.toThrow(/Confirm who you are/);
+    await expect(pv.claimOffer(await createGuest(), tok, { cookie })).rejects.toThrow(/Sign in/);
+    expect((await pv.offerInfo(tok, { cookie, user: stranger })).ready).toBe(true);
     const doc = await newMember("Dr. Avery Chen");
-    const r = await pv.claimOffer(doc, tok);
+    const r = await pv.claimOffer(doc, tok, { cookie });
     const { listDecisions } = await import("@/lib/server/decisions");
     const card = (await listDecisions(doc)).find((d) => d.encounterId === r.encounterId && d.kind === "note.sign")!;
     expect(card.title).toMatch(/from a patient's recording/);
@@ -182,9 +219,60 @@ describe("clinician offer and claim", () => {
     expect((await consents.latest(r.encounterId))!.method).toBe("clinician_tap_patient_device");
     expect((await utterances.list(r.encounterId)).length).toBe((await utterances.list(v.encounter_id!)).length);
     expect((await pv.offerInfo(tok)).state).toBe("missing");
-    await expect(pv.claimOffer(await newMember("Dr. Other"), tok)).rejects.toThrow(/offer has ended/);
+    await expect(pv.claimOffer(await newMember("Dr. Other"), tok, { cookie })).rejects.toThrow(/offer has ended/);
     const { get } = await import("@/lib/db");
     expect(await get("SELECT id FROM encounters WHERE id = ?", v.encounter_id)).toBeTruthy();
+    expect((await get<{ c: string | null }>("SELECT clinician_contact_sealed AS c FROM patient_visits WHERE id = ?", v.id))!.c).toBeNull();
+  });
+
+  it("locks a text code after five wrong tries", async () => {
+    const to = phone();
+    const { pv } = await recorded("IL", { clinicianContact: to });
+    const { simMessages } = await import("@/lib/server/telephony/sms");
+    const tok = simMessages(to)[0].body.split("/visit/c/")[1];
+    await pv.sendOfferTextCode(tok);
+    const code = /(\d{6})/.exec(simMessages(to).at(-1)!.body)![1];
+    const wrong = code === "000000" ? "111111" : "000000";
+    for (let i = 0; i < 4; i++) await expect(pv.checkOfferTextCode(tok, wrong)).rejects.toThrow(/isn't right/);
+    await expect(pv.checkOfferTextCode(tok, wrong)).rejects.toThrow(/Too many tries/);
+    await expect(pv.checkOfferTextCode(tok, code)).rejects.toThrow(/Too many tries/);
+  });
+
+  it("an email offer only sends a code to that email, and only that proven account can claim", async () => {
+    const email = `dr.chen.${Date.now()}@clinic.test`;
+    const { pv } = await recorded("IL", { clinicianContact: email.toUpperCase() });
+    const offer = mail.filter((m) => m.to === email && m.kind === "patient_visit_offer").at(-1)!;
+    expect(offer.body).not.toMatch(/Maria|diabetes/i);
+    const tok = /\/visit\/c\/(\S+)/.exec(offer.body)![1];
+    expect(await pv.offerInfo(tok)).toMatchObject({ mode: "email", sentTo: "d•••@clinic.test" });
+    const before = mail.length;
+    await expect(pv.requestOfferEmailCode(tok, "mallory@evil.test")).rejects.toThrow("That isn't the email this draft was offered to");
+    expect(mail.length).toBe(before);
+    const stranger = await newMember("Mallory Stranger");
+    await expect(pv.claimOffer(stranger, tok)).rejects.toThrow(/code we email/);
+    const m = await import("@/lib/server/magic");
+    await m.requestEmailSignIn(stranger.email);
+    await m.redeemMagic({ email: stranger.email, code: lastCode(stranger.email) }, null);
+    await expect(pv.claimOffer(stranger, tok)).rejects.toThrow(/code we email/);
+    const { users } = await import("@/lib/server/repo");
+    const squatter = await users.create({ email, name: "Squatter", passwordHash: "x", specialty: "Family Medicine" });
+    const { actorFor, orgs } = await import("@/lib/server/repo");
+    await orgs.create("Squat", squatter.id);
+    await expect(pv.claimOffer((await actorFor(squatter.id))!, tok)).rejects.toThrow(/code we email/);
+    await pv.requestOfferEmailCode(tok, ` ${email.toUpperCase()} `);
+    const code = lastCode(email);
+    const red = await m.redeemMagic({ email, code }, null);
+    expect(red.next).toBe(`/visit/c/${tok}`);
+    expect((await pv.offerInfo(tok, { user: red.user })).ready).toBe(true);
+    const r = await pv.claimOffer(red.user, tok);
+    expect(r.next).toMatch(/^\/go\/stack\?focus=enc_/);
+  });
+
+  it("asks the patient for the clinician's name before making a shareable link", async () => {
+    const { v, pv } = await recorded("IL", { clinicianName: "" });
+    await expect(pv.offerLink(v)).rejects.toThrow(/clinician's name/);
+    const { url } = await pv.offerLink(v, undefined, "Dr. Lee Park");
+    expect((await pv.offerInfo(url.split("/visit/c/")[1])).clinicianName).toBe("Dr. Lee Park");
   });
 
   it("expires offers after the window", async () => {
@@ -194,7 +282,7 @@ describe("clinician offer and claim", () => {
     const { run } = await import("@/lib/db");
     await run("UPDATE patient_visits SET offer_expires_at = ? WHERE id = ?", new Date(Date.now() - 1000).toISOString(), v.id);
     expect((await pv.offerInfo(tok)).state).toBe("expired");
-    await expect(pv.claimOffer(await newMember("Dr. Late"), tok)).rejects.toThrow(/ended/);
+    await expect(pv.claimWithNpi(tok, { npi: "1234567893", state: "IL" })).rejects.toThrow(/ended/);
   });
 
   it("lets the patient withdraw an offer", async () => {
@@ -228,6 +316,36 @@ describe("clinician offer and claim", () => {
     expect(pv.nameMatches("Dr. Avery Chen, MD", "Chen")).toBe(true);
     expect(pv.nameMatches("Dr. Cheng", "Chen")).toBe(false);
     expect(pv.nameMatches(null, "Chen")).toBe(false);
+  });
+
+  it("a link the patient shared needs a matching NPI for every claimant, per visit", async () => {
+    vi.stubGlobal("fetch", async (u: string) => {
+      const n = new URL(u).searchParams.get("number");
+      const people: Record<string, { first: string; last: string; state: string }> = { "1987654328": { first: "AVERY", last: "CHEN", state: "IL" }, "1765432103": { first: "DANA", last: "RUIZ", state: "IL" } };
+      const p = people[n ?? ""];
+      return new Response(JSON.stringify(p ? { result_count: 1, results: [{ number: n, enumeration_type: "NPI-1", basic: { first_name: p.first, last_name: p.last, credential: "MD" }, taxonomies: [{ desc: "Family Medicine", primary: true, state: p.state }], addresses: [{ address_purpose: "LOCATION", state: p.state }] }] } : { result_count: 0, results: [] }), { status: 200 });
+    });
+    try {
+      const a = await recorded();
+      const b = await recorded("IL", { clinicianName: "Dr. Dana Ruiz" });
+      const tokA = (await a.pv.offerLink(a.v)).url.split("/visit/c/")[1];
+      const tokB = (await b.pv.offerLink(b.v)).url.split("/visit/c/")[1];
+      expect(await a.pv.offerInfo(tokA)).toMatchObject({ mode: "npi", sentTo: null });
+      const doc = await newMember("Avery Chen");
+      await expect(a.pv.claimOffer(doc, tokA)).rejects.toThrow(/Confirm with your NPI/);
+      const r = await a.pv.claimWithNpi(tokA, { npi: "1987654328", state: "IL" });
+      expect(r.user.guestUntil).toBeTruthy();
+      expect(r.user.prefs.npi?.matched).toBe(true);
+      await expect(a.pv.claimOffer(r.user, tokB)).rejects.toThrow(/Confirm with your NPI/);
+      await expect(a.pv.claimWithNpi(tokB, { npi: "1987654328", state: "IL" }, r.user)).rejects.toThrow(/doesn't match the name/);
+      const ruiz = await newMember("Dana Ruiz");
+      await expect(a.pv.claimWithNpi(tokB, { npi: "1987654328", state: "IL" }, ruiz)).rejects.toThrow(/doesn't match the name/);
+      const mine = await a.pv.claimWithNpi(tokB, { npi: "1765432103", state: "IL" }, ruiz);
+      expect(mine.user.id).toBe(ruiz.id);
+      expect(mine.created).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 
