@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Browser, type Page } from "@playwright/test";
+import { mailCode } from "./helpers";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -42,6 +43,24 @@ async function signTop(page: Page) {
   await expect(page.getByTestId("stack-toast").or(force)).toBeVisible();
   if (await force.isVisible()) await force.click();
   await expect(page.getByTestId("stack-toast")).toContainText("Signed");
+}
+
+async function verifiedStranger(browser: Browser) {
+  const page = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  const email = `pv-stranger-${Date.now()}@elsewhere.test`;
+  await page.goto("/login");
+  expect((await page.request.post("/api/auth/magic", { data: { email } })).ok()).toBe(true);
+  expect((await page.request.post("/api/auth/magic/verify", { data: { email, code: await mailCode(page, email) } })).ok()).toBe(true);
+  return { page, email };
+}
+
+async function visitByApi(request: APIRequestContext, consent: Record<string, unknown>) {
+  const { token } = await (await request.post("/api/visit", { data: { patientName: "Lee", state: "CA" } })).json();
+  expect((await request.post(`/api/visit/${token}/consent`, { data: { decision: "granted", ...consent } })).ok()).toBe(true);
+  expect((await request.post(`/api/visit/${token}/audio?seq=0`, { headers: { "content-type": "audio/webm" }, data: Buffer.alloc(4000, 1) })).ok()).toBe(true);
+  expect((await request.post(`/api/visit/${token}/audio`, { headers: { "content-type": "application/json" }, data: { finish: true, durationS: 30 } })).ok()).toBe(true);
+  await expect.poll(async () => (await (await request.get(`/api/visit/${token}`)).json()).status, { timeout: 60000 }).toBe("ready");
+  return token as string;
 }
 
 test.describe.configure({ mode: "serial" });
@@ -96,17 +115,33 @@ test("a patient records with the clinician's OK, shares a recap, and the clinici
   expect(saved).toContain(`/visit/r/${token}`);
   expect(saved.replace(/https?:\/\/\S+/, "")).not.toMatch(PHI);
 
+  const stranger = await verifiedStranger(browser);
+  const offerToken = claimLink.split("/visit/c/")[1];
+  expect((await stranger.page.request.post(`/api/visit/offer/${offerToken}/claim`)).status()).toBe(403);
+  expect((await stranger.page.request.post(`/api/visit/offer/${offerToken}/email`, { data: { email: stranger.email } })).status()).toBe(422);
+
   const doc = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
   await doc.goto(claimLink);
   await expect(doc.getByTestId("offer-open")).toBeVisible();
   await expect(doc.getByTestId("offer-open")).not.toContainText(PHI);
+  await expect(doc.getByTestId("offer-sent-to")).toHaveText(`the number ending in ${doctorPhone.slice(-4)}`);
   a11y.push(...(await axe(doc, "offer")));
   expect((await doc.request.get(`/api/visit/${token}`)).status()).toBe(200);
+  await doc.getByTestId("offer-text-send").click();
+  await expect.poll(async () => (await texts(request, doctorPhone)).length).toBe(2);
+  const codeText = (await texts(request, doctorPhone))[1].body;
+  expect(codeText).toMatch(/^Your Chartside code is \d{6}\./);
+  await doc.getByTestId("offer-text-code").fill("000000" === /(\d{6})/.exec(codeText)![1] ? "111111" : "000000");
+  await doc.getByTestId("offer-text-verify").click();
+  await expect(doc.getByTestId("offer-error")).toContainText("That code isn't right");
+  await doc.getByTestId("offer-text-code").fill(/(\d{6})/.exec(codeText)![1]);
+  await doc.getByTestId("offer-text-verify").click();
+  await expect(doc.getByTestId("offer-text-confirmed")).toBeVisible();
+  a11y.push(...(await axe(doc, "offer text confirmed")));
   const email = `pv-doc-${Date.now()}@clinic.test`;
   await doc.getByTestId("offer-email").fill(email);
   await doc.getByTestId("offer-send").click();
-  await expect.poll(async () => (await mail(doc.request, email)).length).toBeGreaterThan(0);
-  await doc.getByTestId("offer-code").fill(/\b(\d{6})\b/.exec((await mail(doc.request, email)).at(-1)!.body)![1]);
+  await doc.getByTestId("offer-code").fill(await mailCode(doc, email));
   await doc.getByTestId("offer-verify").click();
   await doc.waitForURL(/\/go\/stack\?focus=enc_/);
   await expect(doc.getByTestId("stack-title")).toContainText("from a patient's recording");
@@ -174,11 +209,15 @@ test("in an all-party state everyone must agree, and a clinician can claim with 
 
   await page.getByTestId("pv-offer-create").click();
   const link = await page.getByTestId("pv-offer-url").inputValue();
+  await expect(page.getByTestId("pv-offer-link")).toContainText("license number (NPI)");
   expect(link).toMatch(/\/visit\/c\//);
 
   const doc = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
   await doc.goto(link);
-  await doc.getByTestId("offer-mode-npi").click();
+  await expect(doc.getByTestId("offer-by-npi")).toBeVisible();
+  await expect(doc.getByTestId("offer-clinician-name")).toHaveText("Dr. Priya Nair");
+  const stranger = await verifiedStranger(browser);
+  expect((await stranger.page.request.post(`/api/visit/offer/${link.split("/visit/c/")[1]}/claim`)).status()).toBe(403);
   await doc.getByTestId("offer-npi").fill("1234567893");
   await doc.getByTestId("offer-state").selectOption("IL");
   await doc.getByTestId("offer-npi-go").click();
@@ -195,4 +234,43 @@ test("in an all-party state everyone must agree, and a clinician can claim with 
 
   await page.reload();
   await expect(page.getByTestId("pv-offer-claimed")).toBeVisible();
+
+  const other = await visitByApi(page.request, { clinicianName: "Dr. Dana Ruiz" });
+  const otherLink = (await (await page.request.post(`/api/visit/${other}/offer`)).json()).url as string;
+  expect((await doc.request.post(`/api/visit/offer/${otherLink.split("/visit/c/")[1]}/claim`)).status()).toBe(403);
+  await doc.goto(otherLink);
+  await doc.getByTestId("offer-npi").fill("1555555550");
+  await doc.getByTestId("offer-state").selectOption("CA");
+  await doc.getByTestId("offer-npi-go").click();
+  await expect(doc.getByTestId("offer-error")).toContainText("doesn't match the name the patient entered");
+  expect((await (await doc.request.get(`/api/visit/offer/${otherLink.split("/visit/c/")[1]}`)).json()).state).toBe("open");
+});
+
+test("an email offer opens only for that email, after a code sent to it", async ({ page, browser, request }) => {
+  const doctorEmail = `pv-offer-${Date.now()}@clinic.test`;
+  const token = await visitByApi(request, { clinicianName: "Dr. Avery Chen", clinicianContact: doctorEmail });
+  await expect.poll(async () => (await request.get(`/api/visit/${token}`)).json().then((v) => v.offer.status), { timeout: 20000 }).toBe("sent");
+  const offerMail = (await mail(request, doctorEmail)).at(-1)!.body;
+  expect(offerMail.replace(/https?:\/\/\S+/, "")).not.toMatch(PHI);
+  const claimLink = /(http:\/\/\S+\/visit\/c\/\S+)/.exec(offerMail)![1];
+
+  const stranger = await verifiedStranger(browser);
+  await stranger.page.goto(claimLink);
+  await expect(stranger.page.getByTestId("offer-by-email")).toBeVisible();
+  await expect(stranger.page.getByTestId("offer-sent-to")).toHaveText("p•••@clinic.test");
+  await stranger.page.getByTestId("offer-email").fill(stranger.email);
+  await stranger.page.getByTestId("offer-send").click();
+  await expect(stranger.page.getByTestId("offer-error")).toContainText("That isn't the email this draft was offered to");
+  expect(await axe(stranger.page, "offer by email")).toEqual([]);
+  expect((await stranger.page.request.post(`/api/visit/offer/${claimLink.split("/visit/c/")[1]}/claim`)).status()).toBe(403);
+
+  await page.goto(claimLink);
+  await page.getByTestId("offer-email").fill(doctorEmail.toUpperCase());
+  await page.getByTestId("offer-send").click();
+  await expect.poll(async () => (await mail(request, doctorEmail)).length).toBe(2);
+  await page.getByTestId("offer-code").fill(/\b(\d{6})\b/.exec((await mail(request, doctorEmail)).at(-1)!.body)![1]);
+  await page.getByTestId("offer-verify").click();
+  await page.waitForURL(/\/go\/stack\?focus=enc_/);
+  await expect(page.getByTestId("stack-from-patient")).toHaveText("From a patient's recording");
+  expect((await (await request.get(`/api/visit/${token}`)).json()).offer.status).toBe("claimed");
 });

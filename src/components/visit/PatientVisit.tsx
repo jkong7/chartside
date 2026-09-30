@@ -94,6 +94,7 @@ function Consent({ token, v, onDone }: { token: string; v: View; onDone: (d: "gr
   const [step, setStep] = useState<"handoff" | "clinician">("handoff");
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
+  const [doctorName, setDoctorName] = useState("");
   const [others, setOthers] = useState(false);
   const [othersOk, setOthersOk] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -143,7 +144,7 @@ function Consent({ token, v, onDone }: { token: string; v: View; onDone: (d: "gr
         <input id="pv-cname" className="input text-base" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} placeholder="Dr. Lee" data-testid="pv-clinician-name" />
         <label className="label mt-3" htmlFor="pv-ccontact">Your mobile or email</label>
         <input id="pv-ccontact" className="input text-base" maxLength={200} value={contact} onChange={(e) => setContact(e.target.value)} placeholder="(312) 555-0142 or you@clinic.com" data-testid="pv-clinician-contact" />
-        <p className="mt-2 pb-1 text-xs text-ink-3">We&apos;ll send one message with a link, and nothing about the patient. You confirm who you are before you see the draft.</p>
+        <p className="mt-2 pb-1 text-xs text-ink-3">We&apos;ll send one message with a link, and nothing about the patient. Only this phone or email can open the draft: we send a code to it first.</p>
       </details>
       <div className="mt-5 grid grid-cols-2 gap-2">
         <button className="btn-outline py-3 text-base" disabled={busy} onClick={() => decide("declined")} data-testid="pv-decline">Not today</button>
@@ -181,6 +182,7 @@ function Ready({ token, v, reload }: { token: string; v: View; reload: () => Pro
   const [family, setFamily] = useState<string | null>(null);
   const [offer, setOffer] = useState<{ url: string; message: string } | null>(null);
   const [contact, setContact] = useState("");
+  const [doctorName, setDoctorName] = useState("");
   const [notes, setNotes] = useState(v.notes);
   const [notesSaved, setNotesSaved] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -278,7 +280,7 @@ function Ready({ token, v, reload }: { token: string; v: View; reload: () => Pro
               </div>
             ) : offer ? (
               <div className="mt-3 space-y-2" data-testid="pv-offer-link">
-                <p className="text-sm text-ink-2">Send this to your clinician&apos;s office. It has nothing about your health in it, and they confirm who they are before they see the draft.</p>
+                <p className="text-sm text-ink-2">Send this to your clinician&apos;s office. It has nothing about your health in it. Before they see the draft, they enter their license number (NPI), and it has to match the name you gave.</p>
                 <Copy text={offer.url} label="Link for your doctor" testid="pv-offer-url" />
                 <div className="flex flex-wrap gap-2">
                   {canShare && <button className="btn-primary" onClick={() => share(offer.url, offer.message)}>Share</button>}
@@ -288,7 +290,14 @@ function Ready({ token, v, reload }: { token: string; v: View; reload: () => Pro
             ) : (
               <>
                 <p className="mt-1 text-sm text-ink-3">Your clinician can get a free draft of their visit note from your recording. It saves them typing, and there&apos;s nothing about your health in the link.{v.offer.status === "withdrawn" ? " You took the last offer back." : ""}</p>
-                <button className="btn-outline mt-3" disabled={busy === "offer"} onClick={() => act("offer", async () => setOffer(await call<{ url: string; message: string }>(`/api/visit/${token}/offer`, "POST")))} data-testid="pv-offer-create">Get a link for my doctor</button>
+                {!v.clinicianName && (
+                  <div className="mt-3">
+                    <label className="label" htmlFor="pv-offer-name">Your clinician&apos;s name</label>
+                    <input id="pv-offer-name" className="input text-base" value={doctorName} onChange={(e) => setDoctorName(e.target.value)} placeholder="Dr. Jane Smith" autoComplete="off" data-testid="pv-offer-name" />
+                    <p className="mt-1 text-xs text-ink-3">Only someone whose license number matches this name can open the draft.</p>
+                  </div>
+                )}
+                <button className="btn-outline mt-3" disabled={busy === "offer" || (!v.clinicianName && doctorName.trim().length < 2)} onClick={() => act("offer", async () => { setOffer(await call<{ url: string; message: string }>(`/api/visit/${token}/offer`, "POST", v.clinicianName ? undefined : { clinicianName: doctorName })); await reload(); })} data-testid="pv-offer-create">Get a link for my doctor</button>
               </>
             )}
           </section>
