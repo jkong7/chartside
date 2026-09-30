@@ -137,3 +137,22 @@ describe("practice patient voice", () => {
     expect(spoken.length - before).toBe(2);
   });
 });
+
+describe("practice on the phone line", () => {
+  const claims = (phone: string) => ({ userId: "", orgId: "", phone, callSid: `CA${Date.now()}`, guest: false, sim: true, exp: Date.now() + 60_000 });
+
+  it("keeps an unverified caller's case off the account and texts nothing", async () => {
+    const { practiceLine } = await import("@/lib/server/telephony/practice");
+    const { simMessages } = await import("@/lib/server/telephony/sms");
+    const doc = await newMember("Dr. Spoofed");
+    const phone = `+1555${String(Date.now()).slice(-7)}`;
+    const line = practiceLine(claims(phone), doc);
+    await line.pick("1", false);
+    await line.ask("What brings you in today?");
+    const said = await line.finish("done");
+    expect(simMessages(phone)).toHaveLength(0);
+    expect(said).toContain("call back and enter your phone PIN");
+    const { all } = await import("@/lib/db");
+    expect(await all("SELECT id FROM practice_sessions WHERE user_id = ?", doc.id)).toHaveLength(0);
+  });
+});

@@ -109,6 +109,29 @@ describe("practice on the phone line", () => {
     expect(t.events.at(-1)).toBe("hangup");
   });
 
+  it("treats a PIN account as the owner only after the PIN is entered", async () => {
+    const owners: boolean[] = [];
+    const pick = async (_c: string, owner: boolean) => (owners.push(owner), "Chest pain. Go ahead and introduce yourself.");
+    const skipped = harness({ caller: { name: "Dr. Kong", guest: false, hasPin: true }, verifyPin: async (pin) => pin === "4321" }, { pick });
+    await skipped.call.start();
+    await skipped.call.onDigit("*");
+    await skipped.call.onDigit("7");
+    await skipped.call.onDigit("1");
+    const wrong = harness({ caller: { name: "Dr. Kong", guest: false, hasPin: true }, verifyPin: async (pin) => pin === "4321" }, { pick });
+    await wrong.call.start();
+    for (const d of ["1", "1", "1", "1", "#", "7", "1"]) await wrong.call.onDigit(d);
+    const verified = harness({ caller: { name: "Dr. Kong", guest: false, hasPin: true }, verifyPin: async (pin) => pin === "4321" }, { pick });
+    await verified.call.start();
+    for (const d of ["4", "3", "2", "1", "#", "7", "1"]) await verified.call.onDigit(d);
+    const noPin = harness({ caller: { name: "Dr. Kong", guest: false, hasPin: false } }, { pick });
+    await noPin.call.start();
+    for (const d of ["7", "1"]) await noPin.call.onDigit(d);
+    const guest = harness({}, { pick });
+    await guest.call.start();
+    for (const d of ["7", "1"]) await guest.call.onDigit(d);
+    expect(owners).toEqual([false, false, true, true, true]);
+  });
+
   it("finishes when the patient session reports time is up", async () => {
     const h = harness({}, { ask: async () => ({ reply: "", ended: true }) });
     await h.call.start();

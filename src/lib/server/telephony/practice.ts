@@ -10,7 +10,7 @@ export interface PracticeLine {
   menu: string;
   limitMs(): number;
   voice(): string | undefined;
-  pick(choice: string): Promise<string | null>;
+  pick(choice: string, owner: boolean): Promise<string | null>;
   ask(text: string): Promise<{ reply: string; ended: boolean }>;
   finish(reason: "done" | "time" | "hangup"): Promise<string>;
 }
@@ -34,19 +34,21 @@ export function pickCase(choice: string) {
 }
 
 export function practiceLine(claims: CallClaims, user: User): PracticeLine {
-  const device = newDevice();
-  const actor = { device, userId: user.guestUntil ? null : user.id };
+  const actor = { device: newDevice(), userId: null as string | null };
+  let owner = false;
   let session: PracticeSession | null = null;
   const token = randomBytes(18).toString("base64url");
   return {
     menu: PRACTICE_MENU,
     limitMs: () => (session?.timeLimitS ?? 720) * 1000,
     voice: () => (session ? patientVoice(practiceCase(session.caseId)!) : undefined),
-    pick: async (choice) => {
+    pick: async (choice, verified) => {
       const c = pickCase(choice);
       if (!c) return null;
+      owner = verified;
+      actor.userId = verified && !user.guestUntil ? user.id : null;
       session = await startPractice({ caseId: c.id, actor, channel: "phone", claimToken: token });
-      await audit.log(user, null, "phone.practice_started", { callSid: claims.callSid, caseId: c.id, sim: claims.sim });
+      await audit.log(user, null, "phone.practice_started", { callSid: claims.callSid, caseId: c.id, sim: claims.sim, owner });
       const who = c.patient.speaker ? `${c.patient.speaker.name}, the ${c.patient.speaker.relation} of ${c.patient.name}, who is 18 months old` : `${c.patient.name}, ${c.patient.age} years old`;
       return `${c.title}. You're in the ${c.door.setting.toLowerCase()} with ${who}. Take a history. To examine, name what you'd check, such as the heart or lungs. You have ${Math.round(session.timeLimitS / 60)} minutes. Say end encounter, or press 5, when you're done. Go ahead and introduce yourself.`;
     },
@@ -65,17 +67,20 @@ export function practiceLine(claims: CallClaims, user: User): PracticeLine {
       const g = s.grade!;
       const missed = g.missedRedFlags.length;
       const url = `${publicUrlBase()}/api/practice/open?s=${encodeURIComponent(s.id)}&k=${encodeURIComponent(token)}`;
+      const skip = !owner ? "unverified" : null;
       let texted = false;
-      try {
-        await sendText(claims.phone, `Chartside Practice: your practice case is scored. Write your note and see your scorecard: ${url}`, "practice_score");
-        texted = true;
-      } catch (err) {
-        console.error("practice text failed", err instanceof Error ? err.message : err);
+      if (!skip) {
+        try {
+          await sendText(claims.phone, `Chartside Practice: your practice case is scored. Write your note and see your scorecard: ${url}`, "practice_score");
+          texted = true;
+        } catch (err) {
+          console.error("practice text failed", err instanceof Error ? err.message : err);
+        }
       }
-      await audit.log(user, null, "phone.practice_ended", { callSid: claims.callSid, reason, texted, score: s.score });
+      await audit.log(user, null, "phone.practice_ended", { callSid: claims.callSid, reason, texted, skipped: skip, score: s.score });
       const head = reason === "time" ? "Time's up." : "Encounter over.";
       const flags = missed ? ` You missed ${missed} red flag${missed === 1 ? "" : "s"}, including ${g.missedRedFlags[0].label.toLowerCase()}.` : " You didn't miss any red flags.";
-      return `${head} You covered ${g.historyHits} of ${g.historyTotal} history items.${flags} ${texted ? "I'm texting you a link to write your note and see your full scorecard." : "Open Chartside Practice to see your scorecard."} Goodbye.`;
+      return `${head} You covered ${g.historyHits} of ${g.historyTotal} history items.${flags} ${texted ? "I'm texting you a link to write your note and see your full scorecard." : skip === "unverified" ? "To get your scorecard by text, call back and enter your phone PIN first." : "Open Chartside Practice to see your scorecard."} Goodbye.`;
     },
   };
 }
