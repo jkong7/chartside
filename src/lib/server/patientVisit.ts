@@ -8,6 +8,8 @@ import { textPdf } from "../pdf";
 import type { ConsentRecord } from "../types";
 import { deleteAudio } from "./audio";
 import { appendCapture, type CaptureInput } from "./capture";
+import { CaptureAuthError } from "./captureTokens";
+import { fail } from "./http";
 import { deliver } from "./delivery";
 import { claimNpi, lookupNpi } from "./growth";
 import { createGuest, purgeGuests } from "./guest";
@@ -432,4 +434,27 @@ export async function claimWithNpi(token: string, input: { npi?: unknown; state?
 
 export async function visitLoopClick(visitor: string | null) {
   await trackLoop({ loop: "patient_visit", kind: "click", visitor });
+}
+
+type Ctx<P> = { params: Promise<P> };
+
+export function visitError(err: unknown) {
+  if (err instanceof CaptureAuthError) return fail(err.message, err.status);
+  const message = err instanceof Error ? err.message : "Unexpected error";
+  const status = err instanceof Forbidden ? 403 : err instanceof Invalid ? (/already|isn't ready|being written/.test(message) ? 409 : 422) : /not found/i.test(message) ? 404 : 500;
+  if (status === 500) console.error(err);
+  return fail(status === 500 ? "Something went wrong. Try again in a minute." : message, status);
+}
+
+export function visitRoute(handler: (req: Request, v: VisitRow, token: string) => Promise<Response>) {
+  return async (req: Request, ctx: Ctx<{ token: string }>) => {
+    try {
+      const { token } = await ctx.params;
+      const v = await visitByToken(token);
+      if (!v) return fail("This visit link has expired or was deleted", 404);
+      return await handler(req, v, token);
+    } catch (err) {
+      return visitError(err);
+    }
+  };
 }
