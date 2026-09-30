@@ -221,8 +221,14 @@ A patient records their own visit on their phone. The clinician taps Agree on th
 | `HOSTNAME_BIND`, `PORT` | Where `server.ts` listens (default `0.0.0.0:3100`) |
 | `CHARTSIDE_PRACTICE_RATE` | Practice cases a visitor may start per IP per hour (default 30). Note grading allows twice this. See `docs/PRACTICE.md`. |
 | `CHARTSIDE_PRACTICE_TURN_RATE` | Practice questions and patient voice clips per IP per hour (default 600) |
-| `CHARTSIDE_PRACTICE_SPEECH_RATE` | Practice speech tokens per IP per hour (default 60) |
+| `CHARTSIDE_PRACTICE_SPEECH_RATE` | Practice speech tickets per IP per hour (default 60) |
+| `CHARTSIDE_PRACTICE_SPEECH_PER_SESSION` | Live speech tickets one practice case may use (default 3). Past it, the browser's own speech recognition takes over. |
+| `CHARTSIDE_PRACTICE_SPEECH_DAILY` | Live speech tickets across all visitors per day, counted in the database (default 2000) |
+| `CHARTSIDE_PRACTICE_VOICE_PER_SESSION` | New patient voice clips one practice case may synthesize (default 80). Replays come from the sealed cache. |
+| `CHARTSIDE_PRACTICE_VOICE_DAILY` | New patient voice clips across all visitors per day, counted in the database (default 20000) |
 | `CHARTSIDE_PRACTICE_LLM_DAILY` | Claude calls for practice patients and reference notes across all visitors per day (default 3000). Past the cap, the offline patient answers. |
+| `CHARTSIDE_PRACTICE_LLM_PER_SESSION` | Claude calls one practice case may make (default 60). Past it, the offline patient answers. |
+| `CHARTSIDE_PRACTICE_LINK_HOURS` | Hours a phone practice scorecard link stays valid (default 24). It opens once, on the first device. |
 | `CHARTSIDE_PRACTICE_VOICE_F` / `CHARTSIDE_PRACTICE_VOICE_M` | Aura voices for female and male practice patients (defaults `aura-2-luna-en` and `aura-2-arcas-en`) |
 | `CHARTSIDE_PRACTICE_LINE` | Set to `0` to turn off "press 7 to practice" on the phone line |
 
