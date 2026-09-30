@@ -27,7 +27,7 @@ function order(list: Decision[], focus: string | null) {
   return [...first, ...list.filter((d) => !hit(d))];
 }
 
-export default function Stack({ initial, user, focus, justClaimed = false, sample = false }: { initial: Decision[]; user: StackUser; focus: string | null; justClaimed?: boolean; sample?: boolean }) {
+export default function Stack({ initial, user, focus, justClaimed = false, sample = false, callerPhone = null }: { initial: Decision[]; user: StackUser; focus: string | null; justClaimed?: boolean; sample?: boolean; callerPhone?: string | null }) {
   const [nextTime, setNextTime] = useState(justClaimed && !user.guestUntil);
   const [cards, setCards] = useState(() => order(initial, focus));
   const [busy, setBusy] = useState(false);
@@ -134,12 +134,21 @@ export default function Stack({ initial, user, focus, justClaimed = false, sampl
         <div className="mx-auto flex max-w-xl items-center gap-3">
           <Logo />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold" data-testid="stack-count">{cards.length ? `${cards.length} to review` : "All caught up"}</p>
-            <p className="truncate text-xs text-ink-3">{done ? `${done} done this session · ` : ""}{counts["note.sign"] ? `${counts["note.sign"]} to sign` : "Nothing to sign"}</p>
+            {user.guestUntil ? (
+              <>
+                <p className="text-sm font-semibold" data-testid="stack-count">{cards.length > 1 ? "Your notes" : cards.length ? "Your note" : "All caught up"}</p>
+                <p className="truncate text-xs text-ink-3">Save it to keep it and sign it</p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold" data-testid="stack-count">{cards.length ? `${cards.length} to review` : "All caught up"}</p>
+                <p className="truncate text-xs text-ink-3">{done ? `${done} done this session · ` : ""}{counts["note.sign"] ? `${counts["note.sign"]} to sign` : "Nothing to sign"}</p>
+              </>
+            )}
           </div>
           <a className="text-sm font-medium text-brand" href={`/go/ask${top?.encounterId ? `?encounter=${top.encounterId}` : ""}`} data-testid="stack-ask">Ask</a>
           {!user.guestUntil && <a className="text-sm font-medium text-brand" href="/go/settings" data-testid="stack-settings">Settings</a>}
-          <a className="text-sm font-medium text-brand" href="/today">Full app</a>
+          {!user.guestUntil && <a className="text-sm font-medium text-brand" href="/today">Full app</a>}
         </div>
       </header>
       <div className="mx-auto max-w-xl space-y-4 px-4 pt-4">
@@ -151,7 +160,7 @@ export default function Stack({ initial, user, focus, justClaimed = false, sampl
           </p>
         )}
         {!user.guestUntil && <NotifyToggle />}
-        {!claimed && <ClaimBanner onClaimed={() => setClaimed(true)} />}
+        {!claimed && <ClaimBanner onClaimed={() => setClaimed(true)} callerPhone={callerPhone} />}
         {nextTime && <NextTimeCard hasPhone={!!user.phone} onClose={() => setNextTime(false)} />}
         {invite && <InviteCard referral={invite.referral} signed={invite.signed} onClose={() => setInvite(null)} />}
         {note && <p className={`rounded-lg px-3 py-2 text-sm ${note.tone === "ok" ? "bg-ok-50 text-ok" : "bg-rec-50 text-rec"}`} role="status" data-testid="stack-toast">{note.text}</p>}

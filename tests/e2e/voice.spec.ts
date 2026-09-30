@@ -334,6 +334,8 @@ test("a phone guest who saves their note is shown how to just call next time and
   await page.getByTestId("magic-go").click();
   await page.waitForURL(/\/go\/stack/);
   const email = `nexttime-${Date.now()}@chartside.test`;
+  await expect(page.getByTestId("claim-banner")).toHaveAttribute("data-via", "phone");
+  await page.getByTestId("claim-switch").click();
   await page.getByTestId("claim-email").fill(email);
   await page.getByTestId("claim-send").click();
   const mail = async () => (await (await request.get(`http://localhost:3295/messages?to=${encodeURIComponent(email)}`)).json()) as { body: string }[];
