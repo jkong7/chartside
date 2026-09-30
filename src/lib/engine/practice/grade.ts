@@ -164,7 +164,7 @@ export function buildFixes(c: PracticeCase, turns: Turn[], enc: EncounterGrade, 
   const lastStudent = st.at(-1) ?? null;
   const moment = firstExam ?? lastStudent;
   for (const i of enc.history.filter((h) => h.redFlag && !h.hit).sort((a, b) => b.weight - a.weight)) {
-    out.push({ kind: "red_flag", at: moment?.t ?? null, turnId: moment?.id ?? null, title: `Missed red flag: ${i.label.toLowerCase()}`, detail: `${moment ? `By ${clock(moment.t)} you had ${firstExam ? "moved on to the exam" : "finished"} without asking. ` : ""}Try: "${i.ask}"` });
+    out.push({ kind: "red_flag", at: moment?.t ?? null, turnId: moment?.id ?? null, title: `Missed red flag: ${i.label.toLowerCase()}`, detail: `${moment && moment.t >= 5 ? `By ${clock(moment.t)} you had ${firstExam ? "moved on to the exam" : "finished"} without asking. ` : ""}Try: "${i.ask}"` });
   }
   const who = firstName(c);
   for (let k = 0; k < turns.length; k++) {

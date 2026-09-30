@@ -128,6 +128,6 @@ describe("case picking", () => {
     expect(pickCase("the headache one")?.id).toBe("headache");
     expect(pickCase("number six")?.id).toBe("pediatric-fever");
     expect(pickCase("banana")).toBeNull();
-    expect(PRACTICE_MENU).toContain("Press 6 for fever in a toddler");
+    expect(PRACTICE_MENU).toContain("press 6 for fever in a toddler");
   });
 });

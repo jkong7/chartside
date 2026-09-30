@@ -73,8 +73,11 @@ export default function PracticeRoom({ card, challenge, resume, classCode, defau
   }, [phase]);
 
   useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
-  }, [turns.length, interim]);
+    const el = listRef.current;
+    if (!el) return;
+    const id = window.requestAnimationFrame(() => el.scrollTo({ top: el.scrollHeight }));
+    return () => window.cancelAnimationFrame(id);
+  }, [turns.length, interim, pending]);
 
   useEffect(
     () => () => {
@@ -307,7 +310,7 @@ export default function PracticeRoom({ card, challenge, resume, classCode, defau
   }
 
   const transcript = (
-    <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4" aria-live="polite" data-testid="practice-transcript">
+    <div ref={listRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4" aria-live="polite" data-testid="practice-transcript">
       <p className="mx-auto max-w-md rounded-lg bg-sunken px-3 py-2 text-center text-xs text-ink-3">{card.patient.affect}</p>
       {turns.map((t) => (
         <div key={t.id} id={`turn-${t.id}`} data-role={t.role} data-testid="practice-turn" className={t.role === "student" ? "flex justify-end" : "flex justify-start"}>
@@ -334,21 +337,21 @@ export default function PracticeRoom({ card, challenge, resume, classCode, defau
       <div className="mx-auto flex h-[calc(100dvh-4.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-none border-line bg-paper sm:h-[calc(100dvh-7rem)] sm:rounded-2xl sm:border" data-testid="practice-encounter">
         <div className="flex items-center justify-between gap-3 border-b border-line bg-surface px-4 py-2.5">
           <div className="min-w-0">
-            <p className="truncate font-semibold">{card.patient.name}, {card.patient.age}</p>
+            <p className="truncate font-semibold"><span className="sm:hidden">{card.patient.name.split(" ")[0]}</span><span className="hidden sm:inline">{card.patient.name}</span>, {card.patient.age}</p>
             <p className="truncate text-xs text-ink-3">{card.title} · {card.door.setting}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className={`rounded-full px-3 py-1 font-mono text-sm tabular-nums ${low ? "bg-rec-50 text-rec" : "bg-sunken text-ink"}`} role="timer" aria-label={`${clock(remaining)} left`} data-testid="practice-timer">{clock(remaining)}</span>
-            <button className="btn-outline px-3 py-1.5 text-sm" onClick={end} data-testid="practice-end">End encounter</button>
+            <button className="btn-outline px-3 py-1.5 text-sm" onClick={end} data-testid="practice-end">End<span className="hidden sm:inline">&nbsp;encounter</span></button>
           </div>
         </div>
         {transcript}
         <div className="border-t border-line bg-surface px-3 pb-3 pt-2">
           <details className="mb-2" open>
             <summary className="cursor-pointer select-none text-xs font-semibold uppercase tracking-wide text-ink-3">Examine</summary>
-            <div className="mt-2 flex flex-wrap gap-1.5">
+            <div className="-mx-3 mt-2 flex gap-1.5 overflow-x-auto px-3 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
               {card.exam.map((e) => (
-                <button key={e.key} className="rounded-full border border-line-strong bg-paper px-3 py-1 text-sm text-ink hover:border-brand hover:text-brand" onClick={() => send({ exam: e.key })} data-testid={`practice-exam-${e.key}`}>
+                <button key={e.key} className="shrink-0 whitespace-nowrap rounded-full border border-line-strong bg-paper px-3 py-1 text-sm text-ink hover:border-brand hover:text-brand" onClick={() => send({ exam: e.key })} data-testid={`practice-exam-${e.key}`}>
                   {e.label}
                 </button>
               ))}

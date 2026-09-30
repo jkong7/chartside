@@ -17,7 +17,7 @@ export interface PracticeLine {
 
 const SPOKEN = ["chest pain", "abdominal pain", "headache", "diabetes", "low mood", "fever", "back pain", "shortness of breath"];
 
-export const PRACTICE_MENU = `Practice mode. Every patient is fictional. Pick a case. ${CASES.map((c, i) => `Press ${i + 1} for ${c.title.toLowerCase()}`).join(", ")}.`;
+export const PRACTICE_MENU = `Practice mode. Every patient is fictional. Pick a case. ${CASES.map((c, i) => `${i ? "press" : "Press"} ${i + 1} for ${c.title.toLowerCase()}`).join(", ")}.`;
 
 function publicUrlBase() {
   return (process.env.CHARTSIDE_PUBLIC_URL || `http://localhost:${process.env.PORT || 3100}`).replace(/\/$/, "");
