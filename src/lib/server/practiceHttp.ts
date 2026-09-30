@@ -5,13 +5,25 @@ import { Forbidden, Invalid } from "./policy";
 import { newDevice, PRACTICE_COOKIE, validDevice, type Actor } from "./practice";
 import { clientIp, limited, tooMany } from "./ratelimit";
 
+async function setDevice() {
+  const device = newDevice();
+  (await cookies()).set(PRACTICE_COOKIE, device, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" && process.env.CHARTSIDE_INSECURE_COOKIES !== "1", path: "/", maxAge: 365 * 86400 });
+  return device;
+}
+
+export async function rotatePracticeDevice() {
+  await setDevice();
+}
+
+export async function clearPracticeDevice() {
+  const jar = await cookies();
+  if (jar.get(PRACTICE_COOKIE)) jar.delete(PRACTICE_COOKIE);
+}
+
 export async function practiceActor(create = false): Promise<Actor> {
   const jar = await cookies();
   let device = validDevice(jar.get(PRACTICE_COOKIE)?.value);
-  if (!device && create) {
-    device = newDevice();
-    jar.set(PRACTICE_COOKIE, device, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" && process.env.CHARTSIDE_INSECURE_COOKIES !== "1", path: "/", maxAge: 365 * 86400 });
-  }
+  if (!device && create) device = await setDevice();
   const user = await currentUser().catch(() => null);
   return { device, userId: user && !user.guestUntil ? user.id : null };
 }

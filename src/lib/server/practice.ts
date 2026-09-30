@@ -68,6 +68,7 @@ interface Row {
   presentation: string | null;
   challenge_of: string | null;
   claim_hash: string | null;
+  claim_expires_at: string | null;
   time_limit_s: number;
   student: number;
   engine: string;
@@ -148,7 +149,23 @@ export interface Actor {
 }
 
 export function owns(s: PracticeSession, a: Actor) {
-  return (!!a.device && s.device === a.device) || (!!a.userId && s.userId === a.userId);
+  if (s.userId) return !!a.userId && s.userId === a.userId;
+  return !!a.device && s.device === a.device;
+}
+
+export function envCount(name: string, fallback: number) {
+  const raw = process.env[name];
+  const v = Number(raw);
+  return raw && Number.isFinite(v) && v >= 0 ? v : fallback;
+}
+
+export async function spendSession(id: string, column: "speech_tokens" | "voice_clips" | "llm_calls", max: number) {
+  if (!(max > 0)) return false;
+  return (await run(`UPDATE practice_sessions SET ${column} = ${column} + 1 WHERE id = ? AND ${column} < ?`, id, max)).changes > 0;
+}
+
+export function claimHours() {
+  return envCount("CHARTSIDE_PRACTICE_LINK_HOURS", 24);
 }
 
 export async function getPractice(id: string) {
@@ -177,7 +194,7 @@ export async function startPractice(input: { caseId: string; actor: Actor; name?
   const id = uid("prs_");
   const ts = now();
   await run(
-    "INSERT INTO practice_sessions (id, case_id, device, user_id, name, cohort, channel, status, turns, challenge_of, claim_hash, time_limit_s, student, engine, started_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', '[]', ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO practice_sessions (id, case_id, device, user_id, name, cohort, channel, status, turns, challenge_of, claim_hash, claim_expires_at, time_limit_s, student, engine, started_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', '[]', ?, ?, ?, ?, ?, ?, ?, ?)",
     id,
     c.id,
     input.actor.device,
@@ -187,6 +204,7 @@ export async function startPractice(input: { caseId: string; actor: Actor; name?
     input.channel ?? "web",
     challenger && challenger.caseId === c.id ? challenger.id : null,
     input.claimToken ? sha(input.claimToken) : null,
+    input.claimToken ? new Date(Date.now() + claimHours() * 3600_000).toISOString() : null,
     minutes * 60,
     isStudentEmail(user?.email) ? 1 : 0,
     llmEnabled() ? "claude" : "local",
@@ -208,8 +226,14 @@ function persona(c: PracticeCase) {
   return `${who} Setting: ${c.door.setting}. How you come across: ${p.affect}\nIf asked an open question about why you came, say: "${p.opening}" If asked to say more, say: "${p.story}"`;
 }
 
+async function claudeBudget(id: string) {
+  if (!llmEnabled()) return false;
+  if (!(await spendSession(id, "llm_calls", envCount("CHARTSIDE_PRACTICE_LLM_PER_SESSION", 60)))) return false;
+  return !limited("practice-llm:all", Number(process.env.CHARTSIDE_PRACTICE_LLM_DAILY || 3000), 86400_000);
+}
+
 async function patientSays(c: PracticeCase, s: PracticeSession, text: string, offline: string) {
-  if (s.engine !== "claude" || !llmEnabled() || limited("practice-llm:all", Number(process.env.CHARTSIDE_PRACTICE_LLM_DAILY || 3000), 86400_000)) return { text: offline, engine: "local" as const };
+  if (s.engine !== "claude" || !(await claudeBudget(s.id))) return { text: offline, engine: "local" as const };
   try {
     const history = s.turns.filter((t) => t.role === "student" || t.role === "patient").map((t) => ({ role: t.role as "student" | "patient", text: t.text }));
     return { text: await playPatientWithClaude({ persona: persona(c), facts: c.facts, history, question: text }), engine: "claude" as const };
@@ -283,9 +307,9 @@ export async function endPractice(id: string, a: Actor) {
   return (await getPractice(id))!;
 }
 
-async function chartsideNote(c: PracticeCase, turns: Turn[]) {
+async function chartsideNote(id: string, c: PracticeCase, turns: Turn[]) {
   const local = referenceNote(c, turns);
-  if (!llmEnabled() || limited("practice-llm:all", Number(process.env.CHARTSIDE_PRACTICE_LLM_DAILY || 3000), 86400_000)) return { text: local.text, engine: "local" };
+  if (!(await claudeBudget(id))) return { text: local.text, engine: "local" };
   try {
     const note = await generateNoteWithClaude({ utterances: practiceUtterances(turns), patient: practicePatient(c), template: systemTemplate("soap")!, reason: c.title, visitType: "new", rules: [] });
     return { text: noteToText(note), engine: "claude" };
@@ -296,13 +320,15 @@ async function chartsideNote(c: PracticeCase, turns: Turn[]) {
 
 export async function submitNote(id: string, a: Actor, noteIn: unknown) {
   let s = await mine(id, a);
+  if (s.status === "graded") throw new Invalid("This case is already graded. Start the case again to try another note.");
   if (s.status === "active") s = await endPractice(id, a);
   const note = String(noteIn ?? "").slice(0, 8000);
   const c = practiceCase(s.caseId)!;
   const grade = scorecard(c, s.turns, note);
-  const ref = await chartsideNote(c, s.turns);
+  const ref = await chartsideNote(s.id, c, s.turns);
   const refScore = scorecard(c, s.turns, ref.text).note?.score ?? 0;
-  await save(s, { status: "graded", note, grade: JSON.stringify(grade), score: grade.overall, reference: JSON.stringify({ ...ref, score: refScore }), graded_at: now() });
+  const done = await run("UPDATE practice_sessions SET status = 'graded', note = ?, grade = ?, score = ?, reference = ?, graded_at = ? WHERE id = ? AND status <> 'graded'", note, JSON.stringify(grade), grade.overall, JSON.stringify({ ...ref, score: refScore }), now(), s.id);
+  if (done.changes === 0) throw new Invalid("This case is already graded. Start the case again to try another note.");
   await audit.log(null, null, "practice.graded", { id, score: grade.overall, noted: !!note.trim() });
   return (await getPractice(id))!;
 }
@@ -340,20 +366,26 @@ export async function claimPractice(a: Actor, userId: string) {
   return r.changes;
 }
 
-export async function openWithClaim(id: string, token: string, device: string) {
+export type OpenResult = { status: "opened"; session: PracticeSession } | { status: "used" | "expired" | "invalid"; session: null };
+
+export async function openWithClaim(id: string, token: string, device: string): Promise<OpenResult> {
   const s = await getPractice(id);
-  if (!s) return null;
-  const r = await get<{ claim_hash: string | null }>("SELECT claim_hash FROM practice_sessions WHERE id = ?", id);
-  const a = Buffer.from(sha(token ?? ""));
-  const b = Buffer.from(r?.claim_hash ?? "");
-  if (!r?.claim_hash || a.length !== b.length || !timingSafeEqual(a, b)) return null;
-  if (!s.userId) await run("UPDATE practice_sessions SET device = ? WHERE id = ?", device, id);
-  return s;
+  if (!s || !token) return { status: "invalid", session: null };
+  const r = await get<{ claim_hash: string | null; claim_expires_at: string | null }>("SELECT claim_hash, claim_expires_at FROM practice_sessions WHERE id = ?", id);
+  if (!r?.claim_hash) return s.device === device && !s.userId ? { status: "opened", session: s } : { status: s.channel === "phone" ? "used" : "invalid", session: null };
+  const a = Buffer.from(sha(token));
+  const b = Buffer.from(r.claim_hash);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return { status: "invalid", session: null };
+  if (!r.claim_expires_at || r.claim_expires_at < now()) return { status: "expired", session: null };
+  const bound = await run("UPDATE practice_sessions SET claim_hash = NULL, claim_expires_at = NULL, device = CASE WHEN user_id IS NULL THEN ? ELSE device END WHERE id = ? AND claim_hash = ? AND claim_expires_at > ?", device, id, r.claim_hash, now());
+  if (bound.changes === 0) return { status: "used", session: null };
+  await audit.log(null, null, "practice.link_opened", { id });
+  return { status: "opened", session: (await getPractice(id))! };
 }
 
 export async function historyFor(a: Actor) {
   if (!a.device && !a.userId) return [];
-  const rows = await all<Row>("SELECT * FROM practice_sessions WHERE (device = ? OR user_id = ?) ORDER BY created_at DESC LIMIT 30", a.device ?? "-", a.userId ?? "-");
+  const rows = await all<Row>("SELECT * FROM practice_sessions WHERE ((device = ? AND user_id IS NULL) OR user_id = ?) ORDER BY created_at DESC LIMIT 30", a.device ?? "-", a.userId ?? "-");
   return rows.map(toSession);
 }
 

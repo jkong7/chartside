@@ -61,7 +61,8 @@ export class Dictation {
       token = ((await r.json()) as { token: string }).token;
     }
     this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
-    const ws = new WebSocket(url, ["bearer", token]);
+    const target = url.startsWith("/") ? `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${url}` : url;
+    const ws = new WebSocket(target, ["bearer", token]);
     this.ws = ws;
     await new Promise<void>((resolve, reject) => {
       ws.onopen = () => resolve();

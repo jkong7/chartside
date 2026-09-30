@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import PracticeRoom, { type Resume } from "@/components/practice/PracticeRoom";
 import { doorCard, practiceCase } from "@/lib/engine/practice/cases";
 import { currentUser } from "@/lib/server/auth";
@@ -23,7 +23,10 @@ export default async function PracticeCasePage({ params, searchParams }: { param
   let resume: Resume | null = null;
   if (sp.s) {
     const s = await getPractice(sp.s);
-    if (s && s.caseId === c.id && owns(s, actor) && s.status !== "graded") resume = { id: s.id, status: s.status, turns: s.turns, timeLimitS: s.timeLimitS, elapsed: elapsed(s), note: s.note };
+    if (s && s.caseId === c.id && owns(s, actor)) {
+      if (s.status === "graded") redirect(`/practice/s/${s.id}`);
+      resume = { id: s.id, status: s.status, turns: s.turns, timeLimitS: s.timeLimitS, elapsed: elapsed(s), note: s.note };
+    }
   }
   const ch = sp.challenge ? await getPractice(sp.challenge) : null;
   const challenge = ch && ch.caseId === c.id && ch.score !== null ? { id: ch.id, name: ch.name || null, score: ch.score } : null;

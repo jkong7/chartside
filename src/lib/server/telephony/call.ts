@@ -171,7 +171,7 @@ export class ScribeCall {
   private async practiceTurn(raw: string) {
     const p = this.deps.practice!;
     if (this.practiceStage === "menu") {
-      const intro = await p.pick(raw).catch(() => null);
+      const intro = await p.pick(raw, this.deps.caller.guest || !this.deps.caller.hasPin || this.pinVerified).catch(() => null);
       if (!intro) return this.say(`${LINES.practiceAgain} ${p.menu}`);
       this.practiceStage = "encounter";
       this.practiceTimer = setTimeout(() => void this.practiceTimeUp(), p.limitMs());

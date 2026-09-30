@@ -110,14 +110,79 @@ describe("practice sessions", () => {
     await expect(p.leaderboard("x")).rejects.toThrow(/Class codes/);
   });
 
-  it("opens a phone session only with its claim token", async () => {
+  it("opens a phone session once, on the first device, before the link expires", async () => {
     const p = await P();
+    const { get, run } = await import("@/lib/db");
     const s = await p.startPractice({ caseId: "chest-pain", actor: { device: null, userId: null }, channel: "phone", claimToken: "secret-token-123" });
     const d = device();
-    expect(await p.openWithClaim(s.id, "wrong", d)).toBeNull();
-    expect((await p.openWithClaim(s.id, "secret-token-123", d))?.id).toBe(s.id);
+    expect((await p.openWithClaim(s.id, "wrong", d)).status).toBe("invalid");
+    const first = await p.openWithClaim(s.id, "secret-token-123", d);
+    expect(first.status).toBe("opened");
+    expect(first.session?.id).toBe(s.id);
     expect((await p.getPractice(s.id))!.device).toBe(d);
+    expect((await get<{ claim_hash: string | null }>("SELECT claim_hash FROM practice_sessions WHERE id = ?", s.id))!.claim_hash).toBeNull();
+    expect((await p.openWithClaim(s.id, "secret-token-123", d)).status).toBe("opened");
+    const other = device();
+    expect((await p.openWithClaim(s.id, "secret-token-123", other)).status).toBe("used");
+    expect((await p.getPractice(s.id))!.device).toBe(d);
+    const old = await p.startPractice({ caseId: "chest-pain", actor: { device: null, userId: null }, channel: "phone", claimToken: "old-token-456" });
+    const expires = (await get<{ claim_expires_at: string }>("SELECT claim_expires_at FROM practice_sessions WHERE id = ?", old.id))!.claim_expires_at;
+    expect(Date.parse(expires) - Date.now()).toBeGreaterThan(23 * 3600_000);
+    expect(Date.parse(expires) - Date.now()).toBeLessThanOrEqual(24 * 3600_000);
+    await run("UPDATE practice_sessions SET claim_expires_at = ? WHERE id = ?", new Date(Date.now() - 1000).toISOString(), old.id);
+    expect((await p.openWithClaim(old.id, "old-token-456", other)).status).toBe("expired");
+    expect((await p.getPractice(old.id))!.device).toBeNull();
+    const race = await p.startPractice({ caseId: "headache", actor: { device: null, userId: null }, channel: "phone", claimToken: "race-token-789" });
+    const both = await Promise.all([p.openWithClaim(race.id, "race-token-789", device()), p.openWithClaim(race.id, "race-token-789", device())]);
+    expect(both.map((r) => r.status).sort()).toEqual(["opened", "used"]);
     expect(await p.getPractice("../etc")).toBeNull();
+  });
+
+  it("stops the browser cookie from reading a session once it's saved to an account", async () => {
+    const p = await P();
+    const shared = device();
+    const alice = await newMember("Alice Shared");
+    const bob = await newMember("Bob Shared");
+    const s = await p.startPractice({ caseId: "chest-pain", actor: { device: shared, userId: null } });
+    expect(p.owns(s, { device: shared, userId: null })).toBe(true);
+    expect(await p.claimPractice({ device: shared, userId: alice.id }, alice.id)).toBe(1);
+    const claimed = (await p.getPractice(s.id))!;
+    expect(p.owns(claimed, { device: shared, userId: null })).toBe(false);
+    expect(p.owns(claimed, { device: shared, userId: bob.id })).toBe(false);
+    expect(p.owns(claimed, { device: null, userId: alice.id })).toBe(true);
+    await expect(p.askPatient(s.id, { device: shared, userId: null }, { text: "Hi" })).rejects.toThrow(/belongs to someone else/);
+    expect((await p.historyFor({ device: shared, userId: null })).map((x) => x.id)).not.toContain(s.id);
+    expect((await p.historyFor({ device: shared, userId: bob.id })).map((x) => x.id)).not.toContain(s.id);
+    expect((await p.historyFor({ device: null, userId: alice.id })).map((x) => x.id)).toContain(s.id);
+    expect(await p.claimPractice({ device: shared, userId: bob.id }, bob.id)).toBe(0);
+    expect((await p.getPractice(s.id))!.userId).toBe(alice.id);
+  });
+
+  it("grades a note once and refuses a resubmit after the reference note is shown", async () => {
+    const p = await P();
+    const me = { device: device(), userId: null };
+    const s = await p.startPractice({ caseId: "chest-pain", actor: me });
+    await p.askPatient(s.id, me, { text: "What brings you in today?" });
+    const graded = await p.submitNote(s.id, me, "Chest pressure. A: ACS.");
+    await expect(p.submitNote(s.id, me, graded.reference!.text)).rejects.toThrow(/already graded/);
+    const after = (await p.getPractice(s.id))!;
+    expect(after.note).toBe("Chest pressure. A: ACS.");
+    expect(after.score).toBe(graded.score);
+  });
+
+  it("keeps daily caps in the database and per-session counters atomic", async () => {
+    const p = await P();
+    const { spendDaily, resetLimits } = await import("@/lib/server/ratelimit");
+    const kind = `unit-${Date.now()}`;
+    expect(await spendDaily(kind, 2)).toBe(true);
+    expect(await spendDaily(kind, 2)).toBe(true);
+    resetLimits();
+    expect(await spendDaily(kind, 2)).toBe(false);
+    expect(await spendDaily(`${kind}-other`, 2)).toBe(true);
+    expect(await spendDaily(`${kind}-zero`, 0)).toBe(false);
+    const s = await p.startPractice({ caseId: "headache", actor: { device: device(), userId: null } });
+    const spent = await Promise.all(Array.from({ length: 5 }, () => p.spendSession(s.id, "voice_clips", 3)));
+    expect(spent.filter(Boolean)).toHaveLength(3);
   });
 
   it("cleans names and class codes", async () => {

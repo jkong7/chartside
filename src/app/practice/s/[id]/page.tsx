@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import AttendingMode from "@/components/practice/AttendingMode";
-import SaveProgress from "@/components/practice/SaveProgress";
+import SaveProgress, { SaveToAccount } from "@/components/practice/SaveProgress";
 import ScoreRing, { scoreTone } from "@/components/practice/ScoreRing";
 import ShareScore from "@/components/practice/ShareScore";
 import { Check, X } from "@/components/icons";
 import { practiceCase } from "@/lib/engine/practice/cases";
 import { clock, type ItemResult } from "@/lib/engine/practice/grade";
 import { currentUser } from "@/lib/server/auth";
-import { claimPractice, getPractice, owns, publicCard } from "@/lib/server/practice";
+import { getPractice, owns, publicCard } from "@/lib/server/practice";
 import { practiceActor } from "@/lib/server/practiceHttp";
 
 export const dynamic = "force-dynamic";
@@ -46,15 +46,12 @@ function Items({ title, items, owner }: { title: string; items: ItemResult[]; ow
 
 export default async function Scorecard({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  let s = await getPractice(id);
+  const s = await getPractice(id);
   if (!s || !s.grade) notFound();
   const actor = await practiceActor();
   const user = await currentUser().catch(() => null);
-  if (user && !user.guestUntil && actor.device && owns(s, actor) && !s.userId) {
-    await claimPractice(actor, user.id);
-    s = (await getPractice(id))!;
-  }
-  const owner = owns(s, { device: actor.device, userId: user && !user.guestUntil ? user.id : null });
+  const member = user && !user.guestUntil ? user : null;
+  const owner = owns(s, { device: actor.device, userId: member?.id ?? null });
   const c = practiceCase(s.caseId)!;
   const card = publicCard(s);
   const g = s.grade!;
@@ -202,8 +199,10 @@ export default async function Scorecard({ params }: { params: Promise<{ id: stri
 
           <AttendingMode id={s.id} questions={c.pimp.map((p) => p.q)} initial={s.presentation ? { text: s.presentation.text, seconds: s.presentation.seconds, grade: s.presentation.grade, pimp: s.presentation.pimp } : null} />
 
-          {user && !user.guestUntil ? (
-            <p className="text-center text-sm text-ink-3" data-testid="saved-as">Saved to your account ({user.email}).</p>
+          {member && s.userId === member.id ? (
+            <p className="text-center text-sm text-ink-3" data-testid="saved-as">Saved to your account ({member.email}).</p>
+          ) : member ? (
+            <SaveToAccount email={member.email} />
           ) : (
             <SaveProgress next={`/practice/s/${s.id}`} />
           )}

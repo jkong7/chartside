@@ -1,3 +1,5 @@
+import { run } from "../db";
+
 const buckets = new Map<string, { n: number; reset: number }>();
 
 export function clientIp(req: Request) {
@@ -24,4 +26,11 @@ export function tooMany() {
 
 export function resetLimits() {
   buckets.clear();
+}
+
+export async function spendDaily(kind: string, max: number) {
+  if (!(max > 0)) return false;
+  const day = new Date().toISOString().slice(0, 10);
+  const r = await run("INSERT INTO usage_daily (day, kind, n) VALUES (?, ?, 1) ON CONFLICT (day, kind) DO UPDATE SET n = usage_daily.n + 1 WHERE usage_daily.n < ?", day, kind.slice(0, 64), max);
+  return r.changes > 0;
 }

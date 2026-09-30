@@ -77,3 +77,30 @@ export default function SaveProgress({ next }: { next: string }) {
     </section>
   );
 }
+
+export function SaveToAccount({ email }: { email: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await post("/api/practice/claim", {});
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save to your account");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="rounded-xl border border-line bg-surface p-5" data-testid="save-to-account">
+      <h2 className="font-semibold">Save to my account</h2>
+      <p className="mt-1 text-sm text-ink-2">You&apos;re signed in as {email}. Save the practice cases from this browser to your account so you can see them on any device.</p>
+      <button type="button" className="btn-primary mt-3" disabled={busy} onClick={save} data-testid="save-to-account-button">{busy ? "Saving..." : "Save to my account"}</button>
+      {error && <p role="alert" className="mt-2 text-sm text-rec">{error}</p>}
+    </section>
+  );
+}

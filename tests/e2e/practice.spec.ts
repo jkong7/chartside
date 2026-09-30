@@ -1,10 +1,12 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { dial } from "./fake-twilio.mjs";
+import { register } from "./helpers";
 
 const MOCK_DG = process.env.MOCK_DG_URL ?? "http://localhost:3299";
 const MOCK_MAIL = process.env.MOCK_MAIL_URL ?? "http://localhost:3295";
 const spoken = async (request: APIRequestContext) => ((await (await request.get(`${MOCK_DG}/stats`)).json()) as { spoken: string[] }).spoken;
+const dgStats = async (request: APIRequestContext) => (await (await request.get(`${MOCK_DG}/stats`)).json()) as { grants: number; practiceProxied?: number; spoken: string[] };
 
 const NOTE = `S: 58M with 2 hours of chest pressure radiating to the left arm and jaw. Smoker.
 O: Heart tachycardic, regular rhythm, no murmur.
@@ -85,11 +87,13 @@ test("a student finds practice from the landing page, interviews by typing, exam
 test("a student interviews by voice with the fake mic and hears the patient, then dictates the note", async ({ page, request }) => {
   await startCase(page, "chest-pain");
   const before = ((await (await request.get(`${MOCK_DG}/stats`)).json()) as { practiceConnections?: number }).practiceConnections ?? 0;
+  const proxied = (await dgStats(request)).practiceProxied ?? 0;
   await page.getByTestId("practice-mic").click();
   await expect(page.locator("[data-role=student]").filter({ hasText: "What brings you in today?" })).toBeVisible({ timeout: 20_000 });
   await expect(page.locator("[data-role=patient]").filter({ hasText: "left arm" })).toBeVisible({ timeout: 20_000 });
   await expect(page.locator("[data-role=patient]").filter({ hasText: "pack a day" })).toBeVisible({ timeout: 20_000 });
   expect((((await (await request.get(`${MOCK_DG}/stats`)).json()) as { practiceConnections?: number }).practiceConnections ?? 0) - before).toBeGreaterThanOrEqual(1);
+  expect(((await dgStats(request)).practiceProxied ?? 0) - proxied).toBeGreaterThanOrEqual(1);
   await expect.poll(async () => (await spoken(request)).some((s) => s.includes("pack a day")), { timeout: 15_000 }).toBe(true);
   await page.getByTestId("practice-mic").click();
   await page.getByTestId("practice-ask-input").fill("end encounter");
@@ -227,6 +231,73 @@ test("guests can't play someone else's session and bad input is refused", async 
   expect(speak.headers()["content-type"]).toBe("audio/basic");
 });
 
+test("speech never hands out a Deepgram token and stops when the encounter ends", async ({ page, request }) => {
+  const s = (await (await page.request.post("/api/practice", { data: { caseId: "chest-pain" } })).json()) as { id: string };
+  const grants = (await dgStats(request)).grants;
+  const early = await page.request.post("/api/practice/speech", { data: { session: s.id, purpose: "note" } });
+  expect(early.status()).toBe(422);
+  const providers: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    const r = (await (await page.request.post("/api/practice/speech", { data: { session: s.id, purpose: "encounter" } })).json()) as { provider: string; url: string | null; token: string | null };
+    providers.push(r.provider);
+    if (r.provider === "deepgram") expect(r.url).toBe("/api/voice/practice");
+  }
+  expect(providers).toEqual(["deepgram", "deepgram", "deepgram", "browser"]);
+  expect((await dgStats(request)).grants).toBe(grants);
+  await page.request.post(`/api/practice/${s.id}/end`, { data: {} });
+  expect((await page.request.post("/api/practice/speech", { data: { session: s.id, purpose: "encounter" } })).status()).toBe(422);
+});
+
+test("each patient reply is voiced once, however often it is replayed", async ({ page, request }) => {
+  const s = (await (await page.request.post("/api/practice", { data: { caseId: "chest-pain" } })).json()) as { id: string };
+  const turn = (await (await page.request.post(`/api/practice/${s.id}/turn`, { data: { text: "Do you smoke?" } })).json()) as { added: { id: string; role: string; text: string }[] };
+  const reply = turn.added.find((t) => t.role === "patient")!;
+  const count = async () => (await spoken(request)).filter((x) => x === reply.text).length;
+  const n = await count();
+  for (let i = 0; i < 3; i++) expect((await page.request.get(`/api/practice/${s.id}/speak?turn=${reply.id}`)).status()).toBe(200);
+  expect((await count()) - n).toBe(1);
+});
+
+test("a graded note can't be resubmitted and the case opens on its scorecard", async ({ page }) => {
+  const s = (await (await page.request.post("/api/practice", { data: { caseId: "chest-pain" } })).json()) as { id: string };
+  expect((await page.request.post(`/api/practice/${s.id}/note`, { data: { note: "A: ACS." } })).ok()).toBe(true);
+  const again = await page.request.post(`/api/practice/${s.id}/note`, { data: { note: "Pasted reference note" } });
+  expect(again.status()).toBe(422);
+  expect(((await again.json()) as { error: string }).error).toMatch(/already graded/);
+  await page.goto(`/practice/chest-pain?s=${s.id}`);
+  await expect(page).toHaveURL(new RegExp(`/practice/s/${s.id}$`));
+  await expect(page.getByTestId("practice-note-step")).toHaveCount(0);
+});
+
+test("on a shared computer, saving is an explicit button and signing out locks the scorecard", async ({ page, baseURL }) => {
+  const s = await quickScore(page.request, "headache", ["What brings you in today?"]);
+  await register(page, "Alice Shared");
+  await page.goto(`/practice/s/${s.id}`);
+  await expect(page.getByTestId("scorecard")).toHaveAttribute("data-owner", "1");
+  await expect(page.getByTestId("save-to-account")).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId("save-to-account")).toBeVisible();
+  await expect(page.getByTestId("saved-as")).toHaveCount(0);
+  const cookie = async () => (await page.context().cookies()).find((c) => c.name === "cs_prac")?.value ?? null;
+  const before = await cookie();
+  expect(before).toBeTruthy();
+  await page.getByTestId("save-to-account-button").click();
+  await expect(page.getByTestId("saved-as")).toBeVisible();
+  const rotated = await cookie();
+  expect(rotated).toBeTruthy();
+  expect(rotated).not.toBe(before);
+  expect((await page.request.post("/api/auth/logout")).ok()).toBe(true);
+  expect(await cookie()).toBeNull();
+  await page.goto(`/practice/s/${s.id}`);
+  await expect(page.getByTestId("scorecard")).toHaveAttribute("data-owner", "0");
+  await expect(page.getByTestId("transcript")).toHaveCount(0);
+  await page.context().addCookies([{ name: "cs_prac", value: before!, url: baseURL! }]);
+  await page.reload();
+  await expect(page.getByTestId("scorecard")).toHaveAttribute("data-owner", "0");
+  expect((await page.request.get(`/api/practice/${s.id}`)).ok()).toBe(true);
+  expect(JSON.stringify(await (await page.request.get(`/api/practice/${s.id}`)).json())).not.toContain("What brings you in today?");
+});
+
 test("a student calls the line, presses 7, takes a history by voice, and gets a PHI-free scorecard text", async ({ page, request, baseURL }) => {
   const call = await dial({
     base: baseURL!,
@@ -267,8 +338,15 @@ test("a student calls the line, presses 7, takes a history by voice, and gets a 
   const body = texts.at(-1)!.body;
   expect(body).toMatch(/^Chartside Practice: your practice case is scored\. Write your note and see your scorecard: http:\/\/localhost:\d+\/api\/practice\/open\?s=prs_/);
   expect(body).not.toMatch(/chest|pain|Alvarez/i);
-  await page.goto(/(http:\/\/\S+)/.exec(body)![1]);
+  const link = /(http:\/\/\S+)/.exec(body)![1];
+  await page.goto(link);
   await expect(page).toHaveURL(/\/practice\/s\/prs_/);
+  await expect(page.getByTestId("scorecard")).toHaveAttribute("data-owner", "1");
+  const stranger = await (await page.context().browser()!.newContext()).newPage();
+  await stranger.goto(link);
+  await expect(stranger).toHaveURL(/\/practice\/link\?why=used$/);
+  await expect(stranger.getByRole("heading", { level: 1 })).toHaveText("This link was already opened on another device");
+  await page.goto(link);
   await expect(page.getByTestId("scorecard")).toHaveAttribute("data-owner", "1");
   await expect(page.getByTestId("scorecard")).toContainText("by phone");
   await expect(page.getByTestId("rubric-item").filter({ hasText: "Radiation to arm or jaw" })).toHaveAttribute("data-hit", "1");
