@@ -249,7 +249,7 @@ export interface ConsentRecord {
   id: string;
   encounterId: string;
   decision: "granted" | "declined";
-  method: "verbal" | "written" | "patient-device";
+  method: "verbal" | "written" | "patient-device" | "clinician_tap_patient_device";
   state: string;
   allParty: boolean;
   othersPresent: boolean;

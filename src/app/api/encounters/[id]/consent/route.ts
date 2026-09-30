@@ -16,6 +16,6 @@ export const POST = authed<{ id: string }>(async (req, user, { id }) => {
   if (b.decision === "granted" && ALL_PARTY_STATES.has(state) && b.othersPresent && !b.allPartiesConfirmed) {
     return fail(`${STATE_NAMES[state]} requires every person in the room to consent. Confirm all parties agreed.`, 422);
   }
-  const rec = await recordConsent(user, enc, { decision: b.decision, method: b.method ?? "verbal", state, othersPresent: !!b.othersPresent });
+  const rec = await recordConsent(user, enc, { decision: b.decision, method: b.method && ["verbal", "written", "patient-device"].includes(b.method) ? b.method : "verbal", state, othersPresent: !!b.othersPresent });
   return json({ consent: rec }, 201);
 });

@@ -47,11 +47,15 @@ export function consentScript(clinician: string, stateCode: string) {
   };
 }
 
-export async function recordConsent(user: User, enc: Encounter, input: { decision: "granted" | "declined"; method: ConsentRecord["method"]; state: string; othersPresent: boolean }) {
+export async function recordConsent(user: User, enc: Encounter, input: { decision: "granted" | "declined"; method: ConsentRecord["method"]; state: string; othersPresent: boolean; clinicianName?: string | null }) {
   const { allParty, stateName } = consentScript(user.name, input.state);
   const when = new Date().toISOString();
   const statement =
-    input.decision === "granted"
+    input.method === "clinician_tap_patient_device"
+      ? input.decision === "granted"
+        ? `The clinician${input.clinicianName ? ` (${input.clinicianName})` : ""} agreed, by tapping Agree on the patient's own phone at ${when}, to the patient recording this visit for their own notes. Visit location: ${stateName}${allParty ? " (all-party consent state" + (input.othersPresent ? "; everyone else in the room agreed" : "") + ")" : ""}.`
+        : `The clinician declined, on the patient's own phone at ${when}, to have this visit recorded. No audio was kept.`
+      : input.decision === "granted"
       ? `${input.method === "verbal" ? "Verbal" : input.method === "written" ? "Written" : "Patient-device"} consent for AI-assisted documentation was obtained by ${user.name} at ${when} using consent script ${CONSENT_SCRIPT_VERSION}. ${enc.setting === "telehealth" ? "Telehealth visit; patient located in" : "Visit location:"} ${stateName}${allParty ? " (all-party consent state" + (input.othersPresent ? "; all parties present consented" : "") + ")" : ""}.`
       : `Patient declined AI-assisted documentation at ${when}. No audio was captured; documentation will be completed manually.`;
   const digest = createHash("sha256").update(JSON.stringify({ enc: enc.id, user: user.id, ...input, statement, script: CONSENT_SCRIPT_VERSION })).digest("hex");
