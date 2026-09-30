@@ -101,3 +101,18 @@ describe("phone-level STOP", () => {
     expect(simMessages(phone)).toHaveLength(1);
   });
 });
+
+describe("text reply audit", () => {
+  it("logs the kind of command, never words from the text", async () => {
+    const { inboundText } = await import("@/lib/server/telephony/texting");
+    const magic = await import("@/lib/server/magic");
+    const all = await import("@/lib/db");
+    const doc = await newMember("Dr. Audit Words");
+    await magic.verifyPhone(doc.id, "+15550170020");
+    await inboundText("+15550170020", "Margaret has a fever", "https://line.test");
+    await inboundText("+15550170020", "status", "https://line.test");
+    const rows = await all.all<{ detail: string }>("SELECT detail FROM audit WHERE user_id = ? AND action = 'text.reply' ORDER BY ord", doc.id);
+    expect(rows.map((r) => JSON.parse(r.detail).command)).toEqual(["unknown", "status"]);
+    expect(rows.map((r) => r.detail).join(" ")).not.toMatch(/margaret/i);
+  });
+});

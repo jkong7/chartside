@@ -23,6 +23,8 @@ const KIND_WORDS: Record<string, [string, string]> = {
   proposal: ["suggested change", "suggested changes"],
 };
 
+type TextCommand = "always_off" | "upload" | "note" | "stop" | "start" | "help" | "link" | "schedule" | "brief" | "status" | "nudge" | "unknown";
+
 export function queueLine(counts: { total: number; urgent: number; byKind: Partial<Record<string, number>> }) {
   if (!counts.total) return "Nothing is waiting on you.";
   const parts = Object.entries(counts.byKind)
@@ -87,30 +89,30 @@ export async function inboundText(fromRaw: string, bodyRaw: string, origin: stri
     if (intent === "upload") return uploadLinkReply(null, origin, from);
     return `Chartside is an AI scribe you can call. Call this number before your next visit, set the phone down, and your note is texted to you when you hang up. Or text a voice memo here. First note free: ${origin}/line?src=text`;
   }
-  const say = async (text: string) => {
-    await audit.log(user, null, "text.reply", { command: body.split(/\s+/)[0]?.slice(0, 12) ?? "" });
+  const say = async (command: TextCommand, text: string) => {
+    await audit.log(user, null, "text.reply", { command });
     return text;
   };
   if (/^always (off|stop|no)$/.test(body)) {
     await users.update(user.id, { prefs: { ...user.prefs, memoStandingConsent: null } });
     await audit.log(user, null, "memo.standing_consent", { on: false });
-    return say("Standing consent is off. I'll ask you to confirm each memo again.");
+    return say("always_off", "Standing consent is off. I'll ask you to confirm each memo again.");
   }
-  if (intent === "upload") return say(await uploadLinkReply(user, origin, from));
-  if (intent === "note" && !user.guestUntil) return say(await dictateByText(user, from, "mms", bodyRaw));
+  if (intent === "upload") return say("upload", await uploadLinkReply(user, origin, from));
+  if (intent === "note" && !user.guestUntil) return say("note", await dictateByText(user, from, "mms", bodyRaw));
   if (/^(stop|stopall|unsubscribe|cancel|end|quit)$/.test(body)) {
     await users.update(user.id, { prefs: { ...user.prefs, textOptOut: true, clinicNudgeHour: null, morningBriefHour: null } });
-    return say("You won't get texts from Chartside. Reply START to turn them back on.");
+    return say("stop", "You won't get texts from Chartside. Reply START to turn them back on.");
   }
   if (/^(start|unstop|yes)$/.test(body)) {
     await users.update(user.id, { prefs: { ...user.prefs, textOptOut: false } });
-    return say("Texts are back on. Reply HELP for commands.");
+    return say("start", "Texts are back on. Reply HELP for commands.");
   }
-  if (/^(help|info|\?|commands)$/.test(body)) return say(HELP);
-  if (/^(link|stack|open|sign)$/.test(body)) return say(`Your notes to review: ${await link(user)}`);
+  if (/^(help|info|\?|commands)$/.test(body)) return say("help", HELP);
+  if (/^(link|stack|open|sign)$/.test(body)) return say("link", `Your notes to review: ${await link(user)}`);
   if (/^(schedule|today|day|my day)$/.test(body)) {
     const d = await dayLine(user);
-    return say(`Chartside: ${d.text}${d.count ? ` Call the line and enter your PIN to hear them, or open: ${(await mintLoginLink(user.id, "/today", 30)).url}` : ""}`);
+    return say("schedule", `Chartside: ${d.text}${d.count ? ` Call the line and enter your PIN to hear them, or open: ${(await mintLoginLink(user.id, "/today", 30)).url}` : ""}`);
   }
   if (/^(brief|morning)\b/.test(body)) {
     const m = /\b(\d{1,2})(?::\d{2})?\s*(am|pm)?\b/.exec(body);
@@ -118,11 +120,11 @@ export async function inboundText(fromRaw: string, bodyRaw: string, origin: stri
     if (m?.[2] === "pm" && hour < 12) hour += 12;
     hour = Math.min(11, Math.max(5, hour));
     await users.update(user.id, { prefs: { ...user.prefs, morningBriefHour: hour, textOptOut: false } });
-    return say(`Got it. On clinic days I'll text you a count of your visits at ${hour} AM. Reply STOP any time.`);
+    return say("brief", `Got it. On clinic days I'll text you a count of your visits at ${hour} AM. Reply STOP any time.`);
   }
   if (/^(status|queue|what'?s waiting|s)$/.test(body) || !body) {
     const c = await decisionCounts(user);
-    return say(`Chartside: ${queueLine(c)}${c.total ? ` Open: ${await link(user)}` : ""}`);
+    return say("status", `Chartside: ${queueLine(c)}${c.total ? ` Open: ${await link(user)}` : ""}`);
   }
   if (/^(nudge|remind)\b/.test(body)) {
     const m = /\b(\d{1,2})(?::\d{2})?\s*(am|pm|a\.m\.|p\.m\.)?(?!\s*(min|minute|hour|hr))\b/.exec(body);
@@ -134,9 +136,9 @@ export async function inboundText(fromRaw: string, bodyRaw: string, origin: stri
     }
     hour = Math.min(20, Math.max(12, hour));
     await users.update(user.id, { prefs: { ...user.prefs, clinicNudgeHour: hour, textOptOut: false } });
-    return say(`Got it. If anything is waiting, I'll text you at ${hour > 12 ? hour - 12 : hour}${hour >= 12 ? " PM" : " AM"}. Reply STOP any time.`);
+    return say("nudge", `Got it. If anything is waiting, I'll text you at ${hour > 12 ? hour - 12 : hour}${hour >= 12 ? " PM" : " AM"}. Reply STOP any time.`);
   }
-  return say(`I can't read or send patient details by text. ${HELP} Open what needs your review: ${await link(user)}`);
+  return say("unknown", `I can't read or send patient details by text. ${HELP} Open what needs your review: ${await link(user)}`);
 }
 
 export async function sendClinicNudges(at = new Date()) {
