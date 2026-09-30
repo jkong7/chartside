@@ -63,6 +63,7 @@ export interface UserPrefs {
   tz?: string;
   simpleNav?: boolean;
   demoSigned?: number;
+  styleMatchedAt?: string;
 }
 
 export const j = <T>(s: string | null | undefined, fallback: T): T => {

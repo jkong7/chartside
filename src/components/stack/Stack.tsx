@@ -6,6 +6,7 @@ import type { Decision, DecisionResult } from "@/lib/server/decisions";
 import { Alert, Check, Logo } from "../icons";
 import { Spinner } from "../ui";
 import ClaimBanner from "./ClaimBanner";
+import StyleMatch from "../StyleMatch";
 import InviteCard from "./InviteCard";
 import NextTimeCard from "./NextTimeCard";
 import LiveCallBanner from "@/components/ghost/LiveCallBanner";
@@ -27,7 +28,8 @@ function order(list: Decision[], focus: string | null) {
   return [...first, ...list.filter((d) => !hit(d))];
 }
 
-export default function Stack({ initial, user, focus, justClaimed = false, sample = false, callerPhone = null }: { initial: Decision[]; user: StackUser; focus: string | null; justClaimed?: boolean; sample?: boolean; callerPhone?: string | null }) {
+export default function Stack({ initial, user, focus, justClaimed = false, sample = false, callerPhone = null, styleMatched = true }: { initial: Decision[]; user: StackUser; focus: string | null; justClaimed?: boolean; sample?: boolean; callerPhone?: string | null; styleMatched?: boolean }) {
+  const [styleOffer, setStyleOffer] = useState(!styleMatched);
   const [nextTime, setNextTime] = useState(justClaimed && !user.guestUntil);
   const [cards, setCards] = useState(() => order(initial, focus));
   const [busy, setBusy] = useState(false);
@@ -226,6 +228,18 @@ export default function Stack({ initial, user, focus, justClaimed = false, sampl
               <a className="mt-3 block text-center text-sm text-brand" href={top.openUrl} data-testid="stack-open">Open in the full app</a>
             </article>
             <p className="mt-4 text-center text-xs text-ink-4">Swipe right to {approveSpec?.label.toLowerCase() ?? "open"}, left for later</p>
+            {styleOffer && top.kind === "note.sign" && top.encounterId && (
+              <div className="mt-4">
+                <StyleMatch
+                  key={top.encounterId}
+                  encounterId={top.encounterId}
+                  onClose={() => setStyleOffer(false)}
+                  onSaved={(_r, applied, after) => {
+                    if (applied) setCards((c) => c.map((d) => (d.encounterId === top.encounterId && d.kind === "note.sign" ? { ...d, detail: { ...d.detail, text: after } } : d)));
+                  }}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>

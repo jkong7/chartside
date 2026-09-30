@@ -17,5 +17,5 @@ export default async function StackPage({ searchParams }: { searchParams: Promis
   const sample = !!user.prefs.sampleDay;
   const raw = user.guestUntil ? await guestCallerPhone(user.id) : null;
   const callerPhone = raw ? (/^\+1555/.test(raw) ? "the browser phone" : raw.replace(/\d(?=\d{4})/g, "•")) : null;
-  return <Stack initial={decisions} user={publicUser(user)} focus={sp.focus ?? null} justClaimed={sp.claimed === "1"} sample={sample} callerPhone={callerPhone} />;
+  return <Stack initial={decisions} user={publicUser(user)} focus={sp.focus ?? null} justClaimed={sp.claimed === "1"} sample={sample} callerPhone={callerPhone} styleMatched={!!user.prefs.styleMatchedAt} />;
 }

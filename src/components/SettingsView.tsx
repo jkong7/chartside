@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
+import StyleMatch from "./StyleMatch";
 import type { StyleRule } from "@/lib/types";
 import { Plus, X } from "./icons";
 import SecurityCard from "./SecurityCard";
@@ -106,6 +107,9 @@ export default function SettingsView({ user, templates, rules: initialRules, eng
           ))}
           {!rules.length && <li className="py-3 text-sm text-ink-3">No rules yet.</li>}
         </ul>
+        <div className="mt-4 border-t border-line pt-4">
+          <StyleMatch onSaved={(saved) => setRules(saved)} />
+        </div>
         <form onSubmit={addRule} className="mt-4 flex flex-wrap items-end gap-2 border-t border-line pt-4">
           <div><label className="label" htmlFor="rkind">Rule</label><select id="rkind" className="input w-48" value={kind} onChange={(e) => setKind(e.target.value as StyleRule["kind"])}><option value="always_include">Always include line</option><option value="drop_phrase">Never include lines starting…</option><option value="max_words">Max words for section</option><option value="abbreviate">Use abbreviations</option></select></div>
           <div><label className="label" htmlFor="rsec">Section key</label><input id="rsec" name="section" className="input w-40" placeholder="assessment_plan" /></div>
