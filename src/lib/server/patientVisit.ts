@@ -7,8 +7,8 @@ import { llmEnabled, visitRecapWithClaude } from "../llm";
 import { textPdf } from "../pdf";
 import type { ConsentRecord } from "../types";
 import { keyedHash } from "../fhir/crypto";
-import { deleteAudio } from "./audio";
-import { appendCapture, type CaptureInput } from "./capture";
+import { deleteAudio, removeAudioFiles } from "./audio";
+import { appendCapture, withEncounterLock, type CaptureInput } from "./capture";
 import { CaptureAuthError } from "./captureTokens";
 import { fail } from "./http";
 import { deliver } from "./delivery";
@@ -28,6 +28,7 @@ export const PATIENT_LABEL = "From a patient's recording";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const sha = (s: string) => createHash("sha256").update(`pv:${s}`).digest("hex");
+export const contactTag = (s: string) => keyedHash("pv-audit-contact", s).slice(0, 32);
 const newToken = () => randomBytes(24).toString("base64url");
 const days = (name: string, fallback: number) => {
   const n = Number(process.env[name] ?? fallback);
@@ -276,7 +277,7 @@ export async function visitPdf(v: VisitRow) {
 export async function saveVisit(v: VisitRow, contactRaw: unknown, token: string, origin?: string) {
   const c = parseContact(contactRaw);
   const to = c.phone ?? c.email!;
-  const sentToday = Number((await get<{ n: number }>("SELECT COUNT(*) AS n FROM audit WHERE action = 'patient_visit.saved' AND detail LIKE ? AND created_at > ?", `%"to":"${sha(to).slice(0, 16)}"%`, new Date(Date.now() - 86400000).toISOString()))?.n ?? 0);
+  const sentToday = Number((await get<{ n: number }>("SELECT COUNT(*) AS n FROM audit WHERE action = 'patient_visit.saved' AND detail LIKE ? AND created_at > ?", `%"to":"${contactTag(to)}"%`, new Date(Date.now() - 86400000).toISOString()))?.n ?? 0);
   if (sentToday >= 5) throw new Invalid("Too many links sent to that contact today. Try again tomorrow.");
   const url = `${publicOrigin(origin)}/visit/r/${token}`;
   const until = new Date(Math.max(Date.parse(v.expires_at), Date.parse(inDays(savedDays())))).toISOString();
@@ -291,20 +292,24 @@ export async function saveVisit(v: VisitRow, contactRaw: unknown, token: string,
     await run("UPDATE patient_visits SET saved_at = ?, saved_contact = ?, expires_at = ? WHERE id = ?", now(), masked, until, v.id);
     await run("UPDATE users SET guest_expires_at = ? WHERE id = ?", until, v.holder_id);
   });
-  await audit.log({ id: v.holder_id, orgId: null }, null, "patient_visit.saved", { visitId: v.id, to: sha(to).slice(0, 16), channel: c.phone ? "sms" : "email", until });
+  await audit.log({ id: v.holder_id, orgId: null }, null, "patient_visit.saved", { visitId: v.id, to: contactTag(to), channel: c.phone ? "sms" : "email", until });
   return { contact: masked, expiresAt: until };
 }
 
 export async function deleteVisit(v: VisitRow) {
-  const holder = await actorFor(v.holder_id);
-  if (v.encounter_id) await deleteAudio(holder ?? null, v.encounter_id, "patient deleted their visit");
-  const orgIds = (await all<{ org_id: string }>("SELECT org_id FROM memberships WHERE user_id = ? AND role = 'owner'", v.holder_id)).map((r) => r.org_id);
-  await tx(async () => {
-    await run("DELETE FROM patient_visits WHERE id = ?", v.id);
-    await run("DELETE FROM encounters WHERE user_id = ?", v.holder_id);
-    for (const o of orgIds) await run("DELETE FROM organizations WHERE id = ?", o);
-    await run("DELETE FROM users WHERE id = ?", v.holder_id);
-  });
+  const wipe = async () => {
+    const holder = await actorFor(v.holder_id);
+    if (v.encounter_id) await deleteAudio(holder ?? null, v.encounter_id, "patient deleted their visit");
+    const orgIds = (await all<{ org_id: string }>("SELECT org_id FROM memberships WHERE user_id = ? AND role = 'owner'", v.holder_id)).map((r) => r.org_id);
+    await tx(async () => {
+      await run("DELETE FROM patient_visits WHERE id = ?", v.id);
+      await run("DELETE FROM encounters WHERE user_id = ?", v.holder_id);
+      for (const o of orgIds) await run("DELETE FROM organizations WHERE id = ?", o);
+      await run("DELETE FROM users WHERE id = ?", v.holder_id);
+    });
+    if (v.encounter_id) removeAudioFiles(v.encounter_id);
+  };
+  await (v.encounter_id ? withEncounterLock(v.encounter_id, wipe) : wipe());
   await audit.log(null, null, "patient_visit.deleted", { visitId: v.id, offerClaimed: !!v.claimed_at });
   return { deleted: true, clinicianCopy: !!v.claimed_at };
 }
@@ -325,7 +330,7 @@ export async function sendOffer(v: VisitRow, origin?: string) {
   if (!to || v.status !== "ready") return null;
   const claim = await run("UPDATE patient_visits SET offer_status = 'sending' WHERE id = ? AND offer_status = 'pending'", v.id);
   if (!claim.changes) return null;
-  const perDay = Number((await get<{ n: number }>("SELECT COUNT(*) AS n FROM audit WHERE action = 'patient_visit.offer_sent' AND detail LIKE ? AND created_at > ?", `%"to":"${sha(to).slice(0, 16)}"%`, new Date(Date.now() - 86400000).toISOString()))?.n ?? 0);
+  const perDay = Number((await get<{ n: number }>("SELECT COUNT(*) AS n FROM audit WHERE action = 'patient_visit.offer_sent' AND detail LIKE ? AND created_at > ?", `%"to":"${contactTag(to)}"%`, new Date(Date.now() - 86400000).toISOString()))?.n ?? 0);
   if (perDay >= days("CHARTSIDE_VISIT_OFFERS_PER_CONTACT", 5)) {
     await run("UPDATE patient_visits SET offer_status = NULL WHERE id = ?", v.id);
     await audit.log({ id: v.holder_id, orgId: null }, null, "patient_visit.offer_limited", { visitId: v.id });
@@ -347,7 +352,7 @@ export async function sendOffer(v: VisitRow, origin?: string) {
     return null;
   }
   await run("UPDATE patient_visits SET offer_status = 'sent', offer_channel = ?, offer_sent_at = ?, clinician_phone = NULL, clinician_email = NULL WHERE id = ?", channel, now(), v.id);
-  await audit.log({ id: v.holder_id, orgId: null }, null, "patient_visit.offer_sent", { visitId: v.id, channel: v.clinician_phone ? "sms" : "email", to: sha(to).slice(0, 16) });
+  await audit.log({ id: v.holder_id, orgId: null }, null, "patient_visit.offer_sent", { visitId: v.id, channel: v.clinician_phone ? "sms" : "email", to: contactTag(to) });
   await trackLoop({ loop: "patient_visit", kind: "exposure" });
   return { channel };
 }

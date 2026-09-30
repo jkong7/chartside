@@ -83,6 +83,10 @@ export async function recording(encId: string) {
   return { buffer, mime: chunks[0].mime, chunks: chunks.length, bytes: buffer.length, durationMs: lastMs };
 }
 
+export function removeAudioFiles(encId: string) {
+  rmSync(audioDir(encId), { recursive: true, force: true });
+}
+
 export async function deleteAudio(actor: User | null, encId: string, reason: string) {
   const had = (await audioChunks.list(encId)).length;
   if (!had) return false;

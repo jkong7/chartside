@@ -84,7 +84,7 @@ const cleanCid = (v: string | undefined) => (v && /^[A-Za-z0-9-]{8,64}$/.test(v)
 const g = globalThis as unknown as { __chartsideCaptureLocks?: Map<string, Promise<unknown>> };
 const locks = (g.__chartsideCaptureLocks ??= new Map<string, Promise<unknown>>());
 
-export async function serialized<T>(key: string, fn: () => Promise<T>): Promise<T> {
+async function serialized<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const prev = locks.get(key) ?? Promise.resolve();
   const run = prev.catch(() => undefined).then(fn);
   const tail = run.catch(() => undefined);
@@ -313,6 +313,10 @@ async function reachable(auth: CaptureAuth, encId: string) {
   if (auth.tokenId && origin.tokenId !== auth.tokenId) throw new Error("Capture not found");
   if (auth.tokenId && enc.userId !== auth.user.id) throw new Error("Capture not found");
   return { enc, origin };
+}
+
+export function withEncounterLock<T>(encId: string, fn: () => Promise<T>) {
+  return serialized(`enc:${encId}`, fn);
 }
 
 export async function appendCapture(auth: CaptureAuth, encId: string, input: CaptureInput) {

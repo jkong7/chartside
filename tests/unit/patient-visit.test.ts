@@ -272,3 +272,35 @@ describe("abuse limits", () => {
     }
   });
 });
+
+describe("delete and audit hardening", () => {
+  it("waits for an upload in flight before deleting, and leaves no audio files behind", async () => {
+    const pv = await import("@/lib/server/patientVisit");
+    const { dataDir, get } = await import("@/lib/db");
+    const { existsSync } = await import("node:fs");
+    const { token } = await pv.createVisit({ state: "IL" });
+    await pv.recordVisitConsent((await pv.visitByToken(token))!, { decision: "granted" });
+    const v = (await pv.visitByToken(token))!;
+    await pv.appendVisitAudio(v, { audio: Buffer.alloc(1500, 1), mime: "audio/webm", opts: { seq: "0" } });
+    const racing = [1, 2, 3, 4].map((n) => pv.appendVisitAudio(v, { audio: Buffer.alloc(1500, n), mime: "audio/webm", opts: { seq: String(n) } }).then(() => "stored", () => "refused"));
+    await pv.deleteVisit(v);
+    const after = await Promise.all(racing);
+    expect(await pv.appendVisitAudio(v, { audio: Buffer.alloc(1500, 9), mime: "audio/webm", opts: { seq: "9" } }).then(() => "stored", () => "refused")).toBe("refused");
+    expect(after.every((r) => r === "stored" || r === "refused")).toBe(true);
+    expect(existsSync(path.join(dataDir(), "audio", v.encounter_id!))).toBe(false);
+    expect(await get("SELECT encounter_id FROM audio_chunks WHERE encounter_id = ?", v.encounter_id)).toBeUndefined();
+  });
+
+  it("hashes contacts in the audit log with the server key, not a bare hash", async () => {
+    const { v, pv, token } = await recorded();
+    const to = phone();
+    await pv.saveVisit(v, to, token);
+    const { get } = await import("@/lib/db");
+    const { createHash } = await import("node:crypto");
+    const row = (await get<{ detail: string }>("SELECT detail FROM audit WHERE action = 'patient_visit.saved' AND detail LIKE ?", `%${v.id}%`))!;
+    const tag = JSON.parse(row.detail).to as string;
+    expect(tag).toBe(pv.contactTag(to));
+    expect(tag).not.toBe(createHash("sha256").update(`pv:${to}`).digest("hex").slice(0, 16));
+    expect(row.detail).not.toContain(to);
+  });
+});
