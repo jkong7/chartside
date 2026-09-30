@@ -159,6 +159,8 @@ O:
   await page.goto("/settings");
   await expect(page.getByTestId("style-rules")).toContainText("Put sections in your order");
   await expect(page.getByTestId("style-rules")).toContainText('Call Subjective "S"');
+  await page.goto("/today");
+  await expect(page.getByTestId("onboarding-item").filter({ hasText: "Make the note yours" })).toHaveAttribute("data-done", "true");
 });
 
 test("the simple nav opens up after three signed notes, and the survey waits for five", async ({ page }) => {
