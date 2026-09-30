@@ -183,7 +183,7 @@ describe("text a voice memo to the line", () => {
     await clinician("Dr. Big Bo", "+15550140006");
     const big = addMedia({ bytes: 3 * 1024 * 1024 });
     const reply = await inboundSms(mms("+15550140006", [big]), "https://line.test");
-    expect(reply).toMatch(/over 2 MB\. Too big to text\? Upload it here\. The link works once, for 30 minutes: https:\/\/line\.test\/m\//);
+    expect(reply).toMatch(/over 2 MB\. Too big to text\? Upload it here\. The link works once, for 30 minutes: https:\/\/line\.test\/go\/upload#t=cs_cap_[\w-]+&c=patient$/);
     expect(log.deletes).toContain(big.sid);
   });
 

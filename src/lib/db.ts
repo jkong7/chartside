@@ -919,6 +919,8 @@ const LEGACY_COLUMNS: [string, string, string][] = [
   ["users", "referred_by", "TEXT"],
   ["users", "acq_loop", "TEXT"],
   ["capture_tokens", "device", "INTEGER NOT NULL DEFAULT 0"],
+  ["capture_tokens", "single_use", "INTEGER NOT NULL DEFAULT 0"],
+  ["capture_tokens", "used_at", "TEXT"],
   ["users", "acq_inviter", "TEXT"],
   ["users", "phone_pin_failures", "INTEGER NOT NULL DEFAULT 0"],
   ["users", "phone_pin_locked_until", "TEXT"],

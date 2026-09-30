@@ -1,15 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-export default function MemoUpload({ client }: { client: "patient" | "client" }) {
+export default function MemoUpload({ client: signedInClient, signedIn }: { client: "patient" | "client"; signedIn: boolean }) {
   const file = useRef<HTMLInputElement>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [client, setClient] = useState(signedInClient);
+  const [checked, setChecked] = useState(false);
   const [picked, setPicked] = useState<File | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [phase, setPhase] = useState<"pick" | "sending" | "drafting" | "ready" | "failed">("pick");
   const [enc, setEnc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const h = new URLSearchParams(window.location.hash.slice(1));
+    const t = h.get("t");
+    if (t && /^cs_cap_[\w-]{32,}$/.test(t)) {
+      setToken(t);
+      if (h.get("c") === "client" || h.get("c") === "patient") setClient(h.get("c") as "client" | "patient");
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+    setChecked(true);
+  }, []);
+
+  const headers: HeadersInit | undefined = token ? { authorization: `Bearer ${token}` } : undefined;
 
   const send = async () => {
     if (!picked || !agreed) return;
@@ -19,7 +35,7 @@ export default function MemoUpload({ client }: { client: "patient" | "client" })
     form.set("audio", picked, picked.name);
     form.set("consent", "granted");
     form.set("channel", "upload-link");
-    const r = await fetch("/api/capture", { method: "POST", body: form }).catch(() => null);
+    const r = await fetch("/api/capture", { method: "POST", body: form, headers }).catch(() => null);
     const j = r ? await r.json().catch(() => ({})) : {};
     if (!r?.ok) {
       setError(j.error || "Upload failed. Check your connection and try again.");
@@ -29,7 +45,7 @@ export default function MemoUpload({ client }: { client: "patient" | "client" })
     setEnc(j.encounterId);
     setPhase("drafting");
     for (let i = 0; i < 200; i++) {
-      const s = await (await fetch(`/api/capture/${j.encounterId}`)).json().catch(() => ({}));
+      const s = await (await fetch(`/api/capture/${j.encounterId}`, { headers })).json().catch(() => ({}));
       if (s.status === "ready" || s.status === "signed") return setPhase("ready");
       if (s.status === "failed") {
         setError(s.error || "We couldn't write the note");
@@ -38,6 +54,17 @@ export default function MemoUpload({ client }: { client: "patient" | "client" })
       await new Promise((res) => setTimeout(res, 1500));
     }
   };
+
+  if (checked && !token && !signedIn) {
+    return (
+      <div className="card mx-auto w-full max-w-md p-6" data-testid="memo-upload-invalid">
+        <p className="label">Upload a recording</p>
+        <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">This upload link has expired.</h1>
+        <p className="mt-2 text-sm text-ink-2">Upload links work once. Text UPLOAD to the Chartside line for a new one, or sign in to upload.</p>
+        <Link href="/login?next=%2Fgo%2Fupload" className="btn-primary mt-5 w-full py-3 text-base">Sign in</Link>
+      </div>
+    );
+  }
 
   return (
     <div className="card mx-auto w-full max-w-md p-6" data-testid="memo-upload" data-phase={phase}>
@@ -67,7 +94,10 @@ export default function MemoUpload({ client }: { client: "patient" | "client" })
       )}
       {phase === "sending" && <p className="mt-5 text-ink">Uploading…</p>}
       {phase === "drafting" && <p className="mt-5 text-ink">Writing your note…</p>}
-      {phase === "ready" && enc && (
+      {phase === "ready" && enc && token && (
+        <p className="mt-5 rounded-lg bg-ok-50 p-3 text-sm text-ok" role="status" data-testid="memo-done">Your note is written. We texted you a link to review and sign it.</p>
+      )}
+      {phase === "ready" && enc && !token && (
         <Link href={`/go/stack?focus=${encodeURIComponent(enc)}`} className="btn-primary mt-5 w-full py-3 text-base" data-testid="memo-review">
           Review and sign
         </Link>

@@ -7,7 +7,7 @@ import type { CodingResult, ConsentRecord, Encounter, PatientSummary } from "../
 import { saveChunk } from "./audio";
 import { purgeGuests, touchGuest } from "./guest";
 import { get } from "../db";
-import { CaptureAuthError, captureActor } from "./captureTokens";
+import { CaptureAuthError, captureActor, claimUploadToken } from "./captureTokens";
 import { currentUser } from "./auth";
 import { fail } from "./http";
 import { processEncounter, recordConsent } from "./pipeline";
@@ -64,6 +64,7 @@ export interface CaptureAuth {
   user: User;
   tokenId: string | null;
   device?: boolean;
+  uploadOnly?: boolean;
 }
 
 interface CaptureOrigin {
@@ -234,8 +235,27 @@ async function targetEncounter(user: User, o: Record<string, string>, startedAt:
 }
 
 export async function startCapture(auth: CaptureAuth, input: CaptureInput) {
+  if (auth.uploadOnly) return startUpload(auth, input);
   const cid = cleanCid(input.opts.cid);
   return cid ? serialized(`cid:${auth.user.id}:${cid}`, () => startCaptureNow(auth, input)) : startCaptureNow(auth, input);
+}
+
+const UPLOAD_ONLY_DROPS = new Set(["encounterId", "patientId", "cid", "templateId", "finish", "channel"]);
+
+async function startUpload(auth: CaptureAuth, input: CaptureInput) {
+  const rest = Object.fromEntries(Object.entries(input.opts).filter(([k]) => !UPLOAD_ONLY_DROPS.has(k)));
+  if (rest.consent !== "granted") throw new Invalid("Confirm that they agreed to be recorded");
+  if (!input.audio) throw new Invalid("Choose a recording to upload");
+  await claimUploadToken(auth.tokenId!);
+  const r = await startCaptureNow(auth, { ...input, opts: { ...rest, channel: "upload-link", finish: "false" } });
+  const { user } = auth;
+  if (user.phone) {
+    const { notifyReady } = await import("./telephony/memos");
+    const secs = Number(rest.durationS) > 0 ? Number(rest.durationS) : null;
+    onDrafted(r.encounterId, (res) => notifyReady(user, user.phone!, "mms", secs, res));
+  }
+  await draft(user, (await encounters.get(user, r.encounterId))!, {});
+  return { ...r, status: "processing" as const };
 }
 
 async function startCaptureNow(auth: CaptureAuth, input: CaptureInput) {
@@ -288,6 +308,7 @@ export async function appendCapture(auth: CaptureAuth, encId: string, input: Cap
 }
 
 async function appendCaptureNow(auth: CaptureAuth, encId: string, input: CaptureInput) {
+  if (auth.uploadOnly) throw new Forbidden("This upload link can send one recording only");
   const { enc } = await reachable(auth, encId);
   assertCan(auth.user, "clinical.capture");
   if (enc.status !== "recording" && enc.status !== "paused") throw new Invalid(enc.status === "signed" ? "This visit is signed" : "This visit is already being drafted");
@@ -405,7 +426,7 @@ export function captureRoute<P = Record<string, never>>(handler: (req: Request, 
       const viaToken = await captureActor(req);
       const user = viaToken?.user ?? (await currentUser().catch(() => null));
       if (!user) return fail("Sign in, or send Authorization: Bearer cs_cap_…", 401);
-      return await handler(req, { user, tokenId: viaToken?.tokenId ?? null, device: viaToken?.device ?? false }, (await ctx.params) ?? ({} as P));
+      return await handler(req, { user, tokenId: viaToken?.tokenId ?? null, device: viaToken?.device ?? false, uploadOnly: viaToken?.uploadOnly ?? false }, (await ctx.params) ?? ({} as P));
     } catch (err) {
       if (err instanceof CaptureAuthError) return fail(err.message, err.status);
       const message = err instanceof Error ? err.message : "Unexpected error";

@@ -121,27 +121,36 @@ test("a text that starts with NOTE becomes a dictated note", async ({ page, base
   await expect(page.getByText(/physical therapy/i).first()).toBeVisible({ timeout: 20_000 });
 });
 
-test("a memo too big to text gets a single-use upload link that writes the note", async ({ page, baseURL, request }) => {
+test("a memo too big to text gets a single-use, upload-only link that writes the note and texts the review link", async ({ page, baseURL, request }) => {
   await register(page, "Dr. Ursa Upload");
   const phone = await verifiedPhone(page);
   const big = await addMedia(request, { bytes: 26 * 1024 * 1024 });
   const r = await sms(request, baseURL!, phone, "", big);
-  expect(r).toMatch(/^That recording is over 25 MB\. Too big to text\? Upload it here\. The link works once, for 30 minutes: http:\/\/localhost:3200\/m\/[\w-]+$/);
+  expect(r).toMatch(/^That recording is over 25 MB\. Too big to text\? Upload it here\. The link works once, for 30 minutes: http:\/\/localhost:3200\/go\/upload#t=cs_cap_[\w-]+&c=patient$/);
   expect((await mediaLog(request)).deletes).toContain(big.sid);
   const again = await sms(request, baseURL!, phone, "UPLOAD");
   expect(again).toMatch(/Upload it here/);
+  const url = /(http:\/\/localhost:3200\/go\/upload#\S+)/.exec(r)![1];
   await page.context().clearCookies();
   await page.setViewportSize({ width: 390, height: 844 });
-  await openLink(page, r);
-  await page.waitForURL(/\/go\/upload/);
+  await page.goto(url);
   await page.getByTestId("memo-file").setInputFiles("tests/e2e/fixtures/memo.m4a");
   await expect(page.getByTestId("memo-picked")).toContainText("memo.m4a");
   await expect(page.getByTestId("memo-send")).toBeDisabled();
   await page.getByTestId("memo-consent").check();
   await page.getByTestId("memo-send").click();
-  await expect(page.getByTestId("memo-review")).toBeVisible({ timeout: 60_000 });
-  await page.goto(linkOf(r));
-  await expect(page.getByTestId("magic-invalid")).toBeVisible();
+  await expect(page.getByTestId("memo-done")).toBeVisible({ timeout: 60_000 });
+  expect(page.url()).not.toContain("cs_cap_");
+  expect((await page.request.get("/api/encounters")).status()).toBe(401);
+  await waitText(request, phone, /is ready\. Review and sign: http:\/\/localhost:3200\/m\//);
+  await page.goto("about:blank");
+  await page.goto(url);
+  await page.getByTestId("memo-file").setInputFiles("tests/e2e/fixtures/memo.m4a");
+  await page.getByTestId("memo-consent").check();
+  await page.getByTestId("memo-send").click();
+  await expect(page.getByText(/This upload link was already used/)).toBeVisible();
+  await page.goto("/go/upload");
+  await expect(page.getByTestId("memo-upload-invalid")).toBeVisible();
 });
 
 test("WhatsApp: a US medical practice is refused and the voice note is deleted unread", async ({ page, baseURL, request }) => {

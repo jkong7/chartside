@@ -7,7 +7,8 @@ import { dictationText, formatClock, holdExpiry, nextHold, splitNumbered, type M
 import { noteToText } from "../../engine/note";
 import { captureAudio, captureTyped, finishCaptureFor, normalizeMime, onDrafted } from "../capture";
 import { hipaaApplies, orgJurisdiction, textOptedOut } from "../jurisdiction";
-import { mintLoginLink } from "../magic";
+import { mintUploadToken } from "../captureTokens";
+import { mintLoginLink, publicOrigin } from "../magic";
 import { actorFor, audit, encounters, notes, patients, users, type User } from "../repo";
 import { deleteMedia, downloadMedia, maxMemoBytes } from "./media";
 import { sendText } from "./sms";
@@ -154,7 +155,9 @@ export async function notifyReady(user: User, phone: string, channel: MemoChanne
 
 export async function uploadLinkReply(user: User | null, origin: string, phone: string) {
   if (!user || user.guestUntil) return `Too big to text? Record or upload it here: ${origin}/go`;
-  return `Too big to text? Upload it here. The link works once, for 30 minutes: ${await linkFor(user, phone, "/go/upload")}`;
+  const { token } = await mintUploadToken(user, 30);
+  const client = (await orgJurisdiction(user.orgId)) === "veterinary" ? "client" : "patient";
+  return `Too big to text? Upload it here. The link works once, for 30 minutes: ${publicOrigin(origin)}/go/upload#t=${token}&c=${client}`;
 }
 
 export async function inboundMemo(input: { user: User; phone: string; channel: MemoChannel; items: MediaItem[]; messageSid?: string | null; origin: string }) {
