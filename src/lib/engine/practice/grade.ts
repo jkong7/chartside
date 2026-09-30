@@ -121,8 +121,9 @@ export function gradeNote(c: PracticeCase, turns: Turn[], note: string): NoteGra
   const text = normalize(note);
   const topics = elicitedTopics(turns);
   const exams = examsDone(turns);
+  const said = normalize(turns.filter((t) => t.role === "patient").map((t) => t.text).join(" "));
   const facts = c.note.facts.map((f) => {
-    const elicited = f.exam ? exams.has(f.exam) : f.topic ? topics.has(f.topic) || c.checklist.some((i) => i.topics.includes(f.topic!) && i.topics.some((x) => topics.has(x))) : true;
+    const elicited = f.exam ? exams.has(f.exam) : f.topic ? topics.has(f.topic) || c.checklist.some((i) => i.topics.includes(f.topic!) && i.topics.some((x) => topics.has(x))) || hasAny(said, f.any) : true;
     return { id: f.id, label: f.label, weight: f.weight, elicited, written: hasAny(text, f.any) };
   });
   const invented = facts.filter((f) => f.written && !f.elicited).map((f) => f.label);

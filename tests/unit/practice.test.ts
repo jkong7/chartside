@@ -195,6 +195,16 @@ describe("grading math", () => {
     expect(clock(153)).toBe("2:33");
   });
 
+  it("credits a fact the patient volunteered without being asked", () => {
+    const turns: Turn[] = [
+      { id: "t1", role: "student", text: "Are you worried about anything?", t: 5 },
+      { id: "t2", role: "patient", text: "I'm scared it's my heart. My dad died of a heart attack.", t: 8 },
+    ] as Turn[];
+    const g = gradeNote(c, turns, "Father died of MI.");
+    expect(g.facts.find((f) => f.id === "family")).toMatchObject({ elicited: true, written: true });
+    expect(g.invented).not.toContain("Father with MI at 52");
+  });
+
   it("penalizes invented findings and contradictions, and rewards the differential and plan", () => {
     const turns = play(c, ["What brings you in today?", "When did it start?"]);
     const g = gradeNote(c, turns, "Chest pain radiating to the left arm. Lungs clear. Pain is pleuritic. Plan: ECG and aspirin. Assessment: GERD.");
