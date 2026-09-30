@@ -33,8 +33,8 @@ export default async function GoPage({ searchParams }: { searchParams: Promise<{
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand text-white">C</span>
           Chartside
         </Link>
-        <nav className="flex min-w-0 flex-wrap justify-end gap-0.5 sm:gap-1">
-          <Link href="/go/phone" className="btn-ghost px-2 sm:px-3">Call instead</Link>
+        <nav className="flex min-w-0 flex-nowrap justify-end gap-0 whitespace-nowrap sm:gap-1">
+          <Link href="/go/phone" className="btn-ghost px-2 sm:px-3" aria-label="Call instead"><span className="sm:hidden">Call</span><span className="hidden sm:inline">Call instead</span></Link>
           {user && <Link href="/go/stack" className="btn-ghost px-2 sm:px-3">To review</Link>}
           {user && <Link href="/go/ask" className="btn-ghost px-2 sm:px-3">Ask</Link>}
           {user && !user.guestUntil && <Link href="/today" className="btn-ghost px-2 sm:px-3" data-testid="go-more">More</Link>}
