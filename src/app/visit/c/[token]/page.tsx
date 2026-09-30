@@ -1,5 +1,6 @@
 import OfferClaim from "@/components/visit/OfferClaim";
 import { STATE_NAMES } from "@/lib/engine/lexicon";
+import { emailReady } from "@/lib/server/delivery";
 
 export const metadata = { title: "A draft note for you · Chartside", robots: { index: false }, referrer: "no-referrer" as const };
 
@@ -13,7 +14,7 @@ export default async function OfferPage({ params }: { params: Promise<{ token: s
         Chartside
       </header>
       <div className="mx-auto max-w-md px-4 pb-16">
-        <OfferClaim token={token} states={states} />
+        <OfferClaim token={token} states={states} emailReady={emailReady()} />
       </div>
     </main>
   );

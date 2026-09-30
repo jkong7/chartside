@@ -22,9 +22,9 @@ async function post<T>(url: string, body?: unknown): Promise<T> {
   return j as T;
 }
 
-export default function OfferClaim({ token, states }: { token: string; states: { code: string; name: string }[] }) {
+export default function OfferClaim({ token, states, emailReady = true }: { token: string; states: { code: string; name: string }[]; emailReady?: boolean }) {
   const [info, setInfo] = useState<Info | null>(null);
-  const [mode, setMode] = useState<"email" | "npi">("email");
+  const [mode, setMode] = useState<"email" | "npi">(emailReady ? "email" : "npi");
   const [email, setEmail] = useState("");
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [code, setCode] = useState("");
@@ -78,13 +78,13 @@ export default function OfferClaim({ token, states }: { token: string; states: {
         </div>
       ) : (
         <div className="card mt-6 p-5">
-          {info.npiAllowed && (
+          {info.npiAllowed && emailReady && (
             <div className="mb-4 grid grid-cols-2 gap-1 rounded-lg bg-sunken p-1 text-sm" role="tablist">
               <button role="tab" aria-selected={mode === "email"} className={`rounded-md py-1.5 font-medium ${mode === "email" ? "bg-surface text-ink shadow-sm" : "text-ink-3"}`} onClick={() => setMode("email")} data-testid="offer-mode-email">Email code</button>
               <button role="tab" aria-selected={mode === "npi"} className={`rounded-md py-1.5 font-medium ${mode === "npi" ? "bg-surface text-ink shadow-sm" : "text-ink-3"}`} onClick={() => setMode("npi")} data-testid="offer-mode-npi">My NPI</button>
             </div>
           )}
-          {mode === "email" ? (
+          {mode === "email" || !info.npiAllowed ? (
             sentTo ? (
               <form onSubmit={(e) => { e.preventDefault(); void run(async () => { const r = await post<{ mfa?: boolean }>("/api/auth/magic/verify", { email, code }); if (r.mfa) { window.location.assign(`/login?next=${encodeURIComponent(here)}`); return; } await claim(); }); }}>
                 <label className="label" htmlFor="offer-code">Code we sent to {sentTo}</label>
