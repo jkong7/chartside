@@ -258,6 +258,17 @@ test("each patient reply is voiced once, however often it is replayed", async ({
   expect((await count()) - n).toBe(1);
 });
 
+test("a graded note can't be resubmitted and the case opens on its scorecard", async ({ page }) => {
+  const s = (await (await page.request.post("/api/practice", { data: { caseId: "chest-pain" } })).json()) as { id: string };
+  expect((await page.request.post(`/api/practice/${s.id}/note`, { data: { note: "A: ACS." } })).ok()).toBe(true);
+  const again = await page.request.post(`/api/practice/${s.id}/note`, { data: { note: "Pasted reference note" } });
+  expect(again.status()).toBe(422);
+  expect(((await again.json()) as { error: string }).error).toMatch(/already graded/);
+  await page.goto(`/practice/chest-pain?s=${s.id}`);
+  await expect(page).toHaveURL(new RegExp(`/practice/s/${s.id}$`));
+  await expect(page.getByTestId("practice-note-step")).toHaveCount(0);
+});
+
 test("on a shared computer, saving is an explicit button and signing out locks the scorecard", async ({ page, baseURL }) => {
   const s = await quickScore(page.request, "headache", ["What brings you in today?"]);
   await register(page, "Alice Shared");

@@ -140,6 +140,18 @@ describe("practice sessions", () => {
     expect((await p.getPractice(s.id))!.userId).toBe(alice.id);
   });
 
+  it("grades a note once and refuses a resubmit after the reference note is shown", async () => {
+    const p = await P();
+    const me = { device: device(), userId: null };
+    const s = await p.startPractice({ caseId: "chest-pain", actor: me });
+    await p.askPatient(s.id, me, { text: "What brings you in today?" });
+    const graded = await p.submitNote(s.id, me, "Chest pressure. A: ACS.");
+    await expect(p.submitNote(s.id, me, graded.reference!.text)).rejects.toThrow(/already graded/);
+    const after = (await p.getPractice(s.id))!;
+    expect(after.note).toBe("Chest pressure. A: ACS.");
+    expect(after.score).toBe(graded.score);
+  });
+
   it("keeps daily caps in the database and per-session counters atomic", async () => {
     const p = await P();
     const { spendDaily, resetLimits } = await import("@/lib/server/ratelimit");

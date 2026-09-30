@@ -308,13 +308,15 @@ async function chartsideNote(c: PracticeCase, turns: Turn[]) {
 
 export async function submitNote(id: string, a: Actor, noteIn: unknown) {
   let s = await mine(id, a);
+  if (s.status === "graded") throw new Invalid("This case is already graded. Start the case again to try another note.");
   if (s.status === "active") s = await endPractice(id, a);
   const note = String(noteIn ?? "").slice(0, 8000);
   const c = practiceCase(s.caseId)!;
   const grade = scorecard(c, s.turns, note);
   const ref = await chartsideNote(c, s.turns);
   const refScore = scorecard(c, s.turns, ref.text).note?.score ?? 0;
-  await save(s, { status: "graded", note, grade: JSON.stringify(grade), score: grade.overall, reference: JSON.stringify({ ...ref, score: refScore }), graded_at: now() });
+  const done = await run("UPDATE practice_sessions SET status = 'graded', note = ?, grade = ?, score = ?, reference = ?, graded_at = ? WHERE id = ? AND status <> 'graded'", note, JSON.stringify(grade), grade.overall, JSON.stringify({ ...ref, score: refScore }), now(), s.id);
+  if (done.changes === 0) throw new Invalid("This case is already graded. Start the case again to try another note.");
   await audit.log(null, null, "practice.graded", { id, score: grade.overall, noted: !!note.trim() });
   return (await getPractice(id))!;
 }
