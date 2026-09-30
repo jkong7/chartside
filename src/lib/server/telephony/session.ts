@@ -1,3 +1,4 @@
+import { orgJurisdiction } from "../jurisdiction";
 import { appendCaptureAudio, captureAudio, captureNote, captureStatus, finishCaptureFor } from "../capture";
 import { clockTime, tzOf } from "../../tz";
 import { hasPhonePin, mintLoginLink, verifyPhonePin } from "../magic";
@@ -94,7 +95,7 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
   const when = () => clockTime(startedAt, tzOf(user));
 
   const deps: PhoneSession["deps"] = {
-    caller: { name: user.guestUntil ? null : user.name, guest: !!user.guestUntil, hasPin: !user.guestUntil && !claims.guest && (await hasPhonePin(user.id)) },
+    caller: { name: user.guestUntil ? null : user.name, guest: !!user.guestUntil, hasPin: !user.guestUntil && !claims.guest && (await hasPhonePin(user.id)), vet: (await orgJurisdiction(user.orgId)) === "veterinary" },
     verifyPin: async (pin) => (pinOk = await verifyPhonePin(user.id, pin)),
     nextVisit: () => nextVisitFor(user),
     startNext: () => {

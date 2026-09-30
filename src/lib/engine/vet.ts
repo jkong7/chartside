@@ -351,3 +351,20 @@ export function ownerText(opts: { animal: string; vet: string; lines: string[] }
   if (!opts.lines.length) return null;
   return `Care instructions for ${opts.animal} from ${opts.vet}:\n${opts.lines.map((l) => `- ${l}`).join("\n")}\n\nQuestions? Call your vet.\nPrepared with Chartside. Reply STOP to opt out.`;
 }
+
+const VET_SPOKEN: [RegExp, string][] = [
+  [/I'll text your patient their visit summary/g, "I'll text the owner their care instructions"],
+  [/you can send their summary/g, "you can send the owner's care instructions"],
+  [/match this visit to a patient/g, "match this visit to an animal"],
+  [/between you and your patient/g, "between you and the animal"],
+  [/your patient agrees/g, "the owner agrees"],
+  [/match the patient afterward/g, "match the animal afterward"],
+  [/next patient to keep going/g, "next animal to keep going"],
+  [/Next patient\./g, "Next animal."],
+  [/helps your clinician write the visit note/g, "helps your vet write the visit record"],
+  [/ayuda a su médico a escribir la nota de la visita\. Su médico/g, "ayuda a su veterinario a escribir el registro de la visita. Su veterinario"],
+];
+
+export function vetSpoken(text: string) {
+  return VET_SPOKEN.reduce((t, [re, to]) => t.replace(re, to), text);
+}

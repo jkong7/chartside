@@ -107,3 +107,15 @@ describe("one farm call, many animals", () => {
     expect(profileFrom("text the owner at (312) 555-0199").ownerPhone).toBe("3125550199");
   });
 });
+
+describe("vet phone wording", () => {
+  it("swaps patient wording for owner and animal wording", async () => {
+    const { vetSpoken } = await import("@/lib/engine/vet");
+    const { LINES } = await import("@/lib/server/telephony/call");
+    expect(vetSpoken(LINES.consentAsk)).toBe("When the owner agrees to be recorded, say they agreed, or press 2. Press 3, and I'll ask them for you. For Spanish, press 9.");
+    expect(vetSpoken(LINES.nextPatient)).toBe("Saved for you to sign. Next animal.");
+    expect(vetSpoken(LINES.summaryQueued)).toBe("I'll text the owner their care instructions as soon as you sign the note.");
+    expect(vetSpoken(LINES.consentScript)).toContain("helps your vet write the visit record");
+    for (const line of Object.values(LINES).filter((l) => !/practice|Medical student/i.test(l))) expect(vetSpoken(line)).not.toMatch(/\bpatient\b/i);
+  });
+});

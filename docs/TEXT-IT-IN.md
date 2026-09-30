@@ -63,7 +63,6 @@ Last full runs: unit 406 passed (89 files, 38 new tests in 5 files), e2e 163 pas
 
 ## What's left
 
-- The phone call's spoken prompts still say "patient" to vets. The fix is to pass the org's jurisdiction into the call state machine's lines.
 
 - The phone line's spoken consent prompt still says "patient" for vets. A vet voice for the call script is next.
 - WhatsApp utility templates for proactive messages (brief, sign reminders), and a Twilio Content API mock.

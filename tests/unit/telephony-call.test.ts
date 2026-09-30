@@ -90,6 +90,16 @@ describe("scribe call", () => {
     expect(call.state).toBe("ended");
   });
 
+  it("talks about the owner and the animal on a vet practice's line", async () => {
+    const { call, said } = harness({ caller: { name: "Dr. Lee", guest: false, hasPin: false, vet: true } });
+    await call.start();
+    expect(said[0]).toContain("When the owner agrees to be recorded");
+    expect(said.join(" ")).not.toMatch(/patient/i);
+    const { call: human, said: humanSaid } = harness();
+    await human.start();
+    expect(humanSaid[0]).toContain("When your patient agrees to be recorded");
+  });
+
   it("never reads the schedule without a PIN", async () => {
     let looked = false;
     const { call, said } = harness({ nextVisit: async () => ((looked = true), { encounterId: "enc_9", spoken: "Your 2:40 is Maria Lopez." }) });

@@ -62,7 +62,6 @@ Run on local production builds on 2026-09-30.
 
 See "What's left" in each feature doc. The largest open items:
 
-- The phone line's spoken prompts still say "patient" to vets.
 - There are no WhatsApp templates for messages sent outside the 24-hour window.
 - Microsoft sign-in hasn't been tried against a real tenant.
 - The patient pages have no Spanish.

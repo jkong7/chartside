@@ -1,3 +1,4 @@
+import { vetSpoken } from "../../engine/vet";
 import type { PracticeLine } from "./practice";
 import { affirmative, bareWake, chartQuestion, consentGiven, consentRefused, directAnswer, directedAtScribe, echoOf, negative, reviewIntent, wakeCommand } from "./intents";
 
@@ -15,7 +16,7 @@ export interface NoteBrief {
 export interface CallDeps {
   say(text: string, lang?: "en" | "es", voice?: string): Promise<void>;
   hangup(): void;
-  caller: { name: string | null; guest: boolean; hasPin: boolean };
+  caller: { name: string | null; guest: boolean; hasPin: boolean; vet?: boolean };
   verifyPin(pin: string): Promise<boolean>;
   nextVisit(): Promise<NextVisit | null>;
   open(input: { encounterId?: string; lang?: "en" | "multi" }): Promise<void>;
@@ -124,7 +125,7 @@ export class ScribeCall {
       return;
     }
     this.state = "consent";
-    const tip = !this.deps.caller.guest && !this.deps.caller.hasPin && this.deps.offerPin ? ` ${LINES.pinOffer}` : this.deps.caller.guest && this.deps.practice ? ` ${LINES.practiceTip}` : "";
+    const tip = !this.deps.caller.guest && !this.deps.caller.hasPin && this.deps.offerPin ? ` ${LINES.pinOffer}` : this.deps.caller.guest && this.deps.practice && !this.deps.caller.vet ? ` ${LINES.practiceTip}` : "";
     await this.say(`${intro} ${LINES.consentAsk}${tip}`);
   }
 
@@ -153,7 +154,8 @@ export class ScribeCall {
     this.recentSpoken = [...this.recentSpoken.slice(-3), text];
   }
 
-  private async say(text: string, lang?: "en" | "es", voice?: string) {
+  private async say(raw: string, lang?: "en" | "es", voice?: string) {
+    const text = this.deps.caller.vet ? vetSpoken(raw) : raw;
     this.remember(text);
     await this.deps.say(text, lang, voice);
     this.spokeEndedAt = Date.now();
