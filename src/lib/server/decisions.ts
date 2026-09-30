@@ -9,7 +9,7 @@ import { notifyForEncounter } from "./notify";
 import { assist, reviseDiagnoses, saveNoteEdits, signEncounter } from "./pipeline";
 import { Forbidden, Invalid } from "./policy";
 import { unsignedQueue } from "./queue";
-import { artifacts, audit, encounters, notes, patients, type User } from "./repo";
+import { artifacts, audit, encounters, notes, patients, utterances, type User } from "./repo";
 import { cosignNote, pendingCosigns, returnNote } from "./signoff";
 import type { TaskKind } from "../engine/tasks";
 
@@ -95,12 +95,13 @@ async function signCards(u: User): Promise<Decision[]> {
     const ready = await artifacts.get<{ at: string; callSid?: string; sim?: boolean }>(q.id, "phone_ready");
     const call = await artifacts.get<{ verifiedBy?: string; scheduledVisit?: boolean }>(q.id, "phone_call");
     const summaryOnSign = await artifacts.get<{ at: string }>(q.id, "summary_on_sign");
+    const fromPatient = await artifacts.get<{ label: string; clinicianNameGiven?: string | null }>(q.id, "patient_recording");
     const unverified = call?.verifiedBy === "caller-id";
     const discardable = !!origin && !call?.scheduledVisit && (enc.status === "review" || (enc.status === "paused" && !!(origin as { error?: string }).error));
     return {
       id: `sign:${q.id}`,
       kind: "note.sign" as const,
-      title: `Sign note: ${enc.patientId ? q.patient : `${time(enc.startedAt ?? q.scheduledAt)} visit`}`,
+      title: `Sign note: ${enc.patientId ? q.patient : `${time(enc.startedAt ?? q.scheduledAt)} visit`}${fromPatient ? " (from a patient's recording)" : ""}`,
       summary: [q.reason, `${words(rec?.content)} words`, q.blockers.length ? `${q.blockers.length} to fix first` : "ready"].filter(Boolean).join(" · "),
       safeLabel: `Note ready to sign (${time(enc.startedAt ?? q.scheduledAt)} visit)`,
       encounterId: q.id,
@@ -109,7 +110,7 @@ async function signCards(u: User): Promise<Decision[]> {
       priority: ready ? 0 : q.ageHours >= 24 ? 1 : 2,
       at: enc.endedAt ?? q.scheduledAt,
       actions: [{ action: "approve", label: "Sign", needsScreen: true, payload: ["reviewMs", "force"] }, ...(discardable ? [{ action: "reject" as const, label: unverified ? "I didn't make this call, delete it" : "Delete this recording", needsScreen: true }] : []), snooze],
-      detail: { blockers: q.blockers, words: words(rec?.content), ageHours: q.ageHours, text: rec ? noteToText(rec.content) : "", channel: origin?.channel ?? null, markedReady: ready ? { at: ready.at, label: `Marked ready on a ${ready.sim ? "browser " : ""}call at ${time(ready.at)}` } : null, unverifiedCaller: unverified ? { label: "Caller ID only, no PIN", help: "If you didn't make this call, delete it." } : null, summaryOnSign: summaryOnSign && enc.patientId ? { label: "Patient summary goes out when you sign" } : null },
+      detail: { blockers: q.blockers, words: words(rec?.content), ageHours: q.ageHours, text: rec ? noteToText(rec.content) : "", channel: origin?.channel ?? null, markedReady: ready ? { at: ready.at, label: `Marked ready on a ${ready.sim ? "browser " : ""}call at ${time(ready.at)}` } : null, unverifiedCaller: unverified ? { label: "Caller ID only, no PIN", help: "If you didn't make this call, delete it." } : null, summaryOnSign: summaryOnSign && enc.patientId ? { label: "Patient summary goes out when you sign" } : null, fromPatient: fromPatient ? { label: fromPatient.label, help: "The patient recorded this on their own phone and offered you the draft. Check it against your memory of the visit before you sign.", transcript: (await utterances.list(q.id)).filter((x) => !x.redacted).slice(0, 400).map((x) => ({ speaker: x.speaker, text: x.text })) } : null },
       openUrl: `/encounters/${q.id}`,
     };
   }));
