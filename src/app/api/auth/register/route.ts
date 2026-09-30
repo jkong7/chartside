@@ -5,6 +5,7 @@ import { actorFor, audit, invites, orgs, users } from "@/lib/server/repo";
 import { seedDemo } from "@/lib/server/seed";
 import { attributeReferral, REF_COOKIE } from "@/lib/server/growth";
 import { recordSignup, touchFromCookies } from "@/lib/server/loops";
+import { isVetSpecialty, vetDefaultTemplate } from "@/lib/engine/templates";
 
 export async function POST(req: Request) {
   const b = await body<{ email?: string; password?: string; name?: string; specialty?: string; demo?: boolean; orgName?: string; invite?: string }>(req);
@@ -28,9 +29,16 @@ export async function POST(req: Request) {
   } else {
     orgId = (await orgs.create(b.orgName?.trim() || `${name}'s clinic`, base.id)).id;
   }
+  const vet = isVetSpecialty(base.specialty);
+  if (vet) await users.update(base.id, { prefs: { ...base.prefs, defaultTemplate: vetDefaultTemplate(base.specialty) } });
   const user = (await actorFor(base.id, orgId))!;
   await audit.log(user, null, invite ? "member.joined" : "user.registered", invite ? { role: invite.role, via: "invite" } : {});
-  if (!invite && b.demo !== false) await seedDemo(user);
+  if (vet && !invite) {
+    const org = await orgs.get(orgId);
+    await orgs.update(orgId, { settings: { ...org!.settings, jurisdiction: "veterinary" } });
+    await audit.log(user, null, "org.jurisdiction", { from: "us_hipaa", to: "veterinary", via: "signup" });
+  }
+  if (!invite && !vet && b.demo !== false) await seedDemo(user);
   if (!invite) await attributeReferral(user.id, (await cookies()).get(REF_COOKIE)?.value);
   if (!invite) await recordSignup(user.id, await touchFromCookies(await cookies()));
   await startSession(user.id, orgId);

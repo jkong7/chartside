@@ -176,6 +176,7 @@ export interface Chart {
   smoking?: "never" | "former" | "current";
   oncology?: OncologyProfile;
   pregnancy?: Pregnancy;
+  animal?: import("./engine/vet").AnimalProfile;
 }
 
 export interface Pregnancy {
@@ -249,7 +250,7 @@ export interface ConsentRecord {
   id: string;
   encounterId: string;
   decision: "granted" | "declined";
-  method: "verbal" | "written" | "patient-device" | "clinician_tap_patient_device";
+  method: "verbal" | "written" | "patient-device" | "clinician_tap_patient_device" | "text-confirmed" | "standing";
   state: string;
   allParty: boolean;
   othersPresent: boolean;

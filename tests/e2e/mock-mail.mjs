@@ -1,10 +1,15 @@
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
+import path from "node:path";
 
 const PORT = Number(process.env.MOCK_MAIL_PORT || 3295);
 const KEY = "test-sendgrid";
 const messages = [];
 const faxes = [];
 const texts = [];
+const media = new Map();
+const mediaLog = { gets: [], deletes: [], unauthorized: 0 };
+const FIXTURES = path.join(path.dirname(new URL(import.meta.url).pathname), "fixtures");
 const numbers = [{ sid: "PN0000000000000000000000000000beef", phone_number: "+13125550199", voice_url: "", sms_url: "" }];
 
 createServer((req, res) => {
@@ -34,6 +39,33 @@ createServer((req, res) => {
       n.voice_url = f.get("VoiceUrl") ?? n.voice_url;
       n.sms_url = f.get("SmsUrl") ?? n.sms_url;
       return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(n));
+    }
+    if (req.method === "POST" && url.pathname === "/media") {
+      const b = JSON.parse(raw || "{}");
+      media.set(b.sid, { fixture: b.fixture || "visit.wav", contentType: b.contentType || "audio/wav", bytes: b.bytes || 0 });
+      return res.writeHead(201, { "content-type": "application/json" }).end(JSON.stringify({ url: `http://localhost:${PORT}/2010-04-01/Accounts/ACtest/Messages/${b.messageSid || "MM0"}/Media/${b.sid}` }));
+    }
+    if (req.method === "GET" && url.pathname === "/media-log") return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ...mediaLog, live: [...media.keys()] }));
+    const md = /^\/2010-04-01\/Accounts\/[^/]+\/Messages\/[^/]+\/Media\/(ME\w+?)(\.json)?$/.exec(url.pathname);
+    if (md) {
+      if (!twilioAuth) {
+        mediaLog.unauthorized++;
+        return res.writeHead(401).end("{}");
+      }
+      const m = media.get(md[1]);
+      if (req.method === "DELETE") {
+        if (!md[2]) return res.writeHead(405).end("{}");
+        mediaLog.deletes.push(md[1]);
+        if (!m) return res.writeHead(404).end("{}");
+        media.delete(md[1]);
+        return res.writeHead(204).end();
+      }
+      if (req.method === "GET") {
+        if (!m) return res.writeHead(404).end("{}");
+        mediaLog.gets.push(md[1]);
+        const body = m.bytes ? Buffer.alloc(m.bytes) : readFileSync(path.join(FIXTURES, m.fixture));
+        return res.writeHead(200, { "content-type": m.contentType, "content-length": body.length }).end(body);
+      }
     }
     if (req.method === "GET" && url.pathname === "/texts") {
       const to = url.searchParams.get("to");

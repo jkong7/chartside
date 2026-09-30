@@ -20,7 +20,9 @@ interface SsoInfo {
   orgName: string | null;
 }
 
-export default function AuthForm({ mode, next, invite, error: initialError }: { mode: "login" | "register"; next?: string; invite?: InviteInfo; error?: string }) {
+const SPECIALTIES = ["Family Medicine", "Internal Medicine", "Pediatrics", "Psychiatry", "Psychotherapy", "Physical Therapy", "Occupational Therapy", "Speech-Language Pathology", "Chiropractic", "Emergency Medicine", "Hospital Medicine", "Oncology", "Obstetrics and Gynecology", "Urgent Care", "Veterinary: Large animal", "Veterinary: Equine", "Veterinary: Mixed", "Veterinary: Small animal", "Other"];
+
+export default function AuthForm({ mode, next, invite, error: initialError, specialty }: { mode: "login" | "register"; next?: string; invite?: InviteInfo; error?: string; specialty?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(initialError ?? null);
@@ -164,8 +166,8 @@ export default function AuthForm({ mode, next, invite, error: initialError }: { 
               </div>
               <div>
                 <label className="label" htmlFor="specialty">Specialty</label>
-                <select className="input" id="specialty" name="specialty" defaultValue="Family Medicine">
-                  {["Family Medicine", "Internal Medicine", "Pediatrics", "Psychiatry", "Psychotherapy", "Physical Therapy", "Occupational Therapy", "Speech-Language Pathology", "Chiropractic", "Emergency Medicine", "Hospital Medicine", "Oncology", "Obstetrics and Gynecology", "Urgent Care", "Other"].map((sp) => (
+                <select className="input" id="specialty" name="specialty" defaultValue={specialty && SPECIALTIES.includes(specialty) ? specialty : "Family Medicine"}>
+                  {SPECIALTIES.map((sp) => (
                     <option key={sp} value={sp}>{sp}</option>
                   ))}
                 </select>

@@ -428,7 +428,100 @@ export const SYSTEM_TEMPLATES: Template[] = [
       { key: "ap", title: "Assessment & Plan", kind: "assessment_plan", format: "bullets" },
     ],
   },
+  {
+    id: "vet_equine",
+    userId: null,
+    name: "Equine exam",
+    specialty: "Veterinary",
+    description: "Farm or barn call for one horse: signalment, history, TPR and exam, assessment, treatments, owner instructions.",
+    style: { verbosity: "standard" },
+    sections: [
+      { key: "signalment", title: "Signalment", kind: "custom", format: "paragraph", instructions: "Veterinary patient. Name, age, breed, sex, species, owner and barn. Never use human diagnosis codes." },
+      { key: "history", title: "History", kind: "hpi", format: "paragraph", instructions: "What the owner or barn manager reported." },
+      { key: "exam", title: "Exam", kind: "exam", format: "bullets", instructions: "TPR, mucous membranes, CRT, gut sounds, body condition score, weight, and findings by system." },
+      { key: "assessment", title: "Assessment", kind: "assessment", format: "bullets" },
+      { key: "plan", title: "Treatments and plan", kind: "plan", format: "bullets", instructions: "Drugs with dose, route and time given (for example xylazine, Banamine, bute), dispensed items, recheck." },
+      { key: "instructions", title: "Owner instructions", kind: "patient_instructions", format: "bullets", instructions: "Plain words the owner can follow: stall rest, hand walking, medication times, what to watch for, when to call." },
+    ],
+  },
+  {
+    id: "vet_lameness",
+    userId: null,
+    name: "Lameness exam",
+    specialty: "Veterinary",
+    description: "AAEP lameness grade, limb, hoof testers, flexions, nerve blocks, imaging, plan and owner instructions.",
+    style: { verbosity: "standard" },
+    sections: [
+      { key: "signalment", title: "Signalment", kind: "custom", format: "paragraph", instructions: "Veterinary patient. Name, age, breed, sex, species, owner and barn." },
+      { key: "history", title: "History", kind: "hpi", format: "paragraph" },
+      { key: "lameness", title: "Lameness exam", kind: "custom", format: "bullets", instructions: "AAEP grade out of 5 and limb, straight line and circle findings, hoof testers, digital pulses, flexion tests, nerve or joint blocks and response." },
+      { key: "exam", title: "Other exam findings", kind: "exam", format: "bullets" },
+      { key: "assessment", title: "Assessment", kind: "assessment", format: "bullets" },
+      { key: "plan", title: "Treatments and plan", kind: "plan", format: "bullets" },
+      { key: "instructions", title: "Owner instructions", kind: "patient_instructions", format: "bullets" },
+    ],
+  },
+  {
+    id: "vet_herd",
+    userId: null,
+    name: "Herd health visit",
+    specialty: "Veterinary",
+    description: "Food animal or herd call: animal ID and tag, findings, treatments with withdrawal times, plan, owner instructions.",
+    style: { verbosity: "standard" },
+    sections: [
+      { key: "signalment", title: "Animal", kind: "custom", format: "paragraph", instructions: "Veterinary patient. Name or ear tag, species, breed, sex, age, herd or farm, owner." },
+      { key: "history", title: "History", kind: "hpi", format: "paragraph" },
+      { key: "exam", title: "Findings", kind: "exam", format: "bullets" },
+      { key: "assessment", title: "Assessment", kind: "assessment", format: "bullets" },
+      { key: "plan", title: "Treatments and withdrawal", kind: "plan", format: "bullets", instructions: "Drug, dose, route, and any meat or milk withdrawal time exactly as stated. Never invent a withdrawal time." },
+      { key: "instructions", title: "Owner instructions", kind: "patient_instructions", format: "bullets" },
+    ],
+  },
+  {
+    id: "vet_repro",
+    userId: null,
+    name: "Reproductive exam",
+    specialty: "Veterinary",
+    description: "Palpation or ultrasound per mare or cow: ovaries, follicles, CL, uterus, pregnancy status and days, breeding plan.",
+    style: { verbosity: "standard" },
+    sections: [
+      { key: "signalment", title: "Animal", kind: "custom", format: "paragraph", instructions: "Veterinary patient." },
+      { key: "history", title: "Breeding history", kind: "hpi", format: "paragraph" },
+      { key: "exam", title: "Reproductive findings", kind: "exam", format: "bullets", instructions: "Left and right ovary, follicle sizes, corpus luteum, uterine edema or fluid, pregnancy status and days." },
+      { key: "assessment", title: "Assessment", kind: "assessment", format: "bullets" },
+      { key: "plan", title: "Breeding plan", kind: "plan", format: "bullets" },
+      { key: "instructions", title: "Owner instructions", kind: "patient_instructions", format: "bullets" },
+    ],
+  },
+  {
+    id: "vet_small_soap",
+    userId: null,
+    name: "Small animal SOAP",
+    specialty: "Veterinary",
+    description: "Dog or cat visit: subjective, objective with TPR and weight, assessment, plan and client instructions.",
+    style: { verbosity: "standard" },
+    sections: [
+      { key: "signalment", title: "Signalment", kind: "custom", format: "paragraph", instructions: "Veterinary patient." },
+      { key: "subjective", title: "Subjective", kind: "subjective", format: "paragraph" },
+      { key: "objective", title: "Objective", kind: "objective", format: "bullets" },
+      { key: "assessment", title: "Assessment", kind: "assessment", format: "bullets" },
+      { key: "plan", title: "Plan", kind: "plan", format: "bullets" },
+      { key: "instructions", title: "Client instructions", kind: "patient_instructions", format: "bullets" },
+    ],
+  },
 ];
+
+export const VET_SPECIALTIES = ["Veterinary: Large animal", "Veterinary: Equine", "Veterinary: Mixed", "Veterinary: Small animal"];
+
+export function isVetSpecialty(s: string | null | undefined) {
+  return /^veterinary/i.test(s ?? "");
+}
+
+export function vetDefaultTemplate(specialty: string) {
+  if (/small/i.test(specialty)) return "vet_small_soap";
+  if (/large/i.test(specialty)) return "vet_herd";
+  return "vet_equine";
+}
 
 export function systemTemplate(id: string) {
   return SYSTEM_TEMPLATES.find((t) => t.id === id);

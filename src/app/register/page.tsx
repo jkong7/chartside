@@ -6,8 +6,9 @@ function safeNext(n?: string) {
   return n && n.startsWith("/") && !n.startsWith("//") ? n : undefined;
 }
 
-export default async function Register({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
-  const next = safeNext((await searchParams).next);
+export default async function Register({ searchParams }: { searchParams: Promise<{ next?: string; specialty?: string }> }) {
+  const sp = await searchParams;
+  const next = safeNext(sp.next);
   if (await currentUser()) redirect(next ?? "/today");
-  return <AuthForm mode="register" next={next} />;
+  return <AuthForm mode="register" next={next} specialty={sp.specialty} />;
 }

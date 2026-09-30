@@ -51,7 +51,7 @@ function audioDir(encId: string) {
   return path.join(dataDir(), "audio", encId.replace(/[^a-z0-9_]/gi, ""));
 }
 
-const ALLOWED_MIME = /^audio\/(webm|ogg|mp4|mpeg|wav|x-wav|aac)(;.*)?$/i;
+const ALLOWED_MIME = /^audio\/(webm|ogg|mp4|mpeg|wav|x-wav|aac|3gpp|3gpp2|amr|x-caf)(;.*)?$/i;
 
 export async function saveChunk(encId: string, seq: number, tMs: number, mime: string, data: Buffer) {
   if (!ALLOWED_MIME.test(mime)) throw new Error("Unsupported audio type");

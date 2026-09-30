@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { purgeMemoHolds } from "@/lib/server/telephony/memos";
 import { sendClinicNudges } from "@/lib/server/telephony/texting";
 
 function authorized(req: Request) {
@@ -11,5 +12,6 @@ function authorized(req: Request) {
 
 export async function POST(req: Request) {
   if (!authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  return NextResponse.json(await sendClinicNudges());
+  const expiredMemos = await purgeMemoHolds();
+  return NextResponse.json({ ...(await sendClinicNudges()), expiredMemos });
 }

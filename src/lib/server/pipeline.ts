@@ -1,3 +1,4 @@
+import { isDictation, placeDictation } from "../engine/memo";
 import { createHash } from "node:crypto";
 import { assistWithClaude, generateNoteWithClaude, llmEnabled, llmModel, translateSummaryWithClaude } from "../llm";
 import { localAssist } from "../engine/assist";
@@ -47,6 +48,8 @@ export function consentScript(clinician: string, stateCode: string) {
   };
 }
 
+const METHOD_LABEL: Record<ConsentRecord["method"], string> = { verbal: "Verbal", written: "Written", "patient-device": "Patient-device", clinician_tap_patient_device: "Patient-device", "text-confirmed": "Text-confirmed", standing: "Standing" };
+
 export async function recordConsent(user: User, enc: Encounter, input: { decision: "granted" | "declined"; method: ConsentRecord["method"]; state: string; othersPresent: boolean; clinicianName?: string | null }) {
   const { allParty, stateName } = consentScript(user.name, input.state);
   const when = new Date().toISOString();
@@ -56,7 +59,7 @@ export async function recordConsent(user: User, enc: Encounter, input: { decisio
         ? `The clinician${input.clinicianName ? ` (${input.clinicianName})` : ""} agreed, by tapping Agree on the patient's own phone at ${when}, to the patient recording this visit for their own notes. Visit location: ${stateName}${allParty ? " (all-party consent state" + (input.othersPresent ? "; everyone else in the room agreed" : "") + ")" : ""}.`
         : `The clinician declined, on the patient's own phone at ${when}, to have this visit recorded. No audio was kept.`
       : input.decision === "granted"
-      ? `${input.method === "verbal" ? "Verbal" : input.method === "written" ? "Written" : "Patient-device"} consent for AI-assisted documentation was obtained by ${user.name} at ${when} using consent script ${CONSENT_SCRIPT_VERSION}. ${enc.setting === "telehealth" ? "Telehealth visit; patient located in" : "Visit location:"} ${stateName}${allParty ? " (all-party consent state" + (input.othersPresent ? "; all parties present consented" : "") + ")" : ""}.`
+      ? `${METHOD_LABEL[input.method]} consent for AI-assisted documentation was obtained by ${user.name} at ${when} using consent script ${CONSENT_SCRIPT_VERSION}.${input.method === "text-confirmed" ? " The clinician confirmed by text reply that the patient agreed to be recorded before the recording was kept." : input.method === "standing" ? " The clinician has a standing attestation on file that they obtain consent in the room before every recording." : ""} ${enc.setting === "telehealth" ? "Telehealth visit; patient located in" : "Visit location:"} ${stateName}${allParty ? " (all-party consent state" + (input.othersPresent ? "; all parties present consented" : "") + ")" : ""}.`
       : `Patient declined AI-assisted documentation at ${when}. No audio was captured; documentation will be completed manually.`;
   const digest = createHash("sha256").update(JSON.stringify({ enc: enc.id, user: user.id, ...input, statement, script: CONSENT_SCRIPT_VERSION })).digest("hex");
   const rec = await consents.add({ encounterId: enc.id, userId: user.id, decision: input.decision, method: input.method, state: input.state, allParty, othersPresent: input.othersPresent, scriptVersion: CONSENT_SCRIPT_VERSION, statement, digest });
@@ -99,6 +102,7 @@ export async function liveCoverage(user: User, enc: Encounter) {
 export interface ProcessResult {
   note: Note;
   warnings: string[];
+  encounterIds?: string[];
 }
 
 export async function processEncounter(user: User, encId: string, opts: { templateId?: string; engine?: "local" | "auto"; detail?: "concise" | "standard" | "detailed"; model?: string } = {}): Promise<ProcessResult> {
@@ -124,6 +128,10 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   await localDiarize(user, enc);
   const utts = await utterances.list(enc.id);
   if (!utts.length) throw new Error(finalPassFailed ? "Speech transcription is unavailable right now. The audio is saved; draft the note again shortly." : "Audio was recorded but no transcript is available. Add DEEPGRAM_API_KEY for server-side transcription, or type the conversation.");
+  if (template.id.startsWith("vet_")) {
+    const { processVet } = await import("./barn");
+    return processVet(user, enc, template, { useLlm: llmEnabled() && opts.engine !== "local", model: opts.model, warnings, explicitTemplate: !!opts.templateId });
+  }
   const { facts, patient } = await factsFor(user, enc);
   const rules = await styleRules.list(enc.userId);
   const interpretation = checkInterpretation(utts);
@@ -139,6 +147,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   }
   const sessionMinutes = Math.round((enc.durationS || (utts.at(-1)?.tEnd ?? 0)) / 60);
   if (!note) note = buildNote(facts, { patient, encounter: enc, template, utterances: utts, minutes: sessionMinutes, startedAt: enc.startedAt });
+  if (note.meta.engine === "local" && isDictation(utts)) note = placeDictation(note, template, utts);
   else {
     const special = template.sections.filter((ts) => ["risk", "interventions", "response", "therapy_time", "ed_course", "disposition", "goals", "group_topic", "group_participation", "therapy_services", "therapy_measures", "therapy_eval", "procedure_note", "ob_summary", "ob_warning", "ob_exam", "ob_due", "gdmt", "well_screens", "guidance", "imm_due", "awv", "screening_schedule", "acp", "msk_exam", "skin_exam", "onc_history", "onc_treatment", "toxicity"].includes(ts.kind));
     if (special.length) {
@@ -356,6 +365,10 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   const { emit } = await import("./platform");
   await emit(user.orgId, "note.signed", { encounterId: enc.id, patientId: enc.patientId, signedAt, cosignPending: !!cosign });
   await audit.log(user, enc.id, "note.signed", { edited, editRatio, learned: candidates.length, forced: !!opts.force, overrides: blockers });
+  if (enc.templateId?.startsWith("vet_")) {
+    const { afterVetSign } = await import("./barn");
+    await afterVetSign(user, enc.id).catch((err) => console.error("owner text failed", err instanceof Error ? err.message : err));
+  }
   await finalizeClaim(user, (await encounters.get(user, enc.id))!);
   const { sendNoteHl7 } = await import("./hl7");
   await sendNoteHl7(user, enc.id).catch(() => null);

@@ -11,7 +11,7 @@ import { currentUser } from "./auth";
 import { fail } from "./http";
 import { processEncounter, recordConsent } from "./pipeline";
 import { assertCan, Forbidden, Invalid } from "./policy";
-import { artifacts, audioChunks, audit, consents, encounters, notes, patients, type User } from "./repo";
+import { artifacts, audioChunks, audit, consents, encounters, notes, patients, utterances, type User } from "./repo";
 
 export const MAX_CAPTURE_BYTES = 100 * 1024 * 1024;
 const CHUNK_BYTES = 4 * 1024 * 1024;
@@ -31,9 +31,19 @@ const MIME: Record<string, string> = {
   "audio/ogg": "audio/ogg",
   "audio/mpeg": "audio/mpeg",
   "audio/mp3": "audio/mpeg",
+  "audio/3gpp": "audio/3gpp",
+  "video/3gpp": "audio/3gpp",
+  "audio/3gpp2": "audio/3gpp2",
+  "video/3gpp2": "audio/3gpp2",
+  "audio/amr": "audio/amr",
+  "audio/amr-nb": "audio/amr",
+  "audio/x-amr": "audio/amr",
+  "audio/opus": "audio/ogg",
+  "video/quicktime": "audio/mp4",
+  "audio/x-caf": "audio/x-caf",
 };
 
-const EXT: Record<string, string> = { webm: "audio/webm", m4a: "audio/mp4", mp4: "audio/mp4", aac: "audio/aac", wav: "audio/wav", ogg: "audio/ogg", oga: "audio/ogg", opus: "audio/ogg", mp3: "audio/mpeg" };
+const EXT: Record<string, string> = { webm: "audio/webm", m4a: "audio/mp4", mp4: "audio/mp4", aac: "audio/aac", wav: "audio/wav", ogg: "audio/ogg", oga: "audio/ogg", opus: "audio/ogg", mp3: "audio/mpeg", "3gp": "audio/3gpp", "3gpp": "audio/3gpp", "3g2": "audio/3gpp2", amr: "audio/amr", mov: "audio/mp4", caf: "audio/x-caf" };
 
 export function normalizeMime(type: string | null | undefined, filename?: string | null) {
   const base = (type ?? "").split(";")[0].trim().toLowerCase();
@@ -151,6 +161,40 @@ function background(fn: () => Promise<void>) {
   }
 }
 
+type DraftHook = (r: { ok: true; encounterIds: string[] } | { ok: false; error: string }) => Promise<void> | void;
+const hooks = ((globalThis as unknown as { __chartsideDraftHooks?: Map<string, DraftHook> }).__chartsideDraftHooks ??= new Map<string, DraftHook>());
+
+export function onDrafted(encId: string, fn: DraftHook) {
+  hooks.set(encId, fn);
+}
+
+async function fireHook(encId: string, r: Parameters<DraftHook>[0]) {
+  const fn = hooks.get(encId);
+  if (!fn) return;
+  hooks.delete(encId);
+  try {
+    await fn(r);
+  } catch (err) {
+    console.error("draft hook failed", err instanceof Error ? err.message : err);
+  }
+}
+
+export async function captureTyped(user: User, text: string, opts: { channel: string; reason?: string; templateId?: string; onDrafted?: DraftHook }) {
+  assertCan(user, "clinical.capture");
+  await purgeGuests();
+  const lines = text.split(/(?<=[.!?])\s+|\n+/).map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) throw new Invalid("Nothing to write a note from");
+  const at = new Date().toISOString();
+  const enc = await encounters.create(user, { scheduledAt: at, status: "recording", patientId: null, visitType: "follow-up", reason: (opts.reason ?? "").slice(0, 200), templateId: opts.templateId || undefined });
+  await encounters.update(user, enc.id, { status: "recording", startedAt: at });
+  await artifacts.set(enc.id, "capture_origin", { tokenId: null, userId: user.id, channel: opts.channel.slice(0, 30), createdAt: at } satisfies CaptureOrigin);
+  await utterances.replaceAll(enc.id, lines.map((t, i) => ({ speaker: "clinician" as const, speakerSource: "manual" as const, text: t.slice(0, 2000), tStart: i * 4, tEnd: i * 4 + 3, source: "typed" as const })));
+  await audit.log(user, enc.id, "capture.typed", { channel: opts.channel, lines: lines.length });
+  if (opts.onDrafted) onDrafted(enc.id, opts.onDrafted);
+  await draft(user, (await encounters.get(user, enc.id))!, opts.templateId ? { templateId: opts.templateId } : {});
+  return { encounterId: enc.id };
+}
+
 async function draft(user: User, enc: Encounter, opts: Record<string, string>) {
   const detail = ["concise", "standard", "detailed"].includes(opts.detail) ? (opts.detail as "concise" | "standard" | "detailed") : undefined;
   const origin = (await artifacts.get<CaptureOrigin>(enc.id, "capture_origin"))!;
@@ -164,11 +208,13 @@ async function draft(user: User, enc: Encounter, opts: Record<string, string>) {
       await audit.log(user, enc.id, "capture.drafted", { tokenId: origin.tokenId, warnings: r.warnings.length });
       const at = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: process.env.CHARTSIDE_TZ || "America/Chicago" }).format(new Date(enc.startedAt ?? enc.scheduledAt));
       await pushToUser(user.id, { title: "Note ready", body: `Your ${at} visit is written. Tap to review and sign.`, url: `/go/stack?focus=${enc.id}`, tag: enc.id }).catch(() => undefined);
+      await fireHook(enc.id, { ok: true, encounterIds: r.encounterIds ?? [enc.id] });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not draft the note";
       await encounters.update(user, enc.id, { status: "paused" });
       await artifacts.set(enc.id, "capture_origin", { ...origin, error: message });
       await audit.log(user, enc.id, "capture.failed", { tokenId: origin.tokenId, error: message });
+      await fireHook(enc.id, { ok: false, error: message });
     }
   });
 }
@@ -206,7 +252,7 @@ async function startCaptureNow(auth: CaptureAuth, input: CaptureInput) {
   if (!STATE_NAMES[state]) throw new Invalid("Unknown state");
   const othersPresent = truthy(o.othersPresent);
   if (ALL_PARTY_STATES.has(state) && othersPresent && !truthy(o.allPartiesConfirmed)) throw new Invalid(`${STATE_NAMES[state]} requires every person in the room to consent. Send allPartiesConfirmed=true once they have.`);
-  const method = (["verbal", "written", "patient-device"].includes(o.method) ? o.method : "verbal") as ConsentRecord["method"];
+  const method = (["verbal", "written", "patient-device", "text-confirmed", "standing"].includes(o.method) ? o.method : "verbal") as ConsentRecord["method"];
   const finish = !falsy(o.finish);
   if (finish && !input.audio) throw new Invalid("Send the recording in the request body, or finish=false to upload it in parts");
   const durationS = Number(o.durationS) > 0 ? Math.round(Number(o.durationS)) : null;

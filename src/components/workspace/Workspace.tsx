@@ -124,7 +124,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
       <div className="min-w-0 flex-1 md:flex-none">
         <div className="flex items-center gap-2">
           <h1 className="truncate font-serif text-xl" data-testid="patient-name">{p?.name ?? (b.group?.role === "recording" ? b.group.title : "Unassigned patient")}</h1>
-          {p && <span className="whitespace-nowrap text-sm text-ink-3">{age(p.dob)}{p.sex} · MRN {p.mrn}</span>}
+          {p && (p.chart.animal ? <span className="whitespace-nowrap text-sm text-ink-3" data-testid="animal-line">{[p.chart.animal.ageYears != null ? `${p.chart.animal.ageYears} yr` : null, p.chart.animal.sexWord || p.chart.animal.species].filter(Boolean).join(" ")}{p.chart.animal.breed ? ` · ${p.chart.animal.breed}` : ""}</span> : <span className="whitespace-nowrap text-sm text-ink-3">{age(p.dob)}{p.sex} · MRN {p.mrn}</span>)}
           {p?.chart.allergies.map((a) => <span key={a.substance} className="pill bg-rec-50 text-[10px] text-rec">{a.substance}</span>)}
         </div>
         <p className="truncate text-xs text-ink-3">{enc.reason || "No reason given"} · {fmtDate(enc.scheduledAt)} {fmtTime(enc.scheduledAt)}{b.clinician.id !== b.access.userId ? <span data-testid="visit-clinician"> · {b.clinician.name}</span> : null}</p>
@@ -324,7 +324,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
           {!locked && dirty && (
             <button className="border-t border-line bg-surface px-4 py-2 text-left text-xs text-brand hover:bg-sunken" onClick={async () => { await regenerate(enc.templateId ?? b.template.id); setDirty(false); }} data-testid="redraft">Transcript changed. Redraft note ↻</button>
           )}
-          <Assistant encounterId={id} disabled={locked} onNote={(n: Note) => setB((x) => (x ? { ...x, note: { ...x.note!, content: n } } : x))} onCite={(ids) => cite(ids)} />
+          <Assistant encounterId={id} disabled={locked} vet={!!p?.chart.animal} onNote={(n: Note) => setB((x) => (x ? { ...x, note: { ...x.note!, content: n } } : x))} onCite={(ids) => cite(ids)} />
         </aside>
       </div>
 
