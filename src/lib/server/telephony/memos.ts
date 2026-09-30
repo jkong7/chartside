@@ -71,7 +71,7 @@ async function holdMemo(user: User, phone: string, channel: MemoChannel, audio: 
   const created = new Date();
   await run(
     "INSERT INTO memo_holds (id, phone, channel, user_id, org_id, status, mime, bytes, duration_s, path, message_sid, created_at, expires_at) VALUES (?, ?, ?, ?, ?, 'held', ?, ?, ?, ?, ?, ?, ?)",
-    id, phone, channel, user.id, user.orgId, mime, audio.length, secs, file, messageSid, created.toISOString(), holdExpiry(created, holdHours()),
+    id, phone, channel, user.id, user.orgId, mime, audio.length, secs, file, messageSid, created.toISOString(), user.guestUntil && user.guestUntil < holdExpiry(created, holdHours()) ? user.guestUntil : holdExpiry(created, holdHours()),
   );
   await audit.log(user, null, "memo.held", { holdId: id, channel, bytes: audio.length });
   return id;
@@ -189,7 +189,8 @@ export async function inboundMemo(input: { user: User; phone: string; channel: M
   const extra = tooBig ? ` One file was too big to text. ${await uploadLinkReply(user, origin, phone)}` : "";
   if (!held) return `Got your ${label}. Writing the note.${extra}`;
   const vet = (await orgJurisdiction(user.orgId)) === "veterinary";
-  return `Got your ${label}. Reply YES if your ${vet ? "client" : "patient"} agreed to be recorded, or NO to delete it. Nothing is written until you reply, and it is deleted after ${holdHours()} hours.${extra}`;
+  const hrs = user.guestUntil ? Math.max(1, Math.round((Date.parse(user.guestUntil) - Date.now()) / 3600_000)) : holdHours();
+  return `Got your ${label}. Reply YES if your ${vet ? "client" : "patient"} agreed to be recorded, or NO to delete it. Nothing is written until you reply, and it is deleted after ${hrs} hour${hrs === 1 ? "" : "s"}.${extra}`;
 }
 
 export async function resolveHolds(phone: string, intent: "yes" | "no" | "always", channel?: MemoChannel) {
