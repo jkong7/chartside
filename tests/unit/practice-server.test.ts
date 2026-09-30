@@ -110,13 +110,31 @@ describe("practice sessions", () => {
     await expect(p.leaderboard("x")).rejects.toThrow(/Class codes/);
   });
 
-  it("opens a phone session only with its claim token", async () => {
+  it("opens a phone session once, on the first device, before the link expires", async () => {
     const p = await P();
+    const { get, run } = await import("@/lib/db");
     const s = await p.startPractice({ caseId: "chest-pain", actor: { device: null, userId: null }, channel: "phone", claimToken: "secret-token-123" });
     const d = device();
-    expect(await p.openWithClaim(s.id, "wrong", d)).toBeNull();
-    expect((await p.openWithClaim(s.id, "secret-token-123", d))?.id).toBe(s.id);
+    expect((await p.openWithClaim(s.id, "wrong", d)).status).toBe("invalid");
+    const first = await p.openWithClaim(s.id, "secret-token-123", d);
+    expect(first.status).toBe("opened");
+    expect(first.session?.id).toBe(s.id);
     expect((await p.getPractice(s.id))!.device).toBe(d);
+    expect((await get<{ claim_hash: string | null }>("SELECT claim_hash FROM practice_sessions WHERE id = ?", s.id))!.claim_hash).toBeNull();
+    expect((await p.openWithClaim(s.id, "secret-token-123", d)).status).toBe("opened");
+    const other = device();
+    expect((await p.openWithClaim(s.id, "secret-token-123", other)).status).toBe("used");
+    expect((await p.getPractice(s.id))!.device).toBe(d);
+    const old = await p.startPractice({ caseId: "chest-pain", actor: { device: null, userId: null }, channel: "phone", claimToken: "old-token-456" });
+    const expires = (await get<{ claim_expires_at: string }>("SELECT claim_expires_at FROM practice_sessions WHERE id = ?", old.id))!.claim_expires_at;
+    expect(Date.parse(expires) - Date.now()).toBeGreaterThan(23 * 3600_000);
+    expect(Date.parse(expires) - Date.now()).toBeLessThanOrEqual(24 * 3600_000);
+    await run("UPDATE practice_sessions SET claim_expires_at = ? WHERE id = ?", new Date(Date.now() - 1000).toISOString(), old.id);
+    expect((await p.openWithClaim(old.id, "old-token-456", other)).status).toBe("expired");
+    expect((await p.getPractice(old.id))!.device).toBeNull();
+    const race = await p.startPractice({ caseId: "headache", actor: { device: null, userId: null }, channel: "phone", claimToken: "race-token-789" });
+    const both = await Promise.all([p.openWithClaim(race.id, "race-token-789", device()), p.openWithClaim(race.id, "race-token-789", device())]);
+    expect(both.map((r) => r.status).sort()).toEqual(["opened", "used"]);
     expect(await p.getPractice("../etc")).toBeNull();
   });
 

@@ -338,8 +338,15 @@ test("a student calls the line, presses 7, takes a history by voice, and gets a 
   const body = texts.at(-1)!.body;
   expect(body).toMatch(/^Chartside Practice: your practice case is scored\. Write your note and see your scorecard: http:\/\/localhost:\d+\/api\/practice\/open\?s=prs_/);
   expect(body).not.toMatch(/chest|pain|Alvarez/i);
-  await page.goto(/(http:\/\/\S+)/.exec(body)![1]);
+  const link = /(http:\/\/\S+)/.exec(body)![1];
+  await page.goto(link);
   await expect(page).toHaveURL(/\/practice\/s\/prs_/);
+  await expect(page.getByTestId("scorecard")).toHaveAttribute("data-owner", "1");
+  const stranger = await (await page.context().browser()!.newContext()).newPage();
+  await stranger.goto(link);
+  await expect(stranger).toHaveURL(/\/practice\/link\?why=used$/);
+  await expect(stranger.getByRole("heading", { level: 1 })).toHaveText("This link was already opened on another device");
+  await page.goto(link);
   await expect(page.getByTestId("scorecard")).toHaveAttribute("data-owner", "1");
   await expect(page.getByTestId("scorecard")).toContainText("by phone");
   await expect(page.getByTestId("rubric-item").filter({ hasText: "Radiation to arm or jaw" })).toHaveAttribute("data-hit", "1");

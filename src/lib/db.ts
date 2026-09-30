@@ -844,6 +844,7 @@ CREATE TABLE IF NOT EXISTS practice_sessions (
   ended_at TEXT,
   graded_at TEXT,
   created_at TEXT NOT NULL,
+  claim_expires_at TEXT,
   speech_tokens INTEGER NOT NULL DEFAULT 0,
   voice_clips INTEGER NOT NULL DEFAULT 0,
   llm_calls INTEGER NOT NULL DEFAULT 0
@@ -932,6 +933,7 @@ const LEGACY_COLUMNS: [string, string, string][] = [
   ["auth_sessions", "last_seen_at", "TEXT"],
   ["auth_sessions", "user_agent", "TEXT"],
   ["memberships", "supervisor_id", "TEXT"],
+  ["practice_sessions", "claim_expires_at", "TEXT"],
   ["practice_sessions", "speech_tokens", "INTEGER NOT NULL DEFAULT 0"],
   ["practice_sessions", "voice_clips", "INTEGER NOT NULL DEFAULT 0"],
   ["practice_sessions", "llm_calls", "INTEGER NOT NULL DEFAULT 0"],

@@ -68,6 +68,7 @@ interface Row {
   presentation: string | null;
   challenge_of: string | null;
   claim_hash: string | null;
+  claim_expires_at: string | null;
   time_limit_s: number;
   student: number;
   engine: string;
@@ -163,6 +164,10 @@ export async function spendSession(id: string, column: "speech_tokens" | "voice_
   return (await run(`UPDATE practice_sessions SET ${column} = ${column} + 1 WHERE id = ? AND ${column} < ?`, id, max)).changes > 0;
 }
 
+export function claimHours() {
+  return envCount("CHARTSIDE_PRACTICE_LINK_HOURS", 24);
+}
+
 export async function getPractice(id: string) {
   if (!/^prs_[a-z0-9]{8,40}$/i.test(id ?? "")) return null;
   const r = await get<Row>("SELECT * FROM practice_sessions WHERE id = ?", id);
@@ -189,7 +194,7 @@ export async function startPractice(input: { caseId: string; actor: Actor; name?
   const id = uid("prs_");
   const ts = now();
   await run(
-    "INSERT INTO practice_sessions (id, case_id, device, user_id, name, cohort, channel, status, turns, challenge_of, claim_hash, time_limit_s, student, engine, started_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', '[]', ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO practice_sessions (id, case_id, device, user_id, name, cohort, channel, status, turns, challenge_of, claim_hash, claim_expires_at, time_limit_s, student, engine, started_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', '[]', ?, ?, ?, ?, ?, ?, ?, ?)",
     id,
     c.id,
     input.actor.device,
@@ -199,6 +204,7 @@ export async function startPractice(input: { caseId: string; actor: Actor; name?
     input.channel ?? "web",
     challenger && challenger.caseId === c.id ? challenger.id : null,
     input.claimToken ? sha(input.claimToken) : null,
+    input.claimToken ? new Date(Date.now() + claimHours() * 3600_000).toISOString() : null,
     minutes * 60,
     isStudentEmail(user?.email) ? 1 : 0,
     llmEnabled() ? "claude" : "local",
@@ -354,15 +360,21 @@ export async function claimPractice(a: Actor, userId: string) {
   return r.changes;
 }
 
-export async function openWithClaim(id: string, token: string, device: string) {
+export type OpenResult = { status: "opened"; session: PracticeSession } | { status: "used" | "expired" | "invalid"; session: null };
+
+export async function openWithClaim(id: string, token: string, device: string): Promise<OpenResult> {
   const s = await getPractice(id);
-  if (!s) return null;
-  const r = await get<{ claim_hash: string | null }>("SELECT claim_hash FROM practice_sessions WHERE id = ?", id);
-  const a = Buffer.from(sha(token ?? ""));
-  const b = Buffer.from(r?.claim_hash ?? "");
-  if (!r?.claim_hash || a.length !== b.length || !timingSafeEqual(a, b)) return null;
-  if (!s.userId) await run("UPDATE practice_sessions SET device = ? WHERE id = ?", device, id);
-  return s;
+  if (!s || !token) return { status: "invalid", session: null };
+  const r = await get<{ claim_hash: string | null; claim_expires_at: string | null }>("SELECT claim_hash, claim_expires_at FROM practice_sessions WHERE id = ?", id);
+  if (!r?.claim_hash) return s.device === device && !s.userId ? { status: "opened", session: s } : { status: s.channel === "phone" ? "used" : "invalid", session: null };
+  const a = Buffer.from(sha(token));
+  const b = Buffer.from(r.claim_hash);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return { status: "invalid", session: null };
+  if (!r.claim_expires_at || r.claim_expires_at < now()) return { status: "expired", session: null };
+  const bound = await run("UPDATE practice_sessions SET claim_hash = NULL, claim_expires_at = NULL, device = CASE WHEN user_id IS NULL THEN ? ELSE device END WHERE id = ? AND claim_hash = ? AND claim_expires_at > ?", device, id, r.claim_hash, now());
+  if (bound.changes === 0) return { status: "used", session: null };
+  await audit.log(null, null, "practice.link_opened", { id });
+  return { status: "opened", session: (await getPractice(id))! };
 }
 
 export async function historyFor(a: Actor) {
