@@ -155,4 +155,30 @@ describe("practice on the phone line", () => {
     const { all } = await import("@/lib/db");
     expect(await all("SELECT id FROM practice_sessions WHERE user_id = ?", doc.id)).toHaveLength(0);
   });
+
+  it("puts a verified caller's case on the account and texts the link, unless texts are turned off", async () => {
+    const { practiceLine } = await import("@/lib/server/telephony/practice");
+    const { simMessages } = await import("@/lib/server/telephony/sms");
+    const { setTextOptOut } = await import("@/lib/server/jurisdiction");
+    const repo = await import("@/lib/server/repo");
+    const doc = await newMember("Dr. Verified");
+    const phone = `+1555${String(Date.now() + 1).slice(-7)}`;
+    const line = practiceLine(claims(phone), doc);
+    await line.pick("1", true);
+    await line.finish("done");
+    expect(simMessages(phone)).toHaveLength(1);
+    const { all } = await import("@/lib/db");
+    expect(await all("SELECT id FROM practice_sessions WHERE user_id = ?", doc.id)).toHaveLength(1);
+    await repo.users.update(doc.id, { prefs: { ...doc.prefs, textOptOut: true } });
+    const quiet = practiceLine(claims(phone), doc);
+    await quiet.pick("1", true);
+    expect(await quiet.finish("done")).toContain("Texts are turned off");
+    expect(simMessages(phone)).toHaveLength(1);
+    await repo.users.update(doc.id, { prefs: { ...doc.prefs, textOptOut: false } });
+    await setTextOptOut(phone, true);
+    const stopped = practiceLine(claims(phone), doc);
+    await stopped.pick("1", true);
+    await stopped.finish("done");
+    expect(simMessages(phone)).toHaveLength(1);
+  });
 });

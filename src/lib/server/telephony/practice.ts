@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { CASES, practiceCase } from "../../engine/practice/cases";
 import { normalize } from "../../engine/practice/intent";
+import { textOptedOut } from "../jurisdiction";
 import { askPatient, endPractice, newDevice, patientVoice, startPractice, type PracticeSession } from "../practice";
-import { audit, type User } from "../repo";
+import { audit, users, type User } from "../repo";
 import { sendText } from "./sms";
 import type { CallClaims } from "./token";
 
@@ -67,7 +68,8 @@ export function practiceLine(claims: CallClaims, user: User): PracticeLine {
       const g = s.grade!;
       const missed = g.missedRedFlags.length;
       const url = `${publicUrlBase()}/api/practice/open?s=${encodeURIComponent(s.id)}&k=${encodeURIComponent(token)}`;
-      const skip = !owner ? "unverified" : null;
+      const optedOut = !!(await users.byId(user.id).catch(() => undefined))?.prefs.textOptOut || (await textOptedOut(claims.phone).catch(() => false));
+      const skip = !owner ? "unverified" : optedOut ? "opted_out" : null;
       let texted = false;
       if (!skip) {
         try {
@@ -80,7 +82,7 @@ export function practiceLine(claims: CallClaims, user: User): PracticeLine {
       await audit.log(user, null, "phone.practice_ended", { callSid: claims.callSid, reason, texted, skipped: skip, score: s.score });
       const head = reason === "time" ? "Time's up." : "Encounter over.";
       const flags = missed ? ` You missed ${missed} red flag${missed === 1 ? "" : "s"}, including ${g.missedRedFlags[0].label.toLowerCase()}.` : " You didn't miss any red flags.";
-      return `${head} You covered ${g.historyHits} of ${g.historyTotal} history items.${flags} ${texted ? "I'm texting you a link to write your note and see your full scorecard." : skip === "unverified" ? "To get your scorecard by text, call back and enter your phone PIN first." : "Open Chartside Practice to see your scorecard."} Goodbye.`;
+      return `${head} You covered ${g.historyHits} of ${g.historyTotal} history items.${flags} ${texted ? "I'm texting you a link to write your note and see your full scorecard." : skip === "unverified" ? "To get your scorecard by text, call back and enter your phone PIN first." : skip === "opted_out" ? "Texts are turned off for this number, so I won't send your scorecard." : "Open Chartside Practice to see your scorecard."} Goodbye.`;
     },
   };
 }
