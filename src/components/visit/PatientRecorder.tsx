@@ -31,6 +31,7 @@ export default function PatientRecorder({ token, autoStart, resumeFrom, priorSec
   const pausedAt = useRef(0);
   const pending = useRef(0);
   const auto = useRef(false);
+  const full = useRef(false);
 
 
   useEffect(() => {
@@ -86,6 +87,14 @@ export default function PatientRecorder({ token, autoStart, resumeFrom, priorSec
           }
           if (r && finish && r.status === 409) {
             setOffline(false);
+            return;
+          }
+          if (r && !finish && r.status === 413) {
+            setOffline(false);
+            if (!full.current) {
+              full.current = true;
+              setTimeout(() => finishRef.current(), 0);
+            }
             return;
           }
           if (r && r.status < 500 && r.status !== 408 && r.status !== 429) {

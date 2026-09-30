@@ -65,6 +65,7 @@ export interface CaptureAuth {
   tokenId: string | null;
   device?: boolean;
   uploadOnly?: boolean;
+  limit?: { bytes: number; message: string };
 }
 
 interface CaptureOrigin {
@@ -97,14 +98,34 @@ async function serialized<T>(key: string, fn: () => Promise<T>): Promise<T> {
 }
 const seqOf = (v: string | undefined) => (v !== undefined && /^\d{1,6}$/.test(v) ? Number(v) : undefined);
 
-export async function readCaptureRequest(req: Request): Promise<CaptureInput> {
+export async function readBody(req: Request, limit: number, message = "Recording is larger than 100 MB") {
+  if (!req.body) return Buffer.alloc(0);
+  const reader = req.body.getReader();
+  const parts: Buffer[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel().catch(() => undefined);
+      throw new CaptureAuthError(413, message);
+    }
+    parts.push(Buffer.from(value));
+  }
+  return Buffer.concat(parts, total);
+}
+
+export async function readCaptureRequest(req: Request, maxBytes = MAX_CAPTURE_BYTES, message = "Recording is larger than 100 MB"): Promise<CaptureInput> {
   const url = new URL(req.url);
   const opts: Record<string, string> = Object.fromEntries(url.searchParams.entries());
+  const cap = Math.max(0, Math.min(maxBytes, MAX_CAPTURE_BYTES));
   const declared = Number(req.headers.get("content-length") ?? 0);
-  if (declared > MAX_CAPTURE_BYTES + 64 * 1024) throw new CaptureAuthError(413, "Recording is larger than 100 MB");
+  if (declared > cap + 64 * 1024) throw new CaptureAuthError(413, message);
   const type = req.headers.get("content-type") ?? "";
   if (/^multipart\/form-data/i.test(type)) {
-    const form = await req.formData();
+    const raw = await readBody(req, cap + 64 * 1024, message);
+    const form = await new Response(new Uint8Array(raw), { headers: { "content-type": type } }).formData();
     let audio: Buffer | null = null;
     let mime: string | null = null;
     for (const [k, v] of form.entries()) {
@@ -115,22 +136,32 @@ export async function readCaptureRequest(req: Request): Promise<CaptureInput> {
         if (!mime) throw new CaptureAuthError(415, "Send webm, m4a, mp4, wav, ogg, mp3 or aac audio");
       }
     }
+    if (audio && audio.length > cap) throw new CaptureAuthError(413, message);
     return { audio: audio?.length ? audio : null, mime, opts };
   }
   if (!type || /^application\/(json|x-www-form-urlencoded)/i.test(type)) {
-    if (type.startsWith("application/json")) Object.assign(opts, Object.fromEntries(Object.entries(((await req.json().catch(() => ({}))) as Record<string, unknown>) ?? {}).map(([k, v]) => [k, String(v)])));
+    if (type.startsWith("application/json")) {
+      const raw = await readBody(req, 64 * 1024, "That request is too large");
+      let parsed: Record<string, unknown> = {};
+      try {
+        parsed = (JSON.parse(raw.toString("utf8") || "{}") as Record<string, unknown>) ?? {};
+      } catch {
+        parsed = {};
+      }
+      Object.assign(opts, Object.fromEntries(Object.entries(parsed).map(([k, v]) => [k, String(v)])));
+    }
     return { audio: null, mime: null, opts };
   }
   const mime = normalizeMime(type, opts.filename);
   if (!mime) throw new CaptureAuthError(415, "Send webm, m4a, mp4, wav, ogg, mp3 or aac audio");
-  const audio = Buffer.from(await req.arrayBuffer());
+  const audio = await readBody(req, cap, message);
   return { audio: audio.length ? audio : null, mime, opts };
 }
 
 const truthy = (v: string | undefined) => v === "1" || v === "true" || v === "yes" || v === "on";
 const falsy = (v: string | undefined) => v === "0" || v === "false" || v === "no" || v === "off";
 
-async function storeAudio(encId: string, audio: Buffer, mime: string, durationS: number | null) {
+async function storeAudio(encId: string, audio: Buffer, mime: string, durationS: number | null, limit?: CaptureAuth["limit"]) {
   const owner = await get<{ user_id: string }>("SELECT user_id FROM encounters WHERE id = ?", encId);
   if (owner) await touchGuest(owner.user_id);
   if (audio.length > MAX_CAPTURE_BYTES) throw new CaptureAuthError(413, "Recording is larger than 100 MB");
@@ -138,6 +169,7 @@ async function storeAudio(encId: string, audio: Buffer, mime: string, durationS:
   if (existing.length && existing[0].mime !== mime) throw new Invalid(`This visit is recording ${existing[0].mime}; send the rest in the same format`);
   const already = existing.reduce((n, c) => n + c.bytes, 0);
   if (already + audio.length > MAX_CAPTURE_BYTES) throw new CaptureAuthError(413, "Recording is larger than 100 MB");
+  if (limit && already + audio.length > limit.bytes) throw new CaptureAuthError(413, limit.message);
   let seq = existing.length ? existing.at(-1)!.seq + 1 : 0;
   const baseMs = existing.at(-1)?.tMs ?? 0;
   for (let off = 0; off < audio.length; off += CHUNK_BYTES) {
@@ -303,6 +335,10 @@ async function reachable(auth: CaptureAuth, encId: string) {
   return { enc, origin };
 }
 
+export function withEncounterLock<T>(encId: string, fn: () => Promise<T>) {
+  return serialized(`enc:${encId}`, fn);
+}
+
 export async function appendCapture(auth: CaptureAuth, encId: string, input: CaptureInput) {
   return serialized(`enc:${encId}`, () => appendCaptureNow(auth, encId, input));
 }
@@ -317,7 +353,7 @@ async function appendCaptureNow(auth: CaptureAuth, encId: string, input: Capture
   const seq = seqOf(input.opts.seq);
   const origin = await artifacts.get<CaptureOrigin>(enc.id, "capture_origin");
   const duplicate = seq !== undefined && origin?.lastSeq !== undefined && seq <= origin.lastSeq;
-  const bytes = input.audio && !duplicate ? await storeAudio(enc.id, input.audio, input.mime!, null) : (await audioChunks.list(enc.id)).reduce((n, c) => n + c.bytes, 0);
+  const bytes = input.audio && !duplicate ? await storeAudio(enc.id, input.audio, input.mime!, null, auth.limit) : (await audioChunks.list(enc.id)).reduce((n, c) => n + c.bytes, 0);
   if (input.audio && !duplicate && seq !== undefined && origin) await artifacts.set(enc.id, "capture_origin", { ...origin, lastSeq: seq });
   if (durationS) await encounters.update(auth.user, enc.id, { durationS });
   const finish = truthy(input.opts.finish);

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { MAX_CAPTURE_BYTES, normalizeMime } from "@/lib/server/capture";
+import { MAX_CAPTURE_BYTES, normalizeMime, readBody } from "@/lib/server/capture";
 import { clientIp, limited, tooMany } from "@/lib/server/ratelimit";
 import { holdShared, reserveShare, SHARE_COOKIE, SHARE_TTL_MS } from "@/lib/server/sharedAudio";
 
@@ -14,14 +14,16 @@ export async function POST(req: Request) {
   const release = reserveShare(declared);
   if (!release) return back("Chartside is busy. Share the recording again in a few minutes.");
   try {
-    return await accept(req, back);
+    return await accept(req, declared, back);
   } finally {
     release();
   }
 }
 
-async function accept(req: Request, back: (msg: string) => NextResponse) {
-  const form = await req.formData().catch(() => null);
+async function accept(req: Request, declared: number, back: (msg: string) => NextResponse) {
+  const raw = await readBody(req, declared).catch(() => null);
+  if (!raw) return back("That recording is over 100 MB.");
+  const form = await new Response(new Uint8Array(raw), { headers: { "content-type": req.headers.get("content-type") ?? "" } }).formData().catch(() => null);
   if (!form) return back("Nothing was shared.");
   const file = [...form.values()].find((v): v is File => typeof v !== "string");
   if (!file || !file.size) return back("Share an audio recording to Chartside.");
