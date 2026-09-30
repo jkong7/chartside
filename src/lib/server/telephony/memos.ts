@@ -122,11 +122,16 @@ export async function notifyReady(user: User, phone: string, channel: MemoChanne
       return;
     }
     const ids = r.encounterIds;
+    const owners = ids.length ? await all<{ org_id: string }>(`SELECT DISTINCT org_id FROM encounters WHERE id IN (${ids.map(() => "?").join(", ")})`, ...ids) : [];
+    if (owners.length !== 1 || owners[0].org_id !== fresh.orgId) {
+      await audit.log(fresh, null, "memo.text_skipped", { reason: "org_mismatch", channel });
+      return;
+    }
     const link = await linkFor(fresh, phone, ids.length === 1 ? `/go/stack?focus=${ids[0]}` : "/go/stack");
     const many = ids.length > 1 ? `${ids.length} notes` : "note";
     const verb = ids.length > 1 ? "are" : "is";
     const head = fresh.guestUntil ? `Chartside: your ${many} from the ${what} ${verb} ready. Tap to save ${ids.length > 1 ? "them" : "it"} (free): ${link}` : `Chartside: your ${many} from the ${what} ${verb} ready. Review and sign: ${link}`;
-    const inline = channel === "whatsapp" || !hipaaApplies(await orgJurisdiction(fresh.orgId));
+    const inline = !hipaaApplies(await orgJurisdiction(owners[0].org_id));
     if (inline && !fresh.guestUntil) {
       const bodies = await noteBodies(fresh, ids);
       await send(`${bodies.join("\n\n---\n\n")}\n\nEdit and sign: ${link}`, true);
