@@ -3,7 +3,7 @@ import { all, get, now, run, uid } from "../db";
 
 export const LOOP_COOKIE = "cs_loop";
 export const VISITOR_COOKIE = "cs_vid";
-export const LOOPS = ["referral", "share", "receipt", "invite", "recap", "text", "line", "phone_guest", "go_guest", "direct"] as const;
+export const LOOPS = ["referral", "share", "receipt", "invite", "recap", "text", "line", "phone_guest", "go_guest", "patient_visit", "direct"] as const;
 export type LoopId = (typeof LOOPS)[number];
 export type LoopKind = "exposure" | "click" | "signup" | "activation";
 export const ACTIVATION_NOTES = 3;
@@ -60,7 +60,7 @@ export async function recordSignup(userId: string, touch: { loop: LoopId; invite
   return loop;
 }
 
-export async function markGuestLoop(userId: string, loop: "phone_guest" | "go_guest") {
+export async function markGuestLoop(userId: string, loop: "phone_guest" | "go_guest" | "patient_visit") {
   await run("UPDATE users SET acq_loop = ? WHERE id = ? AND acq_loop IS NULL", loop, userId);
   await trackLoop({ loop, kind: "click", userId });
 }
@@ -149,7 +149,7 @@ export async function touchFromCookies(jar: { get(name: string): { value: string
 export async function trackLineVisit(input: { src?: string | null; ref?: string | null; visitor?: string | null }) {
   const src = input.src ?? "";
   const r = input.ref && /^[a-z0-9]{6}$/.test(input.ref) ? await get<{ user_id: string }>("SELECT user_id FROM referral_codes WHERE code = ?", input.ref) : undefined;
-  const loop: LoopId = src === "recap" || src === "text" ? src : r ? loopId(src === "share" || src === "receipt" || src === "invite" ? src : "referral") : "line";
-  if (r && loop !== "recap" && loop !== "text") return false;
+  const loop: LoopId = src === "recap" || src === "text" || src === "patient_visit" ? src : r ? loopId(src === "share" || src === "receipt" || src === "invite" ? src : "referral") : "line";
+  if (r && loop !== "recap" && loop !== "text" && loop !== "patient_visit") return false;
   return trackLoop({ loop, kind: "click", inviterId: r?.user_id ?? null, visitor: visitorKey(input.visitor ?? null) });
 }

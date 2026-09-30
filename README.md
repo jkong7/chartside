@@ -139,6 +139,10 @@ Pressing a key while the line is talking cuts it off. A printable card of all of
 
 For developers, `POST /api/capture` is the one capture endpoint behind every door. It takes raw or multipart audio (webm, m4a, mp4, wav, ogg, mp3 or aac, up to 100 MB) with `consent=granted`, authenticated by the session cookie or a `Bearer cs_cap_…` capture token. It drafts in the background, with `GET /api/capture/{id}` for status and `GET /api/capture/{id}/note` for the note. Mint a token with `POST /api/capture/token` (session) or `POST /api/v1/capture/token` (API key with `encounters:write`).
 
+### Bring your own scribe (`/visit`)
+
+A patient records their own visit on their phone. The clinician taps Agree on the patient's screen first, the patient gets a plain-English recap, and the clinician can be offered a free draft note they claim after confirming who they are. See [docs/PATIENT-VISIT.md](docs/PATIENT-VISIT.md).
+
 ### Identity without signup
 
 - **Email:** sign in with an emailed 6-digit code or a single-use link. The link page only shows a Continue button, so link scanners can't spend it. Org MFA and SSO still apply.
@@ -198,6 +202,11 @@ For developers, `POST /api/capture` is the one capture endpoint behind every doo
 | `CHARTSIDE_MODEL` | The note model (default `claude-opus-5`) |
 | `CHARTSIDE_AGENT_MODEL` | The agent model (default `claude-sonnet-5-5`, chosen for voice latency) |
 | `CHARTSIDE_GUEST_HOURS` | How long an unclaimed guest visit is kept (default 2) |
+| `CHARTSIDE_VISIT_DAYS` / `CHARTSIDE_VISIT_SAVED_DAYS` | How long a patient's own recording and recap at `/visit` are kept: unsaved (default 7) and after the patient saves the link (default 90) |
+| `CHARTSIDE_VISIT_OFFER_DAYS` / `CHARTSIDE_VISIT_FAMILY_DAYS` | How long a draft offer to the clinician and a family link last (default 7 each) |
+| `CHARTSIDE_VISIT_RATE` / `CHARTSIDE_VISIT_DAILY_CAP` | Patient visits started (and save links sent) per IP per hour (default 10), and patient visits per day across everyone (default 500) |
+| `CHARTSIDE_VISIT_OFFERS_PER_CONTACT` | Draft offers one clinician phone or email can receive per day (default 5) |
+| `CHARTSIDE_VISIT_UPLOAD_RATE` | Audio uploads per IP per hour on patient visits (default 2000) |
 | `CHARTSIDE_DELIVERY` | `file` writes outgoing email and SMS to `data/outbox/` instead of sending, and `none` disables delivery. By default, outside production, messages go to `data/outbox/` when no provider is configured. |
 | `SENDGRID_API_KEY`, `CHARTSIDE_EMAIL_FROM` | Email for sign-in codes and shares. SendGrid does not sign a BAA, so email carries no patient data. |
 | `NPPES_BASE_URL` | Override the NPI registry base URL, used for tests |

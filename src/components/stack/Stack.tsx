@@ -180,6 +180,7 @@ export default function Stack({ initial, user, focus, justClaimed = false, sampl
               <p className="text-xs font-medium uppercase tracking-wide text-ink-3">{label(top)}</p>
               <h1 className="mt-1 text-lg font-semibold leading-snug" data-testid="stack-title">{top.title}</h1>
               <p className="mt-0.5 text-sm text-ink-3">{top.summary}</p>
+              {typeof top.detail.fromPatient === "object" && top.detail.fromPatient && <p className="mr-1 mt-2 inline-flex rounded-full bg-info-50 px-2.5 py-0.5 text-xs font-medium text-info" data-testid="stack-from-patient" title={(top.detail.fromPatient as { help: string }).help}>{(top.detail.fromPatient as { label: string }).label}</p>}
               {typeof top.detail.markedReady === "object" && top.detail.markedReady && <p className="mt-2 inline-flex rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand" data-testid="stack-ready">{(top.detail.markedReady as { label: string }).label}</p>}
               {typeof top.detail.summaryOnSign === "object" && top.detail.summaryOnSign && <p className="ml-1 mt-2 inline-flex rounded-full bg-info-50 px-2.5 py-0.5 text-xs font-medium text-info" data-testid="stack-summary-on-sign">{(top.detail.summaryOnSign as { label: string }).label}</p>}
               {typeof top.detail.unverifiedCaller === "object" && top.detail.unverifiedCaller && (
@@ -187,6 +188,15 @@ export default function Stack({ initial, user, focus, justClaimed = false, sampl
                   {(top.detail.unverifiedCaller as { label: string }).label}
                   <span className="font-normal">· {(top.detail.unverifiedCaller as { help: string }).help}</span>
                 </p>
+              )}
+              {typeof top.detail.fromPatient === "object" && top.detail.fromPatient && (
+                <details className="mt-3 rounded-lg bg-sunken px-3 py-2 text-sm" data-testid="stack-patient-transcript" data-noswipe>
+                  <summary className="cursor-pointer font-medium text-brand">Read the conversation the patient recorded</summary>
+                  <p className="mt-1 text-xs text-ink-3">{(top.detail.fromPatient as { help: string }).help}</p>
+                  <div className="mt-2 max-h-72 space-y-1.5 overflow-y-auto">
+                    {(top.detail.fromPatient as { transcript: { speaker: string; text: string }[] }).transcript.map((u, i) => <p key={i}><span className="font-semibold text-ink-2">{u.speaker === "clinician" ? "Clinician" : u.speaker === "patient" ? "Patient" : "Other"}:</span> {u.text}</p>)}
+                  </div>
+                </details>
               )}
               <Body d={top} choice={choice} setChoice={setChoice} text={text} setText={setText} />
               {blockers && (
