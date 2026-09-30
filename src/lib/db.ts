@@ -45,7 +45,8 @@ CREATE TABLE IF NOT EXISTS oidc_logins (
   verifier TEXT NOT NULL,
   nonce TEXT NOT NULL,
   next TEXT,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  browser TEXT
 );
 CREATE TABLE IF NOT EXISTS sso_identities (
   issuer TEXT NOT NULL,
@@ -914,6 +915,7 @@ const LEGACY_COLUMNS: [string, string, string][] = [
   ["users", "phone_verified_at", "TEXT"],
   ["users", "guest_expires_at", "TEXT"],
   ["users", "email_verified_at", "TEXT"],
+  ["oidc_logins", "browser", "TEXT"],
   ["users", "phone_pin_hash", "TEXT"],
   ["users", "referred_by", "TEXT"],
   ["users", "acq_loop", "TEXT"],

@@ -220,3 +220,18 @@ test("Continue with Google creates an account and lands on the recorder", async 
   await page.waitForURL(/\/go$/);
   expect((await (await page.request.get("/api/auth/me")).json()).user.email).toBe(email);
 });
+
+test("a Google sign-in callback only finishes in the browser that started it", async ({ page, browser }) => {
+  const email = `csrf-${uniq()}@gmail.test`;
+  const start = await page.request.get(`/api/auth/oauth/google?hint=${encodeURIComponent(email)}`, { maxRedirects: 0 });
+  const authorize = start.headers()["location"];
+  expect(authorize).toBeTruthy();
+  const back = await page.request.get(authorize, { maxRedirects: 0 });
+  const callback = back.headers()["location"];
+  expect(callback).toContain("state=");
+  const victim = await (await browser.newContext()).newPage();
+  await victim.goto(callback);
+  await victim.waitForURL(/\/login\?error=/);
+  await expect(victim.getByText("This sign-in didn't start in this browser")).toBeVisible();
+  expect((await victim.request.get("/api/auth/me")).status()).toBe(401);
+});
