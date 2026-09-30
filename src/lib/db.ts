@@ -913,6 +913,7 @@ const LEGACY_COLUMNS: [string, string, string][] = [
   ["users", "phone", "TEXT"],
   ["users", "phone_verified_at", "TEXT"],
   ["users", "guest_expires_at", "TEXT"],
+  ["users", "email_verified_at", "TEXT"],
   ["users", "phone_pin_hash", "TEXT"],
   ["users", "referred_by", "TEXT"],
   ["users", "acq_loop", "TEXT"],

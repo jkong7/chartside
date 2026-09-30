@@ -1,4 +1,5 @@
 import { get, now, run } from "../db";
+import { markEmailProven } from "./emailProof";
 import { authorizationUrl, decodeJwt, discoverOidc, exchangeCode, OidcError, pkce, randomToken, verifyIdToken } from "../sso/oidc";
 import { convertGuest, mergeGuest } from "./guest";
 import { safePath } from "./magic";
@@ -113,6 +114,7 @@ export async function completeConsumer(state: string, code: string, redirectUri:
     await run("UPDATE sso_identities SET last_login_at = ?, email = ? WHERE issuer = ? AND subject = ?", now(), email, issuerKey, claims.sub);
     if (guestId && guestId !== userId) await mergeGuest(guestId, userId);
   }
+  await markEmailProven(userId, provider);
   if (created) {
     const name = claims.name || [claims.given_name, claims.family_name].filter(Boolean).join(" ") || undefined;
     await setupNewAccount(userId, { name, tz: ctx.tz ?? undefined });

@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto
 import { get, now, run, uid } from "../db";
 import { hashPassword, verifyPassword } from "./auth";
 import { deliver } from "./delivery";
+import { markEmailProven } from "./emailProof";
 import { convertGuest, GUEST_EMAIL_DOMAIN, HOLDER_EMAIL_DOMAIN, mergeGuest, nameFromEmail } from "./guest";
 import { normalizePhone } from "./notify";
 import { Forbidden, Invalid } from "./policy";
@@ -167,6 +168,7 @@ export async function redeemMagic(input: { token?: string; email?: string; code?
       created = true;
     }
   }
+  if (row.kind === "email") await markEmailProven(userId, "email_code");
   if (created) await setupNewAccount(userId, { ...j<SignupProfile>(row.profile, {}), ...Object.fromEntries(Object.entries(input.profile ?? {}).filter(([, v]) => v !== undefined && v !== "")) });
   const user = await actorFor(userId);
   if (!user) throw new Forbidden("Your access to Chartside has been disabled. Contact your administrator.");

@@ -81,3 +81,36 @@ describe("next paths after sign-in", () => {
     for (const bad of ["//evil.test", "/\\evil.test", "https://evil.test", "/\\/evil.test"]) expect(safePath(bad, "")).toBe("");
   });
 });
+
+describe("an email claimed with a password before its owner proves it", () => {
+  it("loses the squatter's password and sessions when the real owner signs in with a code", async () => {
+    const m = await import("@/lib/server/magic");
+    const repo = await import("@/lib/server/repo");
+    const { hashPassword } = await import("@/lib/server/auth");
+    const db = await import("@/lib/db");
+    const squat = await repo.users.create({ email: "victim@clinic.test", name: "Squatter", passwordHash: hashPassword("attacker-pass"), specialty: "Family Medicine" });
+    await repo.orgs.create("Squat clinic", squat.id);
+    await repo.sessions.create(squat.id, null, 14, null);
+    await m.requestEmailSignIn("victim@clinic.test", {});
+    const red = await m.redeemMagic({ email: "victim@clinic.test", code: codeOf(sent.at(-1)!) }, null);
+    expect(red.user.id).toBe(squat.id);
+    const row = await db.get<{ password_hash: string; email_verified_at: string | null }>("SELECT password_hash, email_verified_at FROM users WHERE id = ?", squat.id);
+    expect(row!.password_hash).toBe("");
+    expect(row!.email_verified_at).toBeTruthy();
+    expect((await db.get<{ n: number }>("SELECT COUNT(*) AS n FROM auth_sessions WHERE user_id = ?", squat.id))!.n).toBe(0);
+  });
+
+  it("keeps the password of an account that already proved its email", async () => {
+    const m = await import("@/lib/server/magic");
+    const repo = await import("@/lib/server/repo");
+    const { hashPassword } = await import("@/lib/server/auth");
+    const { trustEmail } = await import("@/lib/server/emailProof");
+    const db = await import("@/lib/db");
+    const u = await repo.users.create({ email: "real@clinic.test", name: "Real", passwordHash: hashPassword("real-pass-123"), specialty: "Family Medicine" });
+    await repo.orgs.create("Real clinic", u.id);
+    await trustEmail(u.id);
+    await m.requestEmailSignIn("real@clinic.test", {});
+    await m.redeemMagic({ email: "real@clinic.test", code: codeOf(sent.at(-1)!) }, null);
+    expect((await db.get<{ password_hash: string }>("SELECT password_hash FROM users WHERE id = ?", u.id))!.password_hash).not.toBe("");
+  });
+});

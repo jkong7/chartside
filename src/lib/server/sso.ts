@@ -1,4 +1,5 @@
 import { get, now, run } from "../db";
+import { markEmailProven } from "./emailProof";
 import { unseal } from "../fhir/crypto";
 import { authorizationUrl, discoverOidc, exchangeCode, OidcError, pkce, randomToken, verifyIdToken } from "../sso/oidc";
 import { actorFor, audit, orgs, users, type Org, type User } from "./repo";
@@ -80,6 +81,7 @@ export async function completeSso(state: string, code: string, redirectUri: stri
   } else {
     await run("UPDATE sso_identities SET last_login_at = ?, email = ? WHERE issuer = ? AND subject = ?", now(), email, sso.issuer, claims.sub);
   }
+  await markEmailProven(userId, "sso");
 
   const membership = await orgs.membership(org.id, userId);
   if (membership?.status === "disabled") throw new SsoError(`Your access to ${org.name} has been disabled. Contact your administrator.`);

@@ -8,6 +8,7 @@ import { recordSignup, touchFromCookies } from "@/lib/server/loops";
 import { isVetSpecialty } from "@/lib/engine/templates";
 import { requestEmailSignIn, SsoRequired } from "@/lib/server/magic";
 import { setupNewAccount } from "@/lib/server/signup";
+import { trustEmail } from "@/lib/server/emailProof";
 import { browserTz } from "@/lib/server/tz";
 import { clientIp, limited, tooMany } from "@/lib/server/ratelimit";
 
@@ -18,8 +19,8 @@ export async function POST(req: Request) {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail("Enter a valid email address");
   if (!name) return fail("Enter your name");
   const tz = await browserTz();
+  if (limited(`register:${clientIp(req)}`, Number(process.env.CHARTSIDE_AUTH_RATE ?? 30), 3600000)) return tooMany();
   if (!b.password && !b.invite) {
-    if (limited(`magic:${clientIp(req)}`, Number(process.env.CHARTSIDE_AUTH_RATE ?? 30), 3600000)) return tooMany();
     const current = await currentUser();
     try {
       const sent = await requestEmailSignIn(email, { next: b.next || "/go?welcome=1", origin: new URL(req.url).origin, guestUserId: current?.guestUntil ? current.id : null, requesterId: current && !current.guestUntil ? current.id : null, profile: { name, specialty: b.specialty, npi: b.npi, demo: b.demo === true, tz: tz ?? undefined } });
@@ -41,6 +42,7 @@ export async function POST(req: Request) {
   if (invite) {
     await orgs.addMember(invite.orgId, base.id, invite.role);
     await invites.accept(invite.token);
+    await trustEmail(base.id);
     orgId = invite.orgId;
   } else {
     orgId = (await orgs.create(b.orgName?.trim() || `${name}'s clinic`, base.id)).id;
