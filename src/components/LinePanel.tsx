@@ -47,11 +47,14 @@ export default function LinePanel() {
   const saveJurisdiction = async (value: Jurisdiction) => {
     setSaved(null);
     setError(null);
+    const prev = d?.jurisdiction;
+    setD((cur) => (cur ? { ...cur, jurisdiction: value } : cur));
     try {
       await api("/admin/line", { body: { jurisdiction: value } });
       setSaved("Saved.");
       load();
     } catch (err) {
+      setD((cur) => (cur && prev ? { ...cur, jurisdiction: prev } : cur));
       setError(err instanceof Error ? err.message : "Could not save");
     }
   };
