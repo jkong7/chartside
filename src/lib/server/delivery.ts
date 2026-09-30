@@ -41,6 +41,10 @@ export function transportName(channel: OutboundMessage["channel"]) {
   return process.env.NODE_ENV === "production" ? "none" : "file";
 }
 
+export function emailReady() {
+  return transportName("email") !== "none";
+}
+
 export async function deliver(m: OutboundMessage): Promise<DeliveryResult> {
   const transport = transportName(m.channel);
   try {

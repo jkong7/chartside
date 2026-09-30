@@ -103,12 +103,13 @@ export function NpiField({ value, onChange, onMatch, id = "npi", compact = false
   );
 }
 
-export default function RegisterForm({ next, providers, specialty: preset }: { next?: string; providers: { id: string; label: string }[]; specialty?: string }) {
+export default function RegisterForm({ next, providers, specialty: preset, passwordless = true }: { next?: string; providers: { id: string; label: string }[]; specialty?: string; passwordless?: boolean }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [npi, setNpi] = useState("");
   const [specialty, setSpecialty] = useState<string>(preset && OPTIONS.includes(preset) ? preset : "Family Medicine");
   const [demo, setDemo] = useState(false);
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -117,6 +118,11 @@ export default function RegisterForm({ next, providers, specialty: preset }: { n
     setBusy(true);
     setError(null);
     try {
+      if (!passwordless) {
+        const r = await api<{ next?: string }>("/auth/register", { body: { name, email, password, npi: npi.replace(/\D/g, "") || undefined, specialty, demo } });
+        window.location.assign(next || r.next || "/go?welcome=1");
+        return;
+      }
       const r = await api<{ email: string }>("/auth/register", { body: { name, email, npi: npi.replace(/\D/g, "") || undefined, specialty, demo, next } });
       setSentTo(r.email);
     } catch (err) {
@@ -175,6 +181,12 @@ export default function RegisterForm({ next, providers, specialty: preset }: { n
               <label className="label" htmlFor="email">Email</label>
               <input className="input" id="email" name="email" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
+            {!passwordless && (
+              <div>
+                <label className="label" htmlFor="password">Password</label>
+                <input className="input" id="password" name="password" type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} data-testid="register-password" />
+              </div>
+            )}
             <NpiField value={npi} onChange={setNpi} onMatch={(m) => { if (!m) return; setName(`${m.name}${m.credential ? `, ${m.credential}` : ""}`); setSpecialty(m.specialty); }} />
             <div>
               <label className="label" htmlFor="specialty">Specialty</label>
@@ -187,7 +199,7 @@ export default function RegisterForm({ next, providers, specialty: preset }: { n
               Add a sample clinic day with example patients
             </label>
             {error && <p className="rounded-lg bg-rec-50 px-3 py-2 text-sm text-rec" role="alert">{error}</p>}
-            <button className="btn-primary w-full" disabled={busy} type="submit" data-testid="register-submit">{busy && <Spinner />} Email me a code</button>
+            <button className="btn-primary w-full" disabled={busy} type="submit" data-testid="register-submit">{busy && <Spinner />} {passwordless ? "Email me a code" : "Create account"}</button>
             <p className="text-center text-sm text-ink-3">Already have an account? <Link className="font-medium text-brand" href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"}>Sign in</Link></p>
             <p className="text-center text-xs text-ink-3">Just looking? <Link className="font-medium text-brand" href="/go/phone?autopilot=1">Hear a sample call first</Link>, no account needed.</p>
           </form>

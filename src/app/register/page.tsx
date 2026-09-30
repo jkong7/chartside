@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import RegisterForm from "@/components/RegisterForm";
 import { currentUser } from "@/lib/server/auth";
 import { consumerProviders } from "@/lib/server/consumer";
+import { emailReady } from "@/lib/server/delivery";
 
 export const metadata = { title: "Create your account · Chartside" };
 
@@ -14,5 +15,5 @@ export default async function Register({ searchParams }: { searchParams: Promise
   const next = safeNext(sp.next);
   const user = await currentUser();
   if (user && !user.guestUntil) redirect(next ?? "/go");
-  return <RegisterForm next={next} providers={consumerProviders()} specialty={sp.specialty} />;
+  return <RegisterForm next={next} providers={consumerProviders()} specialty={sp.specialty} passwordless={emailReady()} />;
 }
