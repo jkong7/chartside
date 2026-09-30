@@ -46,6 +46,7 @@ export interface UserPrefs {
   morningBriefHour?: number | null;
   sampleDay?: boolean;
   textOptOut?: boolean;
+  memoStandingConsent?: string | null;
   defaultTemplate?: string;
   state?: string;
   outputLang?: string;
@@ -124,7 +125,11 @@ export interface OrgSettings {
   sharing?: { external?: boolean };
   hl7?: import("./hl7").Hl7Config;
   billing?: Partial<import("../rcm/reference").BillingSettings>;
+  jurisdiction?: Jurisdiction;
+  ownerTexts?: boolean;
 }
+
+export type Jurisdiction = "us_hipaa" | "veterinary" | "non_us";
 
 interface OrgRow {
   id: string;

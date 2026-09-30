@@ -749,6 +749,33 @@ CREATE TABLE IF NOT EXISTS loop_events (
   visitor TEXT,
   at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS memo_holds (
+  id TEXT PRIMARY KEY,
+  phone TEXT NOT NULL,
+  channel TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  org_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  bytes INTEGER NOT NULL DEFAULT 0,
+  duration_s REAL,
+  path TEXT,
+  message_sid TEXT,
+  encounter_id TEXT,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  resolved_at TEXT
+);
+CREATE TABLE IF NOT EXISTS messaging_sessions (
+  phone TEXT NOT NULL,
+  channel TEXT NOT NULL,
+  last_inbound_at TEXT NOT NULL,
+  PRIMARY KEY (phone, channel)
+);
+CREATE TABLE IF NOT EXISTS text_optouts (
+  phone TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS capture_tokens (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL,
@@ -766,6 +793,7 @@ CREATE TABLE IF NOT EXISTS capture_tokens (
 
 const INDEXES = [
   "CREATE INDEX IF NOT EXISTS encounter_shares_enc ON encounter_shares(encounter_id)",
+  "CREATE INDEX IF NOT EXISTS memo_holds_phone ON memo_holds(phone, status)",
   "CREATE INDEX IF NOT EXISTS ed_visits_org ON ed_visits(org_id, status, arrived_at)",
   "CREATE INDEX IF NOT EXISTS utterances_enc ON utterances(encounter_id, seq)",
   "CREATE INDEX IF NOT EXISTS notes_enc ON notes(encounter_id, version)",

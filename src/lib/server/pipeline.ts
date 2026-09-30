@@ -1,3 +1,4 @@
+import { isDictation, placeDictation } from "../engine/memo";
 import { createHash } from "node:crypto";
 import { assistWithClaude, generateNoteWithClaude, llmEnabled, llmModel, translateSummaryWithClaude } from "../llm";
 import { localAssist } from "../engine/assist";
@@ -47,12 +48,14 @@ export function consentScript(clinician: string, stateCode: string) {
   };
 }
 
+const METHOD_LABEL: Record<ConsentRecord["method"], string> = { verbal: "Verbal", written: "Written", "patient-device": "Patient-device", "text-confirmed": "Text-confirmed", standing: "Standing" };
+
 export async function recordConsent(user: User, enc: Encounter, input: { decision: "granted" | "declined"; method: ConsentRecord["method"]; state: string; othersPresent: boolean }) {
   const { allParty, stateName } = consentScript(user.name, input.state);
   const when = new Date().toISOString();
   const statement =
     input.decision === "granted"
-      ? `${input.method === "verbal" ? "Verbal" : input.method === "written" ? "Written" : "Patient-device"} consent for AI-assisted documentation was obtained by ${user.name} at ${when} using consent script ${CONSENT_SCRIPT_VERSION}. ${enc.setting === "telehealth" ? "Telehealth visit; patient located in" : "Visit location:"} ${stateName}${allParty ? " (all-party consent state" + (input.othersPresent ? "; all parties present consented" : "") + ")" : ""}.`
+      ? `${METHOD_LABEL[input.method]} consent for AI-assisted documentation was obtained by ${user.name} at ${when} using consent script ${CONSENT_SCRIPT_VERSION}.${input.method === "text-confirmed" ? " The clinician confirmed by text reply that the patient agreed to be recorded before the recording was kept." : input.method === "standing" ? " The clinician has a standing attestation on file that they obtain consent in the room before every recording." : ""} ${enc.setting === "telehealth" ? "Telehealth visit; patient located in" : "Visit location:"} ${stateName}${allParty ? " (all-party consent state" + (input.othersPresent ? "; all parties present consented" : "") + ")" : ""}.`
       : `Patient declined AI-assisted documentation at ${when}. No audio was captured; documentation will be completed manually.`;
   const digest = createHash("sha256").update(JSON.stringify({ enc: enc.id, user: user.id, ...input, statement, script: CONSENT_SCRIPT_VERSION })).digest("hex");
   const rec = await consents.add({ encounterId: enc.id, userId: user.id, decision: input.decision, method: input.method, state: input.state, allParty, othersPresent: input.othersPresent, scriptVersion: CONSENT_SCRIPT_VERSION, statement, digest });
@@ -95,6 +98,7 @@ export async function liveCoverage(user: User, enc: Encounter) {
 export interface ProcessResult {
   note: Note;
   warnings: string[];
+  encounterIds?: string[];
 }
 
 export async function processEncounter(user: User, encId: string, opts: { templateId?: string; engine?: "local" | "auto"; detail?: "concise" | "standard" | "detailed"; model?: string } = {}): Promise<ProcessResult> {
@@ -135,6 +139,7 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   }
   const sessionMinutes = Math.round((enc.durationS || (utts.at(-1)?.tEnd ?? 0)) / 60);
   if (!note) note = buildNote(facts, { patient, encounter: enc, template, utterances: utts, minutes: sessionMinutes, startedAt: enc.startedAt });
+  if (note.meta.engine === "local" && isDictation(utts)) note = placeDictation(note, template, utts);
   else {
     const special = template.sections.filter((ts) => ["risk", "interventions", "response", "therapy_time", "ed_course", "disposition", "goals", "group_topic", "group_participation", "therapy_services", "therapy_measures", "therapy_eval", "procedure_note", "ob_summary", "ob_warning", "ob_exam", "ob_due", "gdmt", "well_screens", "guidance", "imm_due", "awv", "screening_schedule", "acp", "msk_exam", "skin_exam", "onc_history", "onc_treatment", "toxicity"].includes(ts.kind));
     if (special.length) {

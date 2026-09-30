@@ -3,6 +3,12 @@ import { decisionCounts } from "../decisions";
 import { mintLoginLink, userByPhone } from "../magic";
 import { normalizePhone } from "../notify";
 import { actorFor, audit, encounters, users, type User } from "../repo";
+import { mediaItems } from "../../engine/media";
+import { memoIntent } from "../../engine/memo";
+import { guestForPhone } from "../guest";
+import { setTextOptOut } from "../jurisdiction";
+import { limited } from "../ratelimit";
+import { dictateByText, inboundMemo, purgeMemoHolds, resolveHolds, uploadLinkReply } from "./memos";
 import { sendText } from "./sms";
 
 const KIND_WORDS: Record<string, [string, string]> = {
@@ -31,7 +37,7 @@ async function link(u: User, path = "/go/stack") {
   return (await mintLoginLink(u.id, path, 30)).url;
 }
 
-const HELP = "Reply STATUS for what's waiting, SCHEDULE for today, LINK to open what needs your review, NUDGE 5 or BRIEF 7 for daily texts, or call this number before a visit to scribe it. Texts never include patient details.";
+const HELP = "Reply STATUS for what's waiting, SCHEDULE for today, LINK to open what needs your review, NUDGE 5 or BRIEF 7 for daily texts, or call this number before a visit to scribe it. Text a voice memo, or a message starting with NOTE, to get a note. UPLOAD sends a link for big files. Texts never include patient details.";
 
 function offsetMinutes(at: Date, tz: string) {
   const name = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "shortOffset" }).formatToParts(at).find((p) => p.type === "timeZoneName")?.value ?? "GMT";
@@ -62,18 +68,46 @@ export async function dayLine(u: User, at = new Date()) {
   return { count: list.length, text: `${list.length} visit${list.length === 1 ? "" : "s"} today, starting at ${t}${upcoming < list.length ? `, ${upcoming} still ahead` : ""}.` };
 }
 
+export async function inboundSms(params: Record<string, string>, origin: string): Promise<string> {
+  const items = mediaItems(params);
+  if (!items.length) return inboundText(params.From ?? "", params.Body ?? "", origin);
+  const from = normalizePhone(params.From ?? "");
+  if (!from) return "Chartside couldn't read your number.";
+  const verified = await userByPhone(from);
+  if (!verified && limited(`memo-guest:${from}`, Number(process.env.CHARTSIDE_GUEST_MEMOS_PER_NUMBER || 5), 86400_000)) return "Chartside's free line is at capacity for your number today. Sign up to send memos any time.";
+  const user = verified ?? (await guestForPhone(from));
+  return inboundMemo({ user, phone: from, channel: "mms", items, messageSid: params.MessageSid ?? null, origin });
+}
+
 export async function inboundText(fromRaw: string, bodyRaw: string, origin: string): Promise<string> {
   const from = normalizePhone(fromRaw ?? "");
   const body = (bodyRaw ?? "").trim().toLowerCase();
   if (!from) return "Chartside couldn't read your number.";
+  await purgeMemoHolds();
+  const intent = memoIntent(bodyRaw ?? "");
+  if (intent === "yes" || intent === "no" || intent === "always") {
+    const resolved = await resolveHolds(from, intent, "mms");
+    if (resolved) return resolved;
+  }
   const user = await userByPhone(from);
   if (!user) {
-    return `Chartside is an AI scribe you can call. Call this number before your next visit, set the phone down, and your note is texted to you when you hang up. First note free: ${origin}/line?src=text`;
+    if (/^(stop|stopall|unsubscribe|cancel|end|quit)$/.test(body)) {
+      await setTextOptOut(from, true);
+      return "You won't get texts from Chartside. Reply START to turn them back on.";
+    }
+    if (/^(start|unstop)$/.test(body)) {
+      await setTextOptOut(from, false);
+      return "Texts are back on.";
+    }
+    if (intent === "upload") return uploadLinkReply(null, origin, from);
+    return `Chartside is an AI scribe you can call. Call this number before your next visit, set the phone down, and your note is texted to you when you hang up. Or text a voice memo here. First note free: ${origin}/line?src=text`;
   }
   const say = async (text: string) => {
     await audit.log(user, null, "text.reply", { command: body.split(/\s+/)[0]?.slice(0, 12) ?? "" });
     return text;
   };
+  if (intent === "upload") return say(await uploadLinkReply(user, origin, from));
+  if (intent === "note" && !user.guestUntil) return say(await dictateByText(user, from, "mms", bodyRaw));
   if (/^(stop|stopall|unsubscribe|cancel|end|quit)$/.test(body)) {
     await users.update(user.id, { prefs: { ...user.prefs, textOptOut: true, clinicNudgeHour: null, morningBriefHour: null } });
     return say("You won't get texts from Chartside. Reply START to turn them back on.");

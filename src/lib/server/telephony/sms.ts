@@ -23,10 +23,10 @@ export function clearSim(phone: string) {
   outbox.delete(phone);
 }
 
-export async function sendText(to: string, body: string, kind = "phone_note"): Promise<OutboxMessage> {
+export async function sendText(to: string, body: string, kind = "phone_note", opts: { content?: boolean } = {}): Promise<OutboxMessage> {
   const phone = normalizePhone(to);
   if (!phone) throw new Error("Invalid phone number");
-  if (looksLikePhi(body)) throw new Error("Refusing to text something that looks like patient information");
+  if (!opts.content && looksLikePhi(body)) throw new Error("Refusing to text something that looks like patient information");
   const msg: OutboxMessage = { to: phone, body, at: new Date().toISOString(), channel: "sim" };
   if (isSimNumber(phone)) {
     const list = outbox.get(phone) ?? [];
