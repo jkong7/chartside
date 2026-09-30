@@ -3,7 +3,8 @@ set -e
 PROJECT="${1:-persona-onboarding-jk}"
 REGION="${REGION:-us-central1}"
 SERVICE="${SERVICE:-chartside}"
-URL="$(gcloud run services describe "$SERVICE" --project "$PROJECT" --region "$REGION" --format 'value(status.url)')"
+NUM="$(gcloud projects describe "$PROJECT" --format 'value(projectNumber)')"
+URL="https://$SERVICE-$NUM.$REGION.run.app"
 SECRET="$(gcloud secrets versions access latest --secret CHARTSIDE_CRON_SECRET --project "$PROJECT")"
 gcloud services enable cloudscheduler.googleapis.com --project "$PROJECT"
 if gcloud scheduler jobs describe chartside-nudges --project "$PROJECT" --location "$REGION" >/dev/null 2>&1; then
