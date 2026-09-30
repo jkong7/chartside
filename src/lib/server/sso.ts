@@ -1,5 +1,5 @@
 import { get, now, run } from "../db";
-import { bindBrowser, sameBrowser } from "./oidcBinding";
+import { bindingMatches } from "./oidcBinding";
 import { markEmailProven } from "./emailProof";
 import { unseal } from "../fhir/crypto";
 import { authorizationUrl, discoverOidc, exchangeCode, OidcError, pkce, randomToken, verifyIdToken } from "../sso/oidc";
@@ -27,7 +27,7 @@ export async function ssoOrgForEmail(email: string) {
   return d ? orgs.forDomain(d) : undefined;
 }
 
-export async function beginSso(input: { email?: string; orgSlug?: string; next?: string | null }, redirectUri: string) {
+export async function beginSso(input: { email?: string; orgSlug?: string; next?: string | null }, redirectUri: string, browserHash: string) {
   let org: Org | undefined;
   if (input.email) org = await ssoOrgForEmail(input.email);
   if (!org) throw new SsoError("Single sign-on isn't set up for that email domain. Sign in with your password or ask your administrator.");
@@ -38,15 +38,15 @@ export async function beginSso(input: { email?: string; orgSlug?: string; next?:
   const { verifier, challenge } = pkce();
   const next = input.next && input.next.startsWith("/") && !input.next.startsWith("//") ? input.next : null;
   await run("DELETE FROM oidc_logins WHERE created_at < ?", new Date(Date.now() - LOGIN_TTL_MS).toISOString());
-  await run("INSERT INTO oidc_logins (state, org_id, verifier, nonce, next, created_at, browser) VALUES (?, ?, ?, ?, ?, ?, ?)", state, org.id, verifier, nonce, next, now(), await bindBrowser());
+  await run("INSERT INTO oidc_logins (state, org_id, verifier, nonce, next, created_at, browser) VALUES (?, ?, ?, ?, ?, ?, ?)", state, org.id, verifier, nonce, next, now(), browserHash);
   return authorizationUrl(meta, { clientId: sso.clientId, redirectUri, state, nonce, challenge, loginHint: input.email });
 }
 
-export async function completeSso(state: string, code: string, redirectUri: string): Promise<{ user: User; next: string | null; created: boolean }> {
+export async function completeSso(state: string, code: string, redirectUri: string, browser: string | null): Promise<{ user: User; next: string | null; created: boolean }> {
   const login = await get<{ org_id: string; verifier: string; nonce: string; next: string | null; created_at: string; browser: string | null }>("SELECT * FROM oidc_logins WHERE state = ?", state);
   await run("DELETE FROM oidc_logins WHERE state = ?", state);
   if (!login || Date.now() - new Date(login.created_at).getTime() > LOGIN_TTL_MS) throw new SsoError("This sign-in attempt expired. Start again.");
-  if (!(await sameBrowser(login.browser))) throw new SsoError("This sign-in didn't start in this browser. Start again here.");
+  if (!bindingMatches(login.browser, browser)) throw new SsoError("This sign-in didn't start in this browser. Start again here.");
   const org = await orgs.get(login.org_id);
   const sso = org?.settings.sso;
   if (!org || !sso?.enabled) throw new SsoError("Single sign-on is no longer enabled for this organization.");

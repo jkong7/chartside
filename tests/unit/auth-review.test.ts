@@ -114,3 +114,15 @@ describe("an email claimed with a password before its owner proves it", () => {
     expect((await db.get<{ password_hash: string }>("SELECT password_hash FROM users WHERE id = ?", u.id))!.password_hash).not.toBe("");
   });
 });
+
+describe("sign-in browser binding", () => {
+  it("matches only the browser that started the sign-in", async () => {
+    const { newBinding, bindingMatches } = await import("@/lib/server/oidcBinding");
+    const mine = newBinding();
+    const theirs = newBinding();
+    expect(bindingMatches(mine.hash, mine.value)).toBe(true);
+    expect(bindingMatches(mine.hash, theirs.value)).toBe(false);
+    expect(bindingMatches(mine.hash, null)).toBe(false);
+    expect(bindingMatches(null, mine.value)).toBe(false);
+  });
+});

@@ -125,11 +125,12 @@ describe("OIDC single sign-on", () => {
 
   async function login(email: string) {
     const sso = await import("@/lib/server/sso");
-    const url = await sso.beginSso({ email, next: "/today" }, "http://app/sso/callback");
+    const binding = (await import("@/lib/server/oidcBinding")).newBinding();
+    const url = await sso.beginSso({ email, next: "/today" }, "http://app/sso/callback", binding.hash);
     const res = await fetch(url, { redirect: "manual" });
     const back = new URL(res.headers.get("location")!);
     if (back.searchParams.get("error")) throw new Error(back.searchParams.get("error")!);
-    return sso.completeSso(back.searchParams.get("state")!, back.searchParams.get("code")!, "http://app/sso/callback");
+    return sso.completeSso(back.searchParams.get("state")!, back.searchParams.get("code")!, "http://app/sso/callback", binding.value);
   }
 
   const setMode = (mode: string) => fetch(`${IDP}/mode`, { method: "POST", body: JSON.stringify({ mode }) });
@@ -171,7 +172,7 @@ describe("OIDC single sign-on", () => {
       await expect(login("pat@hillcrest.test")).rejects.toThrow(msg);
     }
     await setMode("normal");
-    await expect(sso.completeSso("never-issued", "code", "http://app/sso/callback")).rejects.toThrow("expired");
+    await expect(sso.completeSso("never-issued", "code", "http://app/sso/callback", null)).rejects.toThrow("expired");
     await fetch(`${IDP}/people`, { method: "POST", body: JSON.stringify({ email: "unverified@hillcrest.test", email_verified: false }) });
     await expect(login("unverified@hillcrest.test")).rejects.toThrow("verified email");
     await fetch(`${IDP}/people`, { method: "POST", body: JSON.stringify({ email: "spoof@hillcrest.test", sub: "spoof-sub", email_verified: true }) });

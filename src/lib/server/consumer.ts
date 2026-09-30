@@ -1,5 +1,5 @@
 import { get, now, run } from "../db";
-import { bindBrowser, sameBrowser } from "./oidcBinding";
+import { bindingMatches } from "./oidcBinding";
 import { markEmailProven } from "./emailProof";
 import { authorizationUrl, decodeJwt, discoverOidc, exchangeCode, OidcError, pkce, randomToken, verifyIdToken } from "../sso/oidc";
 import { convertGuest, mergeGuest } from "./guest";
@@ -42,7 +42,7 @@ async function metadata(cfg: NonNullable<ReturnType<typeof consumerConfig>>) {
   return (await res.json()) as Awaited<ReturnType<typeof discoverOidc>>;
 }
 
-export async function beginConsumer(provider: string, redirectUri: string, opts: { next?: string | null; hint?: string | null } = {}) {
+export async function beginConsumer(provider: string, redirectUri: string, opts: { next?: string | null; hint?: string | null; browserHash: string }) {
   if (!isProvider(provider)) throw new ConsumerError("Unknown sign-in provider");
   const cfg = consumerConfig(provider);
   if (!cfg) throw new ConsumerError(`${LABEL[provider]} sign-in isn't set up here. Use your email instead.`);
@@ -51,7 +51,7 @@ export async function beginConsumer(provider: string, redirectUri: string, opts:
   const nonce = randomToken(24);
   const { verifier, challenge } = pkce();
   await run("DELETE FROM oidc_logins WHERE created_at < ?", new Date(Date.now() - LOGIN_TTL_MS).toISOString());
-  await run("INSERT INTO oidc_logins (state, org_id, verifier, nonce, next, created_at, browser) VALUES (?, ?, ?, ?, ?, ?, ?)", state, `${PREFIX}${provider}`, verifier, nonce, opts.next ? safePath(opts.next, "/go") : null, now(), await bindBrowser());
+  await run("INSERT INTO oidc_logins (state, org_id, verifier, nonce, next, created_at, browser) VALUES (?, ?, ?, ?, ?, ?, ?)", state, `${PREFIX}${provider}`, verifier, nonce, opts.next ? safePath(opts.next, "/go") : null, now(), opts.browserHash);
   const hint = opts.hint && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(opts.hint) ? opts.hint : undefined;
   const url = new URL(authorizationUrl(meta, { clientId: cfg.clientId, redirectUri, state, nonce, challenge, loginHint: hint }));
   if (provider === "google") url.searchParams.set("prompt", "select_account");
@@ -63,11 +63,11 @@ export async function isConsumerState(state: string) {
   return !!r?.org_id.startsWith(PREFIX);
 }
 
-export async function completeConsumer(state: string, code: string, redirectUri: string, ctx: { current: User | null; tz?: string | null }): Promise<{ user: User; next: string; created: boolean }> {
+export async function completeConsumer(state: string, code: string, redirectUri: string, ctx: { current: User | null; tz?: string | null; browser: string | null }): Promise<{ user: User; next: string; created: boolean }> {
   const login = await get<{ org_id: string; verifier: string; nonce: string; next: string | null; created_at: string; browser: string | null }>("SELECT * FROM oidc_logins WHERE state = ?", state);
   await run("DELETE FROM oidc_logins WHERE state = ?", state);
   if (!login || !login.org_id.startsWith(PREFIX) || Date.now() - new Date(login.created_at).getTime() > LOGIN_TTL_MS) throw new ConsumerError("This sign-in attempt expired. Start again.");
-  if (!(await sameBrowser(login.browser))) throw new ConsumerError("This sign-in didn't start in this browser. Start again here.");
+  if (!bindingMatches(login.browser, ctx.browser)) throw new ConsumerError("This sign-in didn't start in this browser. Start again here.");
   const provider = login.org_id.slice(PREFIX.length);
   if (!isProvider(provider)) throw new ConsumerError("Unknown sign-in provider");
   const cfg = consumerConfig(provider);

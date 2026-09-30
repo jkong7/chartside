@@ -7,6 +7,7 @@ import { recordSignup, touchFromCookies } from "@/lib/server/loops";
 import { mfaStatus } from "@/lib/server/security";
 import { completeSso, SsoError, ssoRedirectUri } from "@/lib/server/sso";
 import { browserTz } from "@/lib/server/tz";
+import { takeBindingCookie } from "@/lib/server/oidcBinding";
 
 function toLogin(req: Request, message: string) {
   const u = new URL("/login", req.url);
@@ -16,7 +17,7 @@ function toLogin(req: Request, message: string) {
 
 async function consumer(req: Request, state: string, code: string) {
   const current = await currentUser();
-  const { user, next, created } = await completeConsumer(state, code, ssoRedirectUri(req), { current, tz: await browserTz() });
+  const { user, next, created } = await completeConsumer(state, code, ssoRedirectUri(req), { current, tz: await browserTz(), browser: await takeBindingCookie() });
   if ((await mfaStatus(user.id)).enabled) return toLogin(req, "This account uses two-step verification. Sign in with your password or an email code.");
   if (current && current.id !== user.id) await endSession();
   if (created) {
@@ -36,7 +37,7 @@ export async function GET(req: Request) {
   if (!state || !code) return toLogin(req, "The sign-in response was incomplete. Start again.");
   try {
     if (await isConsumerState(state)) return await consumer(req, state, code);
-    const { user, next } = await completeSso(state, code, ssoRedirectUri(req));
+    const { user, next } = await completeSso(state, code, ssoRedirectUri(req), await takeBindingCookie());
     await startSession(user.id, user.orgId);
     return NextResponse.redirect(new URL(next ?? "/today", req.url));
   } catch (err) {
