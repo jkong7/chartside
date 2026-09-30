@@ -14,6 +14,10 @@ export function hipaaApplies(j: Jurisdiction) {
   return j === "us_hipaa";
 }
 
+export function whatsappAllowed(j: Jurisdiction | null | undefined, verifiedClinician: boolean) {
+  return verifiedClinician && !!j && !hipaaApplies(j);
+}
+
 export async function setJurisdiction(u: User, value: string) {
   if (u.role !== "owner") throw new Forbidden("Only the practice owner can change who the practice treats");
   if (!JURISDICTIONS.includes(value as Jurisdiction)) throw new Invalid("Choose US human care, veterinary, or outside the US");
