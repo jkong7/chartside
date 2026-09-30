@@ -1,3 +1,4 @@
+import { clinicTz, tzOf, wallTime } from "../tz";
 import { DEMO_PATIENTS, type DemoPatient } from "../demo/scripts";
 import type { Note } from "../types";
 import { encounters, notes, orders, patients, utterances, type User, users } from "./repo";
@@ -17,12 +18,8 @@ const ARCHIVE: { from: string; name: string; first: string; dob: string; mrn: st
   { from: "kim", name: "Owen Carter", first: "Owen", dob: "1995-05-05", mrn: "099203", daysAgo: 1, time: "16:00", edit: true },
 ];
 
-export function localDate(daysAgo: number, time: string) {
-  const d = new Date();
-  d.setDate(d.getDate() - daysAgo);
-  const [h, m] = time.split(":").map(Number);
-  d.setHours(h, m, 0, 0);
-  return d;
+export function localDate(daysAgo: number, time: string, tz = clinicTz()) {
+  return wallTime(daysAgo, time, tz);
 }
 
 function coverageFor(dob: string, mrn: string) {
@@ -50,7 +47,7 @@ export async function seedSchedule(user: User) {
     const pat = await addPatient(user, p);
     const enc = await encounters.create(user, {
       patientId: pat.id,
-      scheduledAt: localDate(0, p.visit.time).toISOString(),
+      scheduledAt: localDate(0, p.visit.time, tzOf(user)).toISOString(),
       visitType: p.visit.type,
       reason: p.visit.reason,
       templateId: p.visit.template,
@@ -76,7 +73,7 @@ export async function seedArchive(user: User) {
   for (const a of ARCHIVE) {
     const src = DEMO_PATIENTS.find((p) => p.key === a.from)!;
     const pat = await addPatient(user, src, { name: a.name, dob: a.dob, mrn: a.mrn });
-    const start = localDate(a.daysAgo, a.time);
+    const start = localDate(a.daysAgo, a.time, tzOf(user));
     const enc = await encounters.create(user, {
       patientId: pat.id,
       scheduledAt: start.toISOString(),
@@ -105,7 +102,7 @@ export async function seedArchive(user: User) {
     const rec = (await notes.latest(enc.id))!;
     if (a.edit) await saveNoteEdits(user, enc.id, editNote(rec.content));
     await signEncounter(user, enc.id, { force: true });
-    const signedAt = a.late ? new Date(start.getTime()).setHours(21, 40 + (a.daysAgo % 15), 0, 0) : ended.getTime() + (4 + (a.daysAgo % 7) * 3) * 60000;
+    const signedAt = a.late ? localDate(a.daysAgo, `21:${40 + (a.daysAgo % 15)}`, tzOf(user)).getTime() : ended.getTime() + (4 + (a.daysAgo % 7) * 3) * 60000;
     const iso = new Date(signedAt).toISOString();
     await encounters.setSignedAt(enc.id, iso);
     await audit.retime(enc.id, "note.signed", iso);
@@ -151,7 +148,7 @@ export async function seedInpatient(user: User) {
   const { INPATIENT_DEMO: d } = await import("../demo/scripts");
   const ip = await import("./inpatient");
   const p = await patients.create(user, { mrn: d.mrn, name: d.name, dob: d.dob, sex: d.sex, pronouns: d.pronouns, language: "en", chart: d.chart });
-  const admitAt = localDate(2, "21:30");
+  const admitAt = localDate(2, "21:30", tzOf(user));
   const { admission, encounterId } = await ip.admit(user, { patientId: p.id, unit: d.unit, room: d.room, reason: d.reason, admitAt: admitAt.toISOString() });
   const run1 = async (encId: string, script: typeof d.scripts.hp, start: Date) => {
     const enc = (await encounters.get(user, encId))!;
@@ -169,7 +166,7 @@ export async function seedInpatient(user: User) {
     await signEncounter(user, encId, { force: true });
   };
   await run1(encounterId, d.scripts.hp, admitAt);
-  const day2 = localDate(1, "08:15");
+  const day2 = localDate(1, "08:15", tzOf(user));
   const d2 = await ip.startNote(user, admission.id, "progress", day2);
   await run1(d2, d.scripts.day2, day2);
   return admission;
@@ -194,4 +191,8 @@ export async function seedDemo(user: User, opts: { archive?: boolean } = {}) {
     await seedInpatient(user);
     await seedEd(user);
   }
+  const { get } = await import("../db");
+  const signed = await get<{ n: number }>("SELECT COUNT(*) AS n FROM encounters WHERE user_id = ? AND status = 'signed'", user.id);
+  const fresh = await users.byId(user.id);
+  await users.update(user.id, { prefs: { ...(fresh?.prefs ?? user.prefs), demoSigned: Number(signed?.n ?? 0) } });
 }

@@ -1,8 +1,7 @@
+import { clinicTz, tzOf } from "../../tz";
 import { encounters, patients, type User } from "../repo";
 
-export function clinicTz() {
-  return process.env.CHARTSIDE_TZ || "America/Chicago";
-}
+export { clinicTz };
 
 export function spokenTime(iso: string, tz = clinicTz()) {
   return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: tz })
@@ -23,5 +22,5 @@ export async function nextVisitFor(u: User, now = new Date()) {
   if (!p) return null;
   const kind = VISIT_WORDS[best.visitType] ?? "a visit";
   const reason = best.reason ? ` for ${best.reason.replace(/\.$/, "").toLowerCase()}` : "";
-  return { encounterId: best.id, spoken: `Your ${spokenTime(best.scheduledAt)} is ${p.name}, ${kind}${reason}.` };
+  return { encounterId: best.id, spoken: `Your ${spokenTime(best.scheduledAt, tzOf(u))} is ${p.name}, ${kind}${reason}.` };
 }

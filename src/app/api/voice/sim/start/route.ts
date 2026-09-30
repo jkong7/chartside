@@ -1,3 +1,4 @@
+import { captureTz } from "@/lib/server/tz";
 import { randomInt } from "node:crypto";
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/server/auth";
@@ -24,7 +25,8 @@ export async function POST(req: Request) {
     prior = null;
   }
   const phone = prior ?? `+1555${String(randomInt(0, 10_000_000)).padStart(7, "0")}`;
-  const user = me ?? (await guestForPhone(phone));
+  const base = me ?? (await guestForPhone(phone));
+  const user = await captureTz(base).catch(() => base);
   const callSid = `CAsim${randomInt(0, 2 ** 47).toString(16)}${Date.now().toString(16)}`;
   const callToken = mintCallToken({ userId: user.id, orgId: user.orgId, phone, callSid, guest: !!user.guestUntil, sim: true }, 300);
   if (!prior) clearSim(phone);

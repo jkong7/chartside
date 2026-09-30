@@ -1,3 +1,4 @@
+import { captureTz } from "@/lib/server/tz";
 import Link from "next/link";
 import GoRecorder from "@/components/ghost/GoRecorder";
 import LiveCallBanner from "@/components/ghost/LiveCallBanner";
@@ -12,7 +13,8 @@ export const metadata = { title: "Record a visit · Chartside", description: "On
 
 export default async function GoPage({ searchParams }: { searchParams: Promise<{ shared?: string }> }) {
   const { shared } = await searchParams;
-  const user = await currentUser().catch(() => null);
+  const found = await currentUser().catch(() => null);
+  const user = found ? await captureTz(found).catch(() => found) : null;
   const counts = user ? await decisionCounts(user).catch(() => null) : null;
   const sample = !!user?.prefs.sampleDay;
   const pin = user && !user.guestUntil ? await hasPhonePin(user.id).catch(() => false) : false;

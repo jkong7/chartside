@@ -2,6 +2,8 @@ import TodayList, { type TodayRow } from "@/components/TodayList";
 import { requireUser } from "@/lib/server/auth";
 import { can } from "@/lib/server/policy";
 import Link from "next/link";
+import { dayBounds } from "@/lib/tz";
+import { viewerTz } from "@/lib/server/tz";
 import { encounters, orgs, patients, SEES_ORG } from "@/lib/server/repo";
 import { sharedWithMe } from "@/lib/server/sharing";
 import { surveyDue } from "@/lib/server/survey";
@@ -19,10 +21,8 @@ export default async function Today({ searchParams }: { searchParams: Promise<{ 
   const sp = await searchParams;
   const locs = await locations.list(user.orgId);
   const loc = sp.loc && locs.some((l) => l.id === sp.loc) ? sp.loc : null;
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start.getTime() + 86400000);
-  const todays = await encounters.list(user, { from: start.toISOString(), to: end.toISOString(), outpatient: true, locationId: loc ?? undefined });
+  const day = dayBounds(new Date(), await viewerTz(user));
+  const todays = await encounters.list(user, { from: day.from, to: day.to, outpatient: true, locationId: loc ?? undefined });
   const byId = new Map((await Promise.all([...new Set(todays.map((e) => e.patientId).filter((x): x is string => !!x))].map((id) => patients.get(user, id)))).filter((p) => !!p).map((p) => [p!.id, p!]));
   const rows: TodayRow[] = todays.map((e) => {
     const p = e.patientId ? byId.get(e.patientId) : undefined;

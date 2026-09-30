@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { clockTime, tzOf } from "../tz";
 import { all, get, now, run, uid } from "../db";
 import { attestationsFor } from "../engine/attest";
 import { noteToText } from "../engine/note";
@@ -56,7 +57,7 @@ export const FAST_REVIEW_MS = 20000;
 export const FAST_REVIEW_WORDS = 300;
 
 const snooze: DecisionActionSpec = { action: "snooze", label: "Later", needsScreen: false, payload: ["minutes"] };
-const time = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: process.env.CHARTSIDE_TZ || "America/Chicago" });
+const time = (u: User, iso: string) => clockTime(iso, tzOf(u));
 const contentHash = (note: Note) => createHash("sha256").update(JSON.stringify(note.sections)).digest("hex");
 const words = (note: Note | undefined) => (note ? note.sections.flatMap((s) => s.sentences).filter((s) => !s.pending).reduce((n, s) => n + s.text.split(/\s+/).filter(Boolean).length, 0) : 0);
 
@@ -100,16 +101,16 @@ async function signCards(u: User): Promise<Decision[]> {
     return {
       id: `sign:${q.id}`,
       kind: "note.sign" as const,
-      title: `Sign note: ${enc.patientId ? q.patient : `${time(enc.startedAt ?? q.scheduledAt)} visit`}`,
+      title: `Sign note: ${enc.patientId ? q.patient : `${time(u, enc.startedAt ?? q.scheduledAt)} visit`}`,
       summary: [q.reason, `${words(rec?.content)} words`, q.blockers.length ? `${q.blockers.length} to fix first` : "ready"].filter(Boolean).join(" · "),
-      safeLabel: `Note ready to sign (${time(enc.startedAt ?? q.scheduledAt)} visit)`,
+      safeLabel: `Note ready to sign (${time(u, enc.startedAt ?? q.scheduledAt)} visit)`,
       encounterId: q.id,
       patientId: enc.patientId,
       patientName: enc.patientId ? q.patient : null,
       priority: ready ? 0 : q.ageHours >= 24 ? 1 : 2,
       at: enc.endedAt ?? q.scheduledAt,
       actions: [{ action: "approve", label: "Sign", needsScreen: true, payload: ["reviewMs", "force"] }, ...(discardable ? [{ action: "reject" as const, label: unverified ? "I didn't make this call, delete it" : "Delete this recording", needsScreen: true }] : []), snooze],
-      detail: { blockers: q.blockers, words: words(rec?.content), ageHours: q.ageHours, text: rec ? noteToText(rec.content) : "", channel: origin?.channel ?? null, markedReady: ready ? { at: ready.at, label: `Marked ready on a ${ready.sim ? "browser " : ""}call at ${time(ready.at)}` } : null, unverifiedCaller: unverified ? { label: "Caller ID only, no PIN", help: "If you didn't make this call, delete it." } : null, summaryOnSign: summaryOnSign && enc.patientId ? { label: "Patient summary goes out when you sign" } : null },
+      detail: { blockers: q.blockers, words: words(rec?.content), ageHours: q.ageHours, text: rec ? noteToText(rec.content) : "", channel: origin?.channel ?? null, markedReady: ready ? { at: ready.at, label: `Marked ready on a ${ready.sim ? "browser " : ""}call at ${time(u, ready.at)}` } : null, unverifiedCaller: unverified ? { label: "Caller ID only, no PIN", help: "If you didn't make this call, delete it." } : null, summaryOnSign: summaryOnSign && enc.patientId ? { label: "Patient summary goes out when you sign" } : null },
       openUrl: `/encounters/${q.id}`,
     };
   }));
@@ -124,7 +125,7 @@ async function cosignCards(u: User): Promise<Decision[]> {
       kind: "note.cosign" as const,
       title: `Co-sign ${c.cosign.authorName}'s note${name ? `: ${name}` : ""}`,
       summary: c.reason || "Waiting for your co-signature",
-      safeLabel: `Co-signature requested (${time(c.cosign.requestedAt)})`,
+      safeLabel: `Co-signature requested (${time(u, c.cosign.requestedAt)})`,
       encounterId: c.encounterId,
       patientId: enc?.patientId ?? null,
       patientName: name,
@@ -202,8 +203,8 @@ async function matchCards(u: User): Promise<Decision[]> {
       id: `match:${e.id}`,
       kind: "patient.match",
       title: "Who was this visit with?",
-      summary: `Recorded ${time(e.startedAt ?? e.scheduledAt)}${e.reason ? ` · ${e.reason}` : ""}`,
-      safeLabel: `Match a recorded visit to a patient (${time(e.startedAt ?? e.scheduledAt)})`,
+      summary: `Recorded ${time(u, e.startedAt ?? e.scheduledAt)}${e.reason ? ` · ${e.reason}` : ""}`,
+      safeLabel: `Match a recorded visit to a patient (${time(u, e.startedAt ?? e.scheduledAt)})`,
       encounterId: e.id,
       patientId: null,
       patientName: null,
@@ -418,7 +419,7 @@ export async function actOnDecision(u: User, id: string, action: DecisionAction,
     const minutes = Math.min(Math.max(Math.round(Number(payload.minutes ?? 240)), 5), 7 * 24 * 60);
     const until = new Date(Date.now() + minutes * 60000).toISOString();
     await run("INSERT INTO decision_state (user_id, decision_id, snoozed_until) VALUES (?, ?, ?) ON CONFLICT (user_id, decision_id) DO UPDATE SET snoozed_until = excluded.snoozed_until", u.id, id, until);
-    return done(`Snoozed until ${time(until)}`);
+    return done(`Snoozed until ${time(u, until)}`);
   }
   if (action !== "draft" && !SCREEN.includes(ctx.channel)) throw new Forbidden("Open this on your screen to approve or reject it. Voice and text can only snooze or propose.");
   if (prefix === "sign") {

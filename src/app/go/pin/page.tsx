@@ -1,3 +1,5 @@
+import { clockTime } from "@/lib/tz";
+import { viewerTz } from "@/lib/server/tz";
 import PinConfirm from "@/components/ghost/PinConfirm";
 import { readPinOffer } from "@/lib/server/telephony/pinByPhone";
 
@@ -8,7 +10,7 @@ export default async function PinPage({ searchParams }: { searchParams: Promise<
   const { t } = await searchParams;
   const offer = readPinOffer(t);
   const valid = !!offer;
-  const when = offer?.at ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: process.env.CHARTSIDE_TZ || "America/Chicago" }).format(new Date(offer.at)) : null;
+  const when = offer?.at ? clockTime(offer.at, await viewerTz()) : null;
   return (
     <main className="flex min-h-screen items-center bg-paper px-4 py-10">
       {valid && t ? (

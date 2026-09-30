@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { tzOf } from "../../tz";
 import { llmEnabled } from "../../llm";
 import { audit, encounters, type User } from "../repo";
 import { routeLocally } from "./local";
@@ -68,7 +69,7 @@ function finish(opts: AgentOptions, reply: string, ctx: ToolContext, citations: 
 }
 
 async function withClaude(ctx: ToolContext, history: AgentTurn[], opts: AgentOptions) {
-  const tz = process.env.CHARTSIDE_TZ || "America/Chicago";
+  const tz = tzOf(ctx.user);
   const nowLine = `It is now ${new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: tz }).format(new Date())} clinic time (${tz}). "Next" means the first visit after now.`;
   const system = [SYSTEM, nowLine, opts.channel === "voice" ? VOICE : "", opts.phiScope === "call" ? SCOPE_CALL : "", ctx.encounterId ? `The current visit is encounterId ${ctx.encounterId}.` : ""].filter(Boolean).join("\n\n");
   const messages: Anthropic.Beta.BetaMessageParam[] = history.map((t) => ({ role: t.role, content: t.content }));
