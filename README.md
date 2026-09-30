@@ -174,6 +174,11 @@ For developers, `POST /api/capture` is the one capture endpoint behind every doo
 | `CHARTSIDE_PUBLIC_URL` | The public origin used in texts, emails, sign-in links and receipts, e.g. `https://chartside.example.com` |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | Twilio Voice and SMS. Point the number's voice webhook at `{CHARTSIDE_PUBLIC_URL}/api/voice/incoming` (HTTP POST). Requests are checked against `X-Twilio-Signature`. |
 | `TWILIO_BASE_URL` | Override the Twilio API base URL, used for tests |
+| `TWILIO_API_KEY_SID`, `TWILIO_API_KEY_SECRET` | Optional API key used to download and delete texted voice memos (turn on "Enforce HTTP Auth on media URLs" in Twilio). Falls back to the account SID and auth token. |
+| `TWILIO_WHATSAPP_FROM` | WhatsApp sender number for the vet and outside-the-US lane (defaults to `TWILIO_FROM`). Point the sender's webhook at `{CHARTSIDE_PUBLIC_URL}/api/whatsapp/incoming`. |
+| `CHARTSIDE_MEMO_MAX_MB` | Largest texted voice memo Chartside downloads (default 25). Bigger ones get a single-use upload link. |
+| `CHARTSIDE_MEMO_HOLD_HOURS` | How long a texted memo waits, encrypted, for the clinician's YES before it is deleted (default 24). |
+| `CHARTSIDE_GUEST_MEMOS_PER_NUMBER` | Memos per day from a number Chartside doesn't know (default 5). |
 | `CHARTSIDE_PHONE_NOTE_MODEL` | Model for notes captured on the phone line, so callers wait less for the read-back. Unset uses `CHARTSIDE_MODEL`. Measured on a 101 s visit: Opus 5 took 21.6 s, Sonnet 5.5 24.5 s, Haiku 4.5 11.3 s. |
 | `CHARTSIDE_SIM_RATE` / `CHARTSIDE_SIM_DAILY_CAP` | Browser phone calls allowed per IP per hour (default 12) and across all visitors per day (default 300). |
 | `CHARTSIDE_LINE_NUMBER` | The E.164 number shown on `/line` and in the vCard |
