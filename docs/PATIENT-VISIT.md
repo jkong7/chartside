@@ -84,6 +84,13 @@ That offer is how clinicians find Chartside for free: every patient becomes an i
   - the declined path
   - an all-party California visit claimed through the shared link with an NPI
 
+## Live check (2026-09-30)
+
+A sample blood pressure visit was run through `visitRecapWithClaude` with a real key.
+
+- The recap kept the lisinopril change from 10 mg to 20 mg exactly, listed the lab test next week and the visit in 4 weeks, and turned the warning signs into plain words ending with "Call 911 for any emergency."
+- The first headline counted 2 next steps against a list of 3. The prompt now requires the headline counts to match the lists, and a rerun matched.
+
 ## What's left
 
 - Resuming a recording after a page reload only finishes with what was saved. A second MediaRecorder stream can't be appended to the first file.
