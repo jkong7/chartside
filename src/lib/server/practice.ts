@@ -151,6 +151,17 @@ export function owns(s: PracticeSession, a: Actor) {
   return (!!a.device && s.device === a.device) || (!!a.userId && s.userId === a.userId);
 }
 
+export function envCount(name: string, fallback: number) {
+  const raw = process.env[name];
+  const v = Number(raw);
+  return raw && Number.isFinite(v) && v >= 0 ? v : fallback;
+}
+
+export async function spendSession(id: string, column: "speech_tokens" | "voice_clips" | "llm_calls", max: number) {
+  if (!(max > 0)) return false;
+  return (await run(`UPDATE practice_sessions SET ${column} = ${column} + 1 WHERE id = ? AND ${column} < ?`, id, max)).changes > 0;
+}
+
 export async function getPractice(id: string) {
   if (!/^prs_[a-z0-9]{8,40}$/i.test(id ?? "")) return null;
   const r = await get<Row>("SELECT * FROM practice_sessions WHERE id = ?", id);

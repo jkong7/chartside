@@ -843,7 +843,16 @@ CREATE TABLE IF NOT EXISTS practice_sessions (
   started_at TEXT NOT NULL,
   ended_at TEXT,
   graded_at TEXT,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  speech_tokens INTEGER NOT NULL DEFAULT 0,
+  voice_clips INTEGER NOT NULL DEFAULT 0,
+  llm_calls INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS usage_daily (
+  day TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  n INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, kind)
 );
 `;
 
@@ -923,6 +932,9 @@ const LEGACY_COLUMNS: [string, string, string][] = [
   ["auth_sessions", "last_seen_at", "TEXT"],
   ["auth_sessions", "user_agent", "TEXT"],
   ["memberships", "supervisor_id", "TEXT"],
+  ["practice_sessions", "speech_tokens", "INTEGER NOT NULL DEFAULT 0"],
+  ["practice_sessions", "voice_clips", "INTEGER NOT NULL DEFAULT 0"],
+  ["practice_sessions", "llm_calls", "INTEGER NOT NULL DEFAULT 0"],
 ];
 
 export type Param = string | number | null | boolean;

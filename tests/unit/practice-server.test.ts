@@ -120,6 +120,21 @@ describe("practice sessions", () => {
     expect(await p.getPractice("../etc")).toBeNull();
   });
 
+  it("keeps daily caps in the database and per-session counters atomic", async () => {
+    const p = await P();
+    const { spendDaily, resetLimits } = await import("@/lib/server/ratelimit");
+    const kind = `unit-${Date.now()}`;
+    expect(await spendDaily(kind, 2)).toBe(true);
+    expect(await spendDaily(kind, 2)).toBe(true);
+    resetLimits();
+    expect(await spendDaily(kind, 2)).toBe(false);
+    expect(await spendDaily(`${kind}-other`, 2)).toBe(true);
+    expect(await spendDaily(`${kind}-zero`, 0)).toBe(false);
+    const s = await p.startPractice({ caseId: "headache", actor: { device: device(), userId: null } });
+    const spent = await Promise.all(Array.from({ length: 5 }, () => p.spendSession(s.id, "voice_clips", 3)));
+    expect(spent.filter(Boolean)).toHaveLength(3);
+  });
+
   it("cleans names and class codes", async () => {
     const p = await P();
     expect(p.cleanName("<script>alert(1)</script>")).toBe("Scriptalertscript");
