@@ -23,10 +23,10 @@ export function voiceFor(lang: "en" | "es" = "en") {
   return lang === "es" ? process.env.CHARTSIDE_PHONE_VOICE_ES || "aura-2-celeste-es" : process.env.CHARTSIDE_PHONE_VOICE || "aura-2-thalia-en";
 }
 
-export async function synthesize(text: string, onChunk?: (audio: Buffer) => void, lang: "en" | "es" = "en"): Promise<Buffer> {
+export async function synthesize(text: string, onChunk?: (audio: Buffer) => void, lang: "en" | "es" = "en", voice?: string): Promise<Buffer> {
   const k = key();
   if (!k) throw new Error("Deepgram is not configured");
-  const model = voiceFor(lang);
+  const model = voice || voiceFor(lang);
   const ck = `${model}:${text}`;
   const hit = cache.get(ck);
   if (hit) {

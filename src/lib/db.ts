@@ -762,6 +762,31 @@ CREATE TABLE IF NOT EXISTS capture_tokens (
   last_used_at TEXT,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS practice_sessions (
+  id TEXT PRIMARY KEY,
+  case_id TEXT NOT NULL,
+  device TEXT,
+  user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  name TEXT NOT NULL DEFAULT '',
+  cohort TEXT,
+  channel TEXT NOT NULL DEFAULT 'web',
+  status TEXT NOT NULL DEFAULT 'active',
+  turns TEXT NOT NULL DEFAULT '[]',
+  note TEXT,
+  reference TEXT,
+  grade TEXT,
+  presentation TEXT,
+  challenge_of TEXT,
+  claim_hash TEXT,
+  time_limit_s INTEGER NOT NULL DEFAULT 720,
+  student INTEGER NOT NULL DEFAULT 0,
+  engine TEXT NOT NULL DEFAULT 'local',
+  score INTEGER,
+  started_at TEXT NOT NULL,
+  ended_at TEXT,
+  graded_at TEXT,
+  created_at TEXT NOT NULL
+);
 `;
 
 const INDEXES = [
@@ -789,6 +814,8 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS magic_links_email ON magic_links(email, created_at)",
   "CREATE INDEX IF NOT EXISTS decision_proposals_user ON decision_proposals(user_id, status)",
   "CREATE INDEX IF NOT EXISTS loop_events_at ON loop_events(at, loop_id, kind)",
+  "CREATE INDEX IF NOT EXISTS practice_cohort ON practice_sessions(cohort, score)",
+  "CREATE INDEX IF NOT EXISTS practice_device ON practice_sessions(device, created_at)",
   "CREATE UNIQUE INDEX IF NOT EXISTS users_verified_phone ON users(phone) WHERE phone_verified_at IS NOT NULL",
 ];
 

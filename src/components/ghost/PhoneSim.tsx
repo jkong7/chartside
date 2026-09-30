@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PhoneAudio, fromB64, toB64 } from "./phoneAudio";
 
-type CallState = "idle" | "connecting" | "greeting" | "pin" | "confirmPatient" | "consent" | "recording" | "paused" | "drafting" | "review" | "ended";
+type CallState = "idle" | "connecting" | "greeting" | "pin" | "confirmPatient" | "consent" | "recording" | "paused" | "drafting" | "review" | "practice" | "ended";
 type Text = { to: string; body: string; at: string };
 type Tab = "phone" | "messages";
 
@@ -18,17 +18,19 @@ const STATUS: Record<CallState, string> = {
   paused: "Paused",
   drafting: "Writing your note…",
   review: "Reading your note back",
+  practice: "Practice case",
   ended: "Call ended",
 };
 
 const HINTS: Partial<Record<CallState, string[]>> = {
   pin: ["Enter your PIN, then #", "Press * to skip"],
   confirmPatient: ["Say “yes”, or press 1", "Say “no”, or press 0"],
-  consent: ["Patient agreed? Say “they agreed” or press 2", "Press 3 to have Chartside ask them, 9 in Spanish", "Declined? Press 0", "After your PIN, ask “Chartside, what's left today?”"],
+  consent: ["Patient agreed? Say “they agreed” or press 2", "Press 3 to have Chartside ask them, 9 in Spanish", "Declined? Press 0", "After your PIN, ask “Chartside, what's left today?”", "Med student? Press 7 to practice a case"],
   recording: ["Talk with your patient normally", "Say “Chartside, end visit” or press 5", "Press 4 to pause"],
   paused: ["Say “Chartside, resume” or press 2"],
   drafting: ["Usually under a minute", "Or just hang up, and we'll text you"],
   review: ["Say “ready” or press 1", "Or just hang up, and we'll text you"],
+  practice: ["Pick a case by number, then interview the patient", "Say “I'd like to listen to your heart” to examine", "Say “end encounter” or press 5 for your score"],
 };
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
@@ -325,7 +327,7 @@ export default function PhoneSim({ lineNumber, signedInAs, autopilot = false, fa
             <div className="mt-5 max-h-44 min-h-[112px] w-full overflow-y-auto rounded-2xl bg-white/10 p-3 text-[14px] leading-snug" aria-live="polite" data-testid="sim-caption">
               {caption ? caption : <span className="text-white/65">Connecting…</span>}
             </div>
-            {heard && (state === "recording" || state === "consent" || state === "review" || state === "confirmPatient") && (
+            {heard && (state === "recording" || state === "consent" || state === "review" || state === "confirmPatient" || state === "practice") && (
               <p className="mt-2 w-full text-right text-[12px] italic text-white/65" data-testid="sim-heard">
                 You: “{heard}”
               </p>

@@ -5,6 +5,7 @@ import { get, run } from "../../db";
 import { actorFor, artifacts, audit, type User } from "../repo";
 import { spokenBrief, speakable } from "./brief";
 import type { CallDeps } from "./call";
+import { practiceLine } from "./practice";
 import { nextVisitFor } from "./schedule";
 import { sendText } from "./sms";
 import type { CallClaims } from "./token";
@@ -226,6 +227,7 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
     log: (event, data) => {
       if (process.env.CHARTSIDE_PHONE_DEBUG) console.log(event, data ?? "");
     },
+    practice: process.env.CHARTSIDE_PRACTICE_LINE === "0" ? undefined : practiceLine(claims, user),
   };
 
   return {

@@ -1,6 +1,7 @@
+import type { PracticeLine } from "./practice";
 import { affirmative, bareWake, chartQuestion, consentGiven, consentRefused, directAnswer, directedAtScribe, echoOf, negative, reviewIntent, wakeCommand } from "./intents";
 
-export type CallState = "greeting" | "pin" | "newPin" | "newPinAgain" | "confirmPatient" | "consent" | "recording" | "paused" | "drafting" | "review" | "ended";
+export type CallState = "greeting" | "pin" | "newPin" | "newPinAgain" | "confirmPatient" | "consent" | "recording" | "paused" | "drafting" | "review" | "practice" | "ended";
 
 export interface NextVisit {
   encounterId: string;
@@ -12,7 +13,7 @@ export interface NoteBrief {
 }
 
 export interface CallDeps {
-  say(text: string, lang?: "en" | "es"): Promise<void>;
+  say(text: string, lang?: "en" | "es", voice?: string): Promise<void>;
   hangup(): void;
   caller: { name: string | null; guest: boolean; hasPin: boolean };
   verifyPin(pin: string): Promise<boolean>;
@@ -31,6 +32,7 @@ export interface CallDeps {
   declined(): Promise<void>;
   abandon(): Promise<void>;
   log(event: string, data?: Record<string, unknown>): void;
+  practice?: PracticeLine;
   echoWindowMs?: number;
   fillerMs?: number;
 }
@@ -74,7 +76,12 @@ export const LINES = {
   summaryUnmatched: "Once you match this visit to a patient, you can send their summary when you review the note.",
   askNeedsPin: "I can answer questions about your chart once you've entered your phone PIN at the start of a call.",
   askMore: "Anything else? Or press 2 when your patient agrees to be recorded.",
+  practiceTip: "Medical student? Press 7 to practice a case with a fictional patient.",
+  practiceAgain: "Sorry, I didn't catch which case.",
 } as const;
+
+const PRACTICE_ASK = /^\W*(chart ?side\W*)?(i'?d like to |i want to |let'?s |can i )?(practi[cs]e|do a practice case|practice mode)( a case| mode| case)?\W*$/i;
+const PRACTICE_END = /\b(end (the |this )?(encounter|case|practice|interview|visit)|finish (the |this )?(encounter|case|interview))\b/i;
 
 export class ScribeCall {
   state: CallState = "greeting";
@@ -93,6 +100,8 @@ export class ScribeCall {
   private newPin = "";
   private pinOffered = false;
   private newPinFirst = "";
+  private practiceStage: "menu" | "encounter" | "done" = "menu";
+  private practiceTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private deps: CallDeps) {}
 
@@ -115,7 +124,7 @@ export class ScribeCall {
       return;
     }
     this.state = "consent";
-    const tip = !this.deps.caller.guest && !this.deps.caller.hasPin && this.deps.offerPin ? ` ${LINES.pinOffer}` : "";
+    const tip = !this.deps.caller.guest && !this.deps.caller.hasPin && this.deps.offerPin ? ` ${LINES.pinOffer}` : this.deps.caller.guest && this.deps.practice ? ` ${LINES.practiceTip}` : "";
     await this.say(`${intro} ${LINES.consentAsk}${tip}`);
   }
 
@@ -144,10 +153,53 @@ export class ScribeCall {
     this.recentSpoken = [...this.recentSpoken.slice(-3), text];
   }
 
-  private async say(text: string, lang?: "en" | "es") {
+  private async say(text: string, lang?: "en" | "es", voice?: string) {
     this.remember(text);
-    await this.deps.say(text, lang);
+    await this.deps.say(text, lang, voice);
     this.spokeEndedAt = Date.now();
+  }
+
+  private async enterPractice() {
+    this.state = "practice";
+    this.practiceStage = "menu";
+    this.deps.log("call.practice");
+    await this.say(this.deps.practice!.menu);
+  }
+
+  private async practiceTurn(raw: string) {
+    const p = this.deps.practice!;
+    if (this.practiceStage === "menu") {
+      const intro = await p.pick(raw).catch(() => null);
+      if (!intro) return this.say(`${LINES.practiceAgain} ${p.menu}`);
+      this.practiceStage = "encounter";
+      this.practiceTimer = setTimeout(() => void this.practiceTimeUp(), p.limitMs());
+      return this.say(intro);
+    }
+    if (this.practiceStage !== "encounter") return;
+    if (PRACTICE_END.test(raw)) return this.finishPractice("done");
+    const r = await p.ask(raw).catch(() => ({ reply: "Sorry, could you say that again?", ended: false }));
+    if (r.ended) return this.finishPractice("time");
+    await this.say(r.reply, undefined, p.voice());
+  }
+
+  private async practiceTimeUp() {
+    while (this.busy && this.state === "practice") await new Promise((r) => setTimeout(r, 100));
+    if (this.state !== "practice" || this.practiceStage !== "encounter") return;
+    this.busy = true;
+    try {
+      await this.finishPractice("time");
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async finishPractice(reason: "done" | "time") {
+    if (this.practiceStage !== "encounter") return;
+    this.practiceStage = "done";
+    if (this.practiceTimer) clearTimeout(this.practiceTimer);
+    const line = await this.deps.practice!.finish(reason).catch(() => "Your practice case is saved. Goodbye.");
+    await this.say(line);
+    this.close();
   }
 
   async onTranscript(text: string) {
@@ -186,7 +238,10 @@ export class ScribeCall {
         }
         return;
       }
+      case "practice":
+        return this.practiceTurn(raw);
       case "consent": {
+        if (this.deps.practice && PRACTICE_ASK.test(raw.trim())) return this.enterPractice();
         if (consentRefused(raw)) return this.decline();
         if (consentGiven(raw)) return this.beginRecording();
         if (this.askedPatientAt && Date.now() - this.askedPatientAt < 25_000) {
@@ -301,7 +356,14 @@ export class ScribeCall {
         }
         return;
       }
+      if (this.state === "practice") {
+        if (this.practiceStage === "menu") return await this.practiceTurn(d);
+        if (d === "5" || d === "#") return await this.finishPractice("done");
+        if (d === "*") return await this.say(this.lastSpoken, undefined, this.deps.practice?.voice());
+        return;
+      }
       if (this.state === "consent") {
+        if (d === "7" && this.deps.practice) return await this.enterPractice();
         if (d === "6" && this.deps.offerPin && !this.deps.caller.guest && !this.deps.caller.hasPin && !this.pinOffered) {
           this.state = "newPin";
           this.newPin = "";
@@ -483,6 +545,14 @@ export class ScribeCall {
     const was = this.state;
     this.state = "ended";
     this.deps.log("call.hangup", { state: was });
+    if (this.practiceTimer) clearTimeout(this.practiceTimer);
+    if (was === "practice") {
+      if (this.practiceStage === "encounter") {
+        this.practiceStage = "done";
+        await this.deps.practice?.finish("hangup").catch(() => "");
+      }
+      return;
+    }
     if (was === "recording" || was === "paused") {
       if (!this.hasAudio) {
         await this.deps.abandon();

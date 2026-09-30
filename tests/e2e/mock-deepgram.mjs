@@ -31,6 +31,12 @@ const DICTATION = [
   "Stop dictation.",
 ];
 
+const PRACTICE = {
+  "chartside-practice": ["Hi, I'm Sam, a medical student. What brings you in today?", "Does the pain go anywhere, like your arm or jaw?", "Do you smoke?"],
+  "chartside-practice-note": ["S: Chest pressure radiating to the left arm and jaw.", "A: Acute coronary syndrome.", "P: ECG, troponin and aspirin."],
+  "chartside-practice-present": ["Mr. Alvarez is a 58-year-old man who presents with two hours of chest pressure radiating to his left arm and jaw.", "On exam his heart rate is 104.", "This is most likely acute coronary syndrome.", "I would get an ECG, troponin, and give aspirin."],
+};
+
 function words(spk, start, end, text) {
   const ws = text.split(/\s+/);
   const step = (end - start) / ws.length;
@@ -143,7 +149,9 @@ server.on("upgrade", (req, socket, head) => {
     stats.dictationConnections = (stats.dictationConnections ?? 0) + 1;
     stats.lastKeyterms = url.searchParams.getAll("keyterm");
   }
-  const script = dictation ? DICTATION.map((t, i) => [0, i * 2, i * 2 + 1.5, t]) : LIVE;
+  const practiceTag = url.searchParams.getAll("tag").find((t) => PRACTICE[t]);
+  if (practiceTag) stats.practiceConnections = (stats.practiceConnections ?? 0) + 1;
+  const script = practiceTag ? PRACTICE[practiceTag].map((t, i) => [0, i * 2, i * 2 + 1.5, t]) : dictation ? DICTATION.map((t, i) => [0, i * 2, i * 2 + 1.5, t]) : LIVE;
   wss.handleUpgrade(req, socket, head, (ws) => {
     stats.wsConnections++;
     let sent = 0;

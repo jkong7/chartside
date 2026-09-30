@@ -90,7 +90,7 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
     marks.clear();
   };
 
-  const say = async (text: string, lang: "en" | "es" = "en") => {
+  const say = async (text: string, lang: "en" | "es" = "en", voice?: string) => {
     if (hungUp) return;
     interrupted = false;
     speakingUntil = Number.POSITIVE_INFINITY;
@@ -114,6 +114,7 @@ export function handleMediaStream(ws: WebSocket, opts: BridgeOptions = {}) {
         if (pending.length >= FRAME * 25) flushOut(false);
         },
         lang,
+        voice,
       );
       flushOut(true);
     } catch (err) {

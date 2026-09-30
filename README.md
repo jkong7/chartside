@@ -203,6 +203,12 @@ For developers, `POST /api/capture` is the one capture endpoint behind every doo
 | `NPPES_BASE_URL` | Override the NPI registry base URL, used for tests |
 | `CHARTSIDE_OPERATOR_EMAILS` | Comma-separated emails that may see growth and line metrics across all organizations and connect the phone number. An operator must have signed in once with an emailed code or link, which proves they own the address. |
 | `HOSTNAME_BIND`, `PORT` | Where `server.ts` listens (default `0.0.0.0:3100`) |
+| `CHARTSIDE_PRACTICE_RATE` | Practice cases a visitor may start per IP per hour (default 30). Note grading allows twice this. See `docs/PRACTICE.md`. |
+| `CHARTSIDE_PRACTICE_TURN_RATE` | Practice questions and patient voice clips per IP per hour (default 600) |
+| `CHARTSIDE_PRACTICE_SPEECH_RATE` | Practice speech tokens per IP per hour (default 60) |
+| `CHARTSIDE_PRACTICE_LLM_DAILY` | Claude calls for practice patients and reference notes across all visitors per day (default 3000). Past the cap, the offline patient answers. |
+| `CHARTSIDE_PRACTICE_VOICE_F` / `CHARTSIDE_PRACTICE_VOICE_M` | Aura voices for female and male practice patients (defaults `aura-2-luna-en` and `aura-2-arcas-en`) |
+| `CHARTSIDE_PRACTICE_LINE` | Set to `0` to turn off "press 7 to practice" on the phone line |
 
 ### Running the phone line
 
@@ -257,6 +263,10 @@ scripts/e2e-locked.sh tests/e2e/stack.spec.ts tests/e2e/voice.spec.ts
 ```
 
 It waits for `/tmp/chartside-e2e.lock` and clears it if the owning process has died. The suite starts mock Deepgram (including `/v1/speak` and mu-law listen), Twilio Messages, SendGrid, NPPES, FHIR, OIDC and MLLP servers, and runs the app through `server.ts` against `data/e2e/`.
+
+## Chartside Practice
+
+Free OSCE-style practice for students and residents at `/practice`: interview a fictional standardized patient by text or voice, examine, write a SOAP note, and get a shareable scorecard, a note comparison with Chartside's own draft, and an AI attending who grades your oral presentation. Callers to the line can press 7 to practice by phone. Details, safety rules and test counts are in `docs/PRACTICE.md`.
 
 ## Platform and security
 
