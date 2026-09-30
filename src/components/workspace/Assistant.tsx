@@ -14,8 +14,9 @@ interface Msg {
 }
 
 const SUGGESTIONS = ["Make the HPI shorter", "What did the patient say about side effects?", "Add patient declined flu vaccine to plan", "Colorectal cancer screening guideline"];
+const VET_SUGGESTIONS = ["Make the history shorter", "What did the owner say about the problem?", "Add a recheck in 2 weeks to the plan", "Rewrite the owner instructions in plain words"];
 
-export default function Assistant({ encounterId, disabled, onNote, onCite }: { encounterId: string; disabled?: boolean; onNote: (n: Note) => void; onCite: (ids: string[]) => void }) {
+export default function Assistant({ encounterId, disabled, vet, onNote, onCite }: { encounterId: string; disabled?: boolean; vet?: boolean; onNote: (n: Note) => void; onCite: (ids: string[]) => void }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -45,7 +46,7 @@ export default function Assistant({ encounterId, disabled, onNote, onCite }: { e
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2 text-sm">
         {!msgs.length && (
           <div className="flex flex-wrap gap-1.5">
-            {SUGGESTIONS.map((s) => (
+            {(vet ? VET_SUGGESTIONS : SUGGESTIONS).map((s) => (
               <button key={s} disabled={busy || (disabled && !/guideline/i.test(s))} onClick={() => send(s)} className="rounded-full border border-line-strong px-2.5 py-1 text-xs text-ink-2 hover:bg-sunken disabled:opacity-50">{s}</button>
             ))}
           </div>

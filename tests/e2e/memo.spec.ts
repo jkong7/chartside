@@ -192,6 +192,10 @@ test("Barn Line: one texted farm call becomes a record per animal, and the owner
   const biscuit = list.find((p) => p.name === "Biscuit")!;
   const enc = encList.find((e) => e.patientId === biscuit.id)!;
   expect(encList.filter((e) => e.status === "review").length).toBeGreaterThanOrEqual(3);
+  await page.goto(`/encounters/${enc.id}`);
+  await expect(page.getByTestId("animal-line")).toHaveText("12 yr gelding · Quarter Horse");
+  await expect(page.getByTestId("assistant")).toContainText("What did the owner say about the problem?");
+  await expect(page.getByTestId("assistant")).not.toContainText("Colorectal");
   const signed = await page.request.post(`/api/encounters/${enc.id}/sign`, { data: { force: true } });
   expect((await signed.json()).signed).toBe(true);
   const ownerText = await waitText(request, owner, /Care instructions for Biscuit/, 20_000);
