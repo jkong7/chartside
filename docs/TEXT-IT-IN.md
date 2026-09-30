@@ -63,9 +63,11 @@ Last full runs: unit 406 passed (89 files, 38 new tests in 5 files), e2e 163 pas
 
 ## What's left
 
+- The phone call's spoken prompts still say "patient" to vets. The fix is to pass the org's jurisdiction into the call state machine's lines.
+
 - The phone line's spoken consent prompt still says "patient" for vets. A vet voice for the call script is next.
 - WhatsApp utility templates for proactive messages (brief, sign reminders), and a Twilio Content API mock.
 - `SEND owner`, `LAST` and `HORSE Biscuit` SMS commands. Invoice lines from spoken charges.
-- Carrier behavior for oversized MMS (strip, compress or link) needs testing on real AT&T, Verizon and T-Mobile phones. AMR and 3GPP decoding depends on Deepgram's format support and should be checked with a real key.
+- Carrier behavior for oversized MMS (strip, compress or link) needs testing on real AT&T, Verizon and T-Mobile phones. On 2026-09-30, real Deepgram (nova-3) transcribed the WhatsApp OGG/Opus, iPhone M4A and 3GPP/AAC fixtures correctly. AMR-NB is still unverified, because the local ffmpeg build can't encode it.
 - The draft-ready hook is in memory. If the server restarts mid-draft, the ready text for that memo is not sent (the note still lands in To review), the same as the phone line.
 - Meta's AI Providers clause: WhatsApp use must be positioned as the clinic's own documentation service, and access can be cut by Meta.
