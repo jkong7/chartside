@@ -176,6 +176,7 @@ export interface Chart {
   smoking?: "never" | "former" | "current";
   oncology?: OncologyProfile;
   pregnancy?: Pregnancy;
+  animal?: import("./engine/vet").AnimalProfile;
 }
 
 export interface Pregnancy {

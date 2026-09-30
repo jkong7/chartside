@@ -1,6 +1,6 @@
 import { all, get, jsonText, nextOrd, now, run, slugify, tx, uid } from "../db";
 import type { Claim } from "../engine/billing";
-import { SYSTEM_TEMPLATES } from "../engine/templates";
+import { isVetSpecialty, SYSTEM_TEMPLATES } from "../engine/templates";
 import type { Chart, ConsentRecord, Encounter, Note, Patient, StagedOrder, StyleRule, Template, Utterance } from "../types";
 
 import type { Role } from "../roles";
@@ -651,7 +651,7 @@ export interface TemplateWithSharing extends Template {
 const toTemplate = (r: TemplateRow, me?: string): TemplateWithSharing => ({ id: r.id, userId: r.user_id, name: r.name, specialty: r.specialty, description: r.description, sections: j(r.sections, []), style: j(r.style, {}), shared: !!r.shared, ownedByMe: r.user_id === me });
 
 export const templates = {
-  list: async (u: User): Promise<TemplateWithSharing[]> => [...SYSTEM_TEMPLATES, ...(await all<TemplateRow>("SELECT * FROM templates WHERE org_id = ? AND (user_id = ? OR shared = 1) ORDER BY created_at", u.orgId, u.id)).map((r) => toTemplate(r, u.id))],
+  list: async (u: User): Promise<TemplateWithSharing[]> => [...SYSTEM_TEMPLATES.filter((t) => (isVetSpecialty(u.specialty) ? t.specialty === "Veterinary" || t.specialty === "General" : t.specialty !== "Veterinary")), ...(await all<TemplateRow>("SELECT * FROM templates WHERE org_id = ? AND (user_id = ? OR shared = 1) ORDER BY created_at", u.orgId, u.id)).map((r) => toTemplate(r, u.id))],
   get: async (u: User, id: string): Promise<TemplateWithSharing | undefined> => {
     const sys = SYSTEM_TEMPLATES.find((t) => t.id === id);
     if (sys) return sys;

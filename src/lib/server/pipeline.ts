@@ -124,6 +124,10 @@ export async function processEncounter(user: User, encId: string, opts: { templa
   await localDiarize(user, enc);
   const utts = await utterances.list(enc.id);
   if (!utts.length) throw new Error(finalPassFailed ? "Speech transcription is unavailable right now. The audio is saved; draft the note again shortly." : "Audio was recorded but no transcript is available. Add DEEPGRAM_API_KEY for server-side transcription, or type the conversation.");
+  if (template.id.startsWith("vet_")) {
+    const { processVet } = await import("./barn");
+    return processVet(user, enc, template, { useLlm: llmEnabled() && opts.engine !== "local", model: opts.model, warnings, explicitTemplate: !!opts.templateId });
+  }
   const { facts, patient } = await factsFor(user, enc);
   const rules = await styleRules.list(enc.userId);
   const interpretation = checkInterpretation(utts);
@@ -357,6 +361,10 @@ export async function signEncounter(user: User, encId: string, opts: { force?: b
   const { emit } = await import("./platform");
   await emit(user.orgId, "note.signed", { encounterId: enc.id, patientId: enc.patientId, signedAt, cosignPending: !!cosign });
   await audit.log(user, enc.id, "note.signed", { edited, editRatio, learned: candidates.length, forced: !!opts.force, overrides: blockers });
+  if (enc.templateId?.startsWith("vet_")) {
+    const { afterVetSign } = await import("./barn");
+    await afterVetSign(user, enc.id).catch((err) => console.error("owner text failed", err instanceof Error ? err.message : err));
+  }
   await finalizeClaim(user, (await encounters.get(user, enc.id))!);
   const { sendNoteHl7 } = await import("./hl7");
   await sendNoteHl7(user, enc.id).catch(() => null);
