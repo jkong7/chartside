@@ -11,6 +11,7 @@ import Agenda from "./Agenda";
 import AskChart from "../AskChart";
 import PhonePairing from "./PhonePairing";
 import type { Bundle } from "./types";
+import { useCore } from "../EditionProvider";
 
 const STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 const ALL_PARTY = new Set(["CA", "CT", "DE", "FL", "IL", "MD", "MA", "MI", "MT", "NV", "NH", "OR", "PA", "WA"]);
@@ -68,6 +69,7 @@ export default function PreVisit({ b, onChange, onStart }: { b: Bundle; onChange
   const consent = b.consent;
   const allParty = ALL_PARTY.has(state);
   const granted = consent?.decision === "granted";
+  const core = useCore();
 
   async function record(decision: "granted" | "declined") {
     setBusy(true);
@@ -90,20 +92,20 @@ export default function PreVisit({ b, onChange, onStart }: { b: Bundle; onChange
   return (
     <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 md:px-8 lg:grid-cols-[1fr_380px]">
       <div className="space-y-6">
-        <Agenda encounterId={b.encounter.id} items={b.agenda} />
-        {b.patient && <div className="card p-4"><h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-3">Ask the chart</h3><AskChart patientId={b.patient.id} compact /></div>}
+        {!core && <Agenda encounterId={b.encounter.id} items={b.agenda} />}
+        {!core && b.patient && <div className="card p-4"><h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-3">Ask the chart</h3><AskChart patientId={b.patient.id} compact /></div>}
         <PatientBrief b={b} />
-        <IntakeCard encounterId={b.encounter.id} intake={b.artifacts.intake} onChange={onChange} />
-        <CareGaps quality={b.quality} />
+        {!core && <IntakeCard encounterId={b.encounter.id} intake={b.artifacts.intake} onChange={onChange} />}
+        {!core && <CareGaps quality={b.quality} />}
         <div className="card p-5">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-3">Visit settings</h3>
-          <div className="mt-3 grid gap-4 sm:grid-cols-3">
-            <div>
+          <div className={`mt-3 grid gap-4 ${core ? "sm:grid-cols-1" : "sm:grid-cols-3"}`}>
+            {!core && <div>
               <label className="label" htmlFor="tpl">Note template</label>
               <select id="tpl" className="input" value={b.encounter.templateId ?? b.template.id} onChange={(e) => settings({ templateId: e.target.value })}>
                 {b.templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
-            </div>
+            </div>}
             <div>
               <label className="label" htmlFor="inlang">Conversation language</label>
               <select id="inlang" className="input" value={b.encounter.inputLang} onChange={(e) => settings({ inputLang: e.target.value })}>
@@ -113,7 +115,7 @@ export default function PreVisit({ b, onChange, onStart }: { b: Bundle; onChange
                 <option value="vi">Vietnamese</option>
               </select>
             </div>
-            <div>
+            {!core && <div>
               <label className="label" htmlFor="outlang">Patient summary language</label>
               <select id="outlang" className="input" value={b.encounter.outputLang} onChange={(e) => settings({ outputLang: e.target.value })}>
                 <option value="en">English</option>
@@ -121,7 +123,7 @@ export default function PreVisit({ b, onChange, onStart }: { b: Bundle; onChange
                 <option value="zh">Mandarin</option>
                 <option value="vi">Vietnamese</option>
               </select>
-            </div>
+            </div>}
           </div>
         </div>
       </div>

@@ -5,6 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import { SIMPLE_NAV_HREFS, SIMPLE_NAV_LABELS, type NavMode } from "@/lib/nav";
+import { CORE_NAV, CORE_NAV_LABELS } from "@/lib/edition";
+import { useCore } from "./EditionProvider";
 import { roleLabel, type Role } from "@/lib/roles";
 import { Alert, Bed, Calendar, Chart, Check, Gear, Inbox, Layout, Logo, Logout, Mic, Receipt, Search, Shield, Users } from "./icons";
 import { Avatar } from "./ui";
@@ -44,8 +46,10 @@ export interface SidebarUser {
   orgs: { id: string; name: string; role: Role }[];
 }
 
-const navFor = (role: Role, mode: NavMode = "full") =>
-  mode === "simple"
+const navFor = (role: Role, mode: NavMode = "full", core = false) =>
+  core && mode !== "simple"
+    ? CORE_NAV.map((href) => NAV.find((n) => n.href === href)!).filter((n) => !n.roles || n.roles.includes(role)).map((n) => ({ ...n, label: CORE_NAV_LABELS[n.href] ?? n.label, group: "Care" }))
+    : mode === "simple"
     ? SIMPLE_NAV_HREFS.map((href) => NAV.find((n) => n.href === href)!).filter((n) => !n.roles || n.roles.includes(role)).map((n) => ({ ...n, label: SIMPLE_NAV_LABELS[n.href] ?? n.label, group: "Care" }))
     : NAV.filter((n) => !n.roles || n.roles.includes(role));
 
@@ -118,7 +122,8 @@ function OrgSwitcher({ user }: { user: SidebarUser }) {
 export default function Sidebar({ user, mode = "full" }: { user: SidebarUser; mode?: NavMode }) {
   const path = usePathname();
   const router = useRouter();
-  const inbox = useInboxCount(["owner", "admin", "clinician", "scribe"].includes(user.role));
+  const core = useCore();
+  const inbox = useInboxCount(!core && ["owner", "admin", "clinician", "scribe"].includes(user.role));
   return (
     <aside className="sticky top-0 hidden h-screen w-[220px] shrink-0 flex-col border-r border-line bg-surface md:flex">
       <Link href={mode === "simple" ? "/go" : "/today"} className="flex items-center gap-2.5 px-5 py-5">
@@ -127,7 +132,7 @@ export default function Sidebar({ user, mode = "full" }: { user: SidebarUser; mo
       </Link>
       <OrgSwitcher user={user} />
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3" data-testid="nav" data-mode={mode}>
-        {navFor(user.role, mode).map((n, i, list) => {
+        {navFor(user.role, mode, core).map((n, i, list) => {
           const active = isActive(path, n.href, list.map((x) => x.href));
           const Icon = n.icon;
           const heading = i > 0 && list[i - 1].group !== n.group ? <p key={`h-${n.group}`} className="px-3 pb-0.5 pt-3 text-[10px] font-semibold uppercase tracking-wider text-ink-4">{n.group}</p> : null;
@@ -139,7 +144,7 @@ export default function Sidebar({ user, mode = "full" }: { user: SidebarUser; mo
             </Link>,
           ];
         })}
-        {mode === "simple" && <ShowAll className="mt-3 w-full rounded-lg px-3 py-1.5 text-left text-sm text-brand hover:bg-sunken" />}
+        {mode === "simple" && !core && <ShowAll className="mt-3 w-full rounded-lg px-3 py-1.5 text-left text-sm text-brand hover:bg-sunken" />}
       </nav>
       <div className="flex items-center gap-2.5 border-t border-line px-4 py-3">
         <Avatar name={user.name} size={32} />
@@ -171,7 +176,8 @@ function isActive(path: string, href: string, all: string[]) {
 
 export function MobileNav({ role, mode = "full" }: { role: Role; mode?: NavMode }) {
   const path = usePathname();
-  const items = navFor(role, mode);
+  const core = useCore();
+  const items = navFor(role, mode, core);
   return (
     <nav className="sticky top-0 z-30 flex items-center gap-1 overflow-x-auto border-b border-line bg-surface px-3 py-2 md:hidden" aria-label="Main" data-mode={mode}>
       <Link href={mode === "simple" ? "/go" : "/today"} className="mr-1 shrink-0" aria-label="Chartside home"><Logo size={24} /></Link>
@@ -184,7 +190,7 @@ export function MobileNav({ role, mode = "full" }: { role: Role; mode?: NavMode 
           </Link>
         );
       })}
-      {mode === "simple" && <ShowAll className="shrink-0 rounded-lg px-2.5 py-1.5 text-sm text-brand" />}
+      {mode === "simple" && !core && <ShowAll className="shrink-0 rounded-lg px-2.5 py-1.5 text-sm text-brand" />}
     </nav>
   );
 }

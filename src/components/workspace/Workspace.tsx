@@ -24,6 +24,7 @@ import Calculators from "./Calculators";
 import { Addenda, CosignBanner } from "./Signoff";
 import Transcript from "./Transcript";
 import type { Bundle, Highlight } from "./types";
+import { useCore } from "../EditionProvider";
 
 type Tab = "note" | "codes" | "orders" | "tasks" | "quality" | "billing" | "summary" | "letters" | "audit";
 
@@ -41,6 +42,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
   const [regen, setRegen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
+  const core = useCore();
 
   const [gate, setGate] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -120,7 +122,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
 
   const header = (
     <header className="z-20 flex min-h-[73px] flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface/95 px-4 py-2 backdrop-blur md:sticky md:top-0 md:px-6">
-      <Link href={b.admission ? `/hospital/${b.admission.id}` : "/today"} className="whitespace-nowrap text-sm text-ink-3 hover:text-ink">← {b.admission ? "Admission" : "Today"}</Link>
+      <Link href={b.admission && !core ? `/hospital/${b.admission.id}` : "/today"} className="whitespace-nowrap text-sm text-ink-3 hover:text-ink">← {b.admission && !core ? "Admission" : core ? "Visits" : "Today"}</Link>
       <div className="hidden h-8 w-px bg-line sm:block" />
       <div className="min-w-0 flex-1 md:flex-none">
         <div className="flex items-center gap-2">
@@ -132,18 +134,18 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
         {p?.chart.animal && <OwnerPhone key={`${p.id}:${p.chart.animal.ownerPhone ?? ""}`} patientId={p.id} animal={p.chart.animal} editable={b.access.edit} onSaved={load} />}
       </div>
       <div className="flex flex-wrap items-center gap-2 md:ml-auto">
-        {b.group && (
+        {!core && b.group && (
           <Link href={`/groups/${b.group.id}`} className="pill whitespace-nowrap bg-brand-50 text-brand" data-testid="group-chip">{b.group.role === "recording" ? `Group recording · ${b.group.members} members · assign speakers and create member notes` : `Group: ${b.group.title}`}</Link>
         )}
-        {b.admission && (
+        {!core && b.admission && (
           <Link href={`/hospital/${b.admission.id}`} className="pill whitespace-nowrap bg-brand-50 text-brand" data-testid="admission-chip">{[b.admission.unit, b.admission.room].filter(Boolean).join(" ")} · Hospital day {b.admission.day}</Link>
         )}
-        {b.artifacts.ehr_link && (
+        {!core && b.artifacts.ehr_link && (
           <span className="pill whitespace-nowrap bg-info-50 text-info" data-testid="ehr-chip" title={`${b.artifacts.ehr_link.iss}\nPatient/${b.artifacts.ehr_link.patient}${b.artifacts.ehr_link.encounter ? `\nEncounter/${b.artifacts.ehr_link.encounter}` : ""}`}>
             {b.artifacts.ehr_link.system} · {b.artifacts.ehr_link.encounter ? "encounter linked" : "patient linked"}
           </span>
         )}
-        {locked && b.artifacts.ehr_filing && (
+        {!core && locked && b.artifacts.ehr_filing && (
           b.artifacts.ehr_filing.status === "filed" ? (
             <span className="pill whitespace-nowrap bg-ok-50 text-ok" data-testid="ehr-filed" title={b.artifacts.ehr_filing.reference}><Check size={12} /> Filed to {b.artifacts.ehr_link?.system ?? "EHR"}</span>
           ) : (
@@ -152,13 +154,13 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
             </button>
           )
         )}
-        {locked && b.artifacts.ehr_link && !b.artifacts.ehr_filing && (
+        {!core && locked && b.artifacts.ehr_link && !b.artifacts.ehr_filing && (
           <button className="btn-outline" data-testid="ehr-file" onClick={async () => { await fetch(`/api/encounters/${id}/ehr/file`, { method: "POST" }); await load(); }}>File to {b.artifacts.ehr_link.system}</button>
         )}
         <StatusPill status={enc.status} />
         {reviewable && (
           <>
-            {!locked && (
+            {!locked && !core && (
               <select className="input w-44 py-1.5 text-sm" value={enc.templateId ?? b.template.id} onChange={(e) => regenerate(e.target.value)} disabled={regen} aria-label="Template">
                 {b.templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
@@ -174,8 +176,8 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
             <button className="btn-outline" onClick={async () => { const r = await api<{ text: string }>(`/encounters/${id}/export`); await copyText(r.text); setToast("Note copied. Paste it into your EHR."); }} data-testid="copy-note">
               <Copy /> Copy for EHR
             </button>
-            <a className="btn-outline" href={`/api/encounters/${id}/export?format=fhir`} data-testid="fhir"><Download /> FHIR</a>
-            {b.access.share && b.encounter.patientId && <ShareVisit encId={id} colleagues={b.colleagues} sensitive={!!b.note?.content.meta.sensitive} />}
+            {!core && <a className="btn-outline" href={`/api/encounters/${id}/export?format=fhir`} data-testid="fhir"><Download /> FHIR</a>}
+            {!core && b.access.share && b.encounter.patientId && <ShareVisit encId={id} colleagues={b.colleagues} sensitive={!!b.note?.content.meta.sensitive} />}
             {!signed && b.access.sign && <button className="btn-primary" disabled={signing} onClick={() => sign(false)} data-testid="sign">{signing ? <Spinner /> : <Shield />} Sign note</button>}
             {!signed && !b.access.sign && <span className="pill whitespace-nowrap bg-warn-50 text-warn" data-testid="awaiting-signature">Awaiting {b.clinician.name}&apos;s signature</span>}
           </>
@@ -227,7 +229,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
       {header}
       <div className="grid grid-cols-1 lg:h-[calc(100vh-73px)] lg:grid-cols-[minmax(0,1fr)_400px]">
         <main className="min-h-0 overflow-y-auto px-4 py-4 md:px-6">
-          <Tabs<Tab>
+          {!core && <Tabs<Tab>
             value={tab}
             onChange={setTab}
             tabs={[
@@ -241,8 +243,8 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
               { id: "letters", label: "Documents", badge: b.documents.length + (b.artifacts.letters?.length ?? 0) ? <span className="pill bg-sunken text-[10px]" data-testid="documents-badge">{b.documents.length + (b.artifacts.letters?.length ?? 0)}</span> : null },
               { id: "audit", label: "Audit" },
             ]}
-          />
-          <div className="py-5">
+          />}
+          <div className={core ? "py-1" : "py-5"}>
             {tab === "note" && interp?.flags.length ? (
               <div className="mb-4 rounded-xl border border-warn/30 bg-warn-50/60 p-3" data-testid="interpreter-flags">
                 <p className="flex items-center gap-1.5 px-1 text-sm font-semibold text-warn"><Alert size={15} /> Interpretation check: {interp.flags.length} possible discrepanc{interp.flags.length === 1 ? "y" : "ies"}</p>
@@ -269,7 +271,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
                 feedback={b.feedback}
                 snippetCtx={{ patient: p ? { name: p.name, dob: p.dob, sex: p.sex, pronouns: p.pronouns } : null, chart: p?.chart ?? null, clinician: b.clinician.name }}
                 templateKinds={Object.fromEntries(b.template.sections.map((x) => [x.key, x.kind]))}
-                onCalculators={() => setCalcOpen(true)}
+                onCalculators={core ? undefined : () => setCalcOpen(true)}
                 onSelect={(s: NoteSentence | null) => {
                   setActive(s?.id ?? null);
                   if (s) cite(s.evidence.filter((x) => x !== "chart"), s.id);
@@ -279,7 +281,7 @@ export default function Workspace({ id, initialTab }: { id: string; initialTab?:
               />
             )}
             {tab === "note" && <Addenda b={b} onChange={load} onToast={setToast} />}
-            <Calculators encounterId={id} open={calcOpen} onClose={() => setCalcOpen(false)} canInsert={!locked} onInsert={(text) => insertIntoPlan(text, "calculator.inserted")} />
+            {!core && <Calculators encounterId={id} open={calcOpen} onClose={() => setCalcOpen(false)} canInsert={!locked} onInsert={(text) => insertIntoPlan(text, "calculator.inserted")} />}
             {tab === "codes" && <CodesPanel coding={b.artifacts.coding} encounterId={id} locked={locked} onUpdate={() => load()} onCite={(ids) => cite(ids)} />}
             {tab === "orders" && <OrdersPanel encounterId={id} orders={b.orders} locked={locked} onChange={(fn: (o: StagedOrder[]) => StagedOrder[]) => setB((x) => (x ? { ...x, orders: fn(x.orders) } : x))} onCite={(ids) => cite(ids)} />}
             {tab === "tasks" && <TasksPanel encounterId={id} tasks={b.tasks} editable={b.access.edit || b.access.sign} onChange={load} onCite={(ids) => cite(ids)} />}
