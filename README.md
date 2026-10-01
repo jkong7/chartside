@@ -11,6 +11,19 @@ Chartside is built on a study of the ten leading ambient scribes: Abridge, Micro
 - an audit-defensibility meter for coding
 - a patient correction loop
 
+## Editions: the core slice
+
+By default Chartside runs as the **core** edition, a thin vertical slice of the product's hook:
+
+- the phone line, texting the line, and the `/go` doors (record, upload, Shortcut, share, PIN, To review)
+- the `/line` landing page, onboarding, and sign-in
+- a SOAP note for every visit, the note editor with its transcript, and signing
+- Visits, Patients, Settings, and Admin (members, security, Line, audit log, organization)
+
+Everything else is hidden, not deleted: hospital, ED, revenue, quality, inbox, templates, Practice, patient visits, Barn Line, WhatsApp, the public API, and the rest. `src/lib/edition.ts` lists what is hidden. In core, hidden pages redirect to Visits and hidden APIs return 404, both from `src/proxy.ts`. The To review stack shows only note, co-sign, patient-match and proposal cards.
+
+Set `CHARTSIDE_EDITION=full` at runtime to bring it all back. No rebuild is needed.
+
 ## Clinician workflow
 
 1. **Today.** The schedule shows status pills: ready to record → recording → drafting → ready for review → signed. Each row also shows the patient's last visit plan.
@@ -465,6 +478,8 @@ Create an account. This creates your organization with you as its owner. Each ne
 Optional configuration is in `.env.example`: `ANTHROPIC_API_KEY`, `CHARTSIDE_MODEL`, `CHARTSIDE_ENGINE=local`, `DEEPGRAM_API_KEY`, `SMART_CLIENT_ID`/`SMART_ISS`/`SMART_ALLOWED_ISS`, `CHARTSIDE_SECRET` (encrypts EHR tokens and SSO client secrets), `CHARTSIDE_DB` (SQLite path), `DATABASE_URL` (Postgres), `SSO_REDIRECT_URI` (override when running behind a proxy), and `CHARTSIDE_CODESETS_DIR` / `CHARTSIDE_LICENSED_DIR` (code-set locations).
 
 ## Tests
+
+The e2e suite runs in the full edition. `npm run test:e2e:core` runs the core slice spec in `tests/e2e/core` plus the phone, text, recorder, stack and note specs against a core server.
 
 ```bash
 npm test               # 329 unit tests: extraction, notes, verification, coding, orders, summaries, style, speech, billing, prior auth, FHIR mapping, SMART flow,
