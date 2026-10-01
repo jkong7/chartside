@@ -1,3 +1,4 @@
+import { isCore } from "../../edition";
 import { orgJurisdiction } from "../jurisdiction";
 import { appendCaptureAudio, captureAudio, captureNote, captureStatus, finishCaptureFor } from "../capture";
 import { clockTime, tzOf } from "../../tz";
@@ -229,7 +230,7 @@ export async function phoneSession(claims: CallClaims, opts: { waitMs?: number; 
     log: (event, data) => {
       if (process.env.CHARTSIDE_PHONE_DEBUG) console.log(event, data ?? "");
     },
-    practice: process.env.CHARTSIDE_PRACTICE_LINE === "0" ? undefined : practiceLine(claims, user),
+    practice: process.env.CHARTSIDE_PRACTICE_LINE === "0" || isCore() ? undefined : practiceLine(claims, user),
   };
 
   return {

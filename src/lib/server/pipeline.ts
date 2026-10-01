@@ -1,3 +1,4 @@
+import { isCore } from "../edition";
 import { isDictation, placeDictation } from "../engine/memo";
 import { createHash } from "node:crypto";
 import { assistWithClaude, generateNoteWithClaude, llmEnabled, llmModel, translateSummaryWithClaude } from "../llm";
@@ -68,6 +69,7 @@ export async function recordConsent(user: User, enc: Encounter, input: { decisio
 }
 
 async function templateFor(user: User, enc: Encounter) {
+  if (isCore()) return systemTemplate("soap")!;
   return (await templates.get(user, enc.templateId ?? (enc.visitType === "ed" || enc.setting === "ed" ? "ed_note" : user.prefs.defaultTemplate ?? "soap"))) ?? systemTemplate("soap")!;
 }
 

@@ -1,3 +1,4 @@
+import { isCore } from "../edition";
 import { get } from "../db";
 import { hl7Config } from "./hl7";
 import type { User } from "./repo";
@@ -21,5 +22,6 @@ export async function onboarding(u: User): Promise<OnboardingItem[] | null> {
     { key: "mfa", label: "Turn on two-step verification", detail: "Protect patient data with an authenticator app.", href: "/settings", done: await one("FROM users WHERE id = ? AND mfa_enabled_at IS NOT NULL", u.id) },
   ];
   if (["owner", "admin"].includes(u.role)) items.push({ key: "team", label: "Invite your team", detail: "Add clinicians, scribes, nurses, and billers. Roles control what each person can see and sign.", href: "/admin", done: (await one("FROM memberships WHERE org_id = ? AND user_id <> ?", u.orgId, u.id)) || (await one("FROM invites WHERE org_id = ?", u.orgId)) });
+  if (isCore()) return items.filter((i) => i.key !== "ehr").map((i) => (i.key === "personalize" ? { ...i, detail: "Paste an old note or add a style rule so drafts read the way you write.", href: "/settings" } : i));
   return items;
 }

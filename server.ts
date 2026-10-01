@@ -23,6 +23,7 @@ const sweep = async () => {
 setTimeout(sweep, 30_000).unref();
 setInterval(sweep, 5 * 60_000).unref();
 const { LISTEN_PATH, acceptListen, pipeListen } = await import("./src/lib/server/practiceSpeech");
+const { isCore } = await import("./src/lib/edition");
 const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
 const listenWss = new WebSocketServer({ noServer: true, maxPayload: 256 * 1024, handleProtocols: (p) => (p.has("bearer") ? "bearer" : false) });
 const openByIp = new Map<string, number>();
@@ -56,6 +57,7 @@ server.on("upgrade", (req, socket, head) => {
     const ip = ipOf(req);
     if (openTotal >= MAX_TOTAL || (openByIp.get(ip) ?? 0) >= MAX_PER_IP) return refuse(socket, "429 Too Many Requests");
     if (path === LISTEN_PATH) {
+      if (isCore()) return refuse(socket, "404 Not Found");
       void acceptListen(req)
         .catch(() => null)
         .then((grant) => {

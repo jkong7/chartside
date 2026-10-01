@@ -1,3 +1,4 @@
+import { CORE_DECISIONS, isCore } from "../edition";
 import { createHash } from "node:crypto";
 import { clockTime, tzOf } from "../tz";
 import { all, get, now, run, uid } from "../db";
@@ -316,7 +317,7 @@ export async function listDecisions(u: User, opts: { includeSnoozed?: boolean; k
     ["claim.exception", claimCards],
     ["proposal", proposalCards],
   ];
-  const lists = await Promise.all(sources.filter(([k]) => !opts.kinds || opts.kinds.includes(k)).map(([, f]) => f(u)));
+  const lists = await Promise.all(sources.filter(([k]) => (!opts.kinds || opts.kinds.includes(k)) && (!isCore() || (CORE_DECISIONS as readonly string[]).includes(k))).map(([, f]) => f(u)));
   const hidden = opts.includeSnoozed ? new Set<string>() : await snoozed(u);
   return lists.flat().filter((d) => !hidden.has(d.id)).sort((a, b) => a.priority - b.priority || a.at.localeCompare(b.at));
 }
