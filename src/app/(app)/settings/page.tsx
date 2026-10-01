@@ -4,6 +4,7 @@ import { speechConfig } from "@/lib/server/audio";
 import EhrCard from "@/components/EhrCard";
 import { connections, ehrConfig, systemLabel } from "@/lib/server/ehr";
 import { requireUser } from "@/lib/server/auth";
+import { isCore } from "@/lib/edition";
 import { styleRules, templates } from "@/lib/server/repo";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
   };
   return (
     <SettingsView
-      ehr={<EhrCard initial={ehr} error={sp.ehr_error} connected={sp.ehr_connected === "1"} autoFile={user.prefs.autoFileEhr !== false} />}
+      ehr={isCore() ? undefined : <EhrCard initial={ehr} error={sp.ehr_error} connected={sp.ehr_connected === "1"} autoFile={user.prefs.autoFileEhr !== false} />}
       user={{ name: user.name, email: user.email, specialty: user.specialty, prefs: user.prefs }}
       templates={(await templates.list(user)).map((t) => ({ id: t.id, name: t.name }))}
       rules={await styleRules.list(user.id)}

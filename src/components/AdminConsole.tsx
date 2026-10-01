@@ -3,6 +3,8 @@
 import LocationsCard from "./LocationsCard";
 import PlanPanel from "./PlanPanel";
 import { useRouter } from "next/navigation";
+import { CORE_ADMIN_TABS } from "@/lib/edition";
+import { useCore } from "./EditionProvider";
 import { useEffect, useState } from "react";
 import { api, copyText } from "@/lib/client";
 import { CREDENTIALS } from "@/lib/engine/attest";
@@ -119,7 +121,8 @@ function describe(a: Data["audit"][number], members: Member[]) {
 export default function AdminConsole({ initial, me, tab: initialTab, redirectOrigin }: { initial: Data; me: { id: string; role: Role }; tab?: string; redirectOrigin: string | null }) {
   const router = useRouter();
   const [d, setD] = useState(initial);
-  const [tab, setTab] = useState<Tab>((["members", "plan", "sso", "security", "billing", "developers", "analytics", "growth", "line", "audit", "org"].includes(initialTab ?? "") ? initialTab : "members") as Tab);
+  const core = useCore();
+  const [tab, setTab] = useState<Tab>((["members", "plan", "sso", "security", "billing", "developers", "analytics", "growth", "line", "audit", "org"].filter((t) => !core || CORE_ADMIN_TABS.includes(t)).includes(initialTab ?? "") ? initialTab : "members") as Tab);
   const [toast, setToast] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -170,7 +173,7 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
         <Tabs<Tab>
           value={tab}
           onChange={(t) => { setTab(t); setErr(null); }}
-          tabs={[
+          tabs={([
             { id: "members", label: "Members" },
             { id: "plan", label: "Plan & usage" },
             { id: "sso", label: "Single sign-on" },
@@ -182,7 +185,7 @@ export default function AdminConsole({ initial, me, tab: initialTab, redirectOri
             { id: "line", label: "Line" },
             { id: "audit", label: "Audit log" },
             { id: "org", label: "Organization" },
-          ]}
+          ] as { id: Tab; label: string }[]).filter((t) => !core || CORE_ADMIN_TABS.includes(t.id))}
         />
       </div>
       {err && <p className="mt-4 rounded-lg bg-rec-50 px-3 py-2 text-sm text-rec" role="alert">{err}</p>}

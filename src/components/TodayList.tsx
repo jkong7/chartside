@@ -9,6 +9,7 @@ import { age, api, fmtTime } from "@/lib/client";
 import type { Encounter } from "@/lib/types";
 import { Mic, Plus, Refresh } from "./icons";
 import { Avatar, Modal, Spinner, StatusPill } from "./ui";
+import { useCore } from "./EditionProvider";
 
 export interface TodayRow extends Encounter {
   clinicianName?: string;
@@ -39,6 +40,7 @@ export default function TodayList({ rows: allRows, me, orgWide = false, clinicia
     review: rows.filter((r) => r.status === "review").length,
   };
 
+  const core = useCore();
   const [importOpen, setImportOpen] = useState(false);
 
   async function startAdhoc(e: React.FormEvent<HTMLFormElement>) {
@@ -78,7 +80,7 @@ export default function TodayList({ rows: allRows, me, orgWide = false, clinicia
           >
             <Refresh /> Reset demo day
           </button>}
-          {canCapture && <button className="btn-outline" onClick={() => setImportOpen(true)} data-testid="open-import">Import schedule</button>}
+          {canCapture && !core && <button className="btn-outline" onClick={() => setImportOpen(true)} data-testid="open-import">Import schedule</button>}
           {canCapture && <button className="btn-primary" onClick={() => setOpen(true)}>
             <Plus /> Unscheduled visit
           </button>}

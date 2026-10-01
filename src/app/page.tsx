@@ -1,3 +1,4 @@
+import { isCore } from "@/lib/edition";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Logo } from "@/components/icons";
@@ -55,9 +56,9 @@ export default async function Home() {
             <Link className="btn-outline px-5 py-2.5 text-base" href="/register" data-testid="home-create">Create account</Link>
           </div>
           <p className="mt-4 text-sm text-ink-3">About a minute to your first note. Nothing to type, nothing to install.</p>
-          <p className="mt-2 text-sm text-ink-3">
+          {!isCore() && <p className="mt-2 text-sm text-ink-3">
             Med student or resident? <Link href="/practice" className="font-medium text-brand hover:underline" data-testid="home-practice">Practice a patient encounter and get graded, free</Link>
-          </p>
+          </p>}
         </div>
         <div className="card overflow-hidden shadow-xl">
           <div className="flex items-center justify-between border-b border-line bg-sunken px-4 py-2.5 text-xs text-ink-3">
@@ -115,7 +116,7 @@ export default async function Home() {
         </div>
       </section>
       <footer className="mx-auto max-w-6xl px-6 py-8 text-xs text-ink-3">
-        <p className="mb-3 text-sm text-ink-2">Seeing a doctor yourself? <Link className="font-medium text-brand" href="/visit" data-testid="home-visit">Record your visit and get a plain-English recap</Link>.</p>
+        {!isCore() && <p className="mb-3 text-sm text-ink-2">Seeing a doctor yourself? <Link className="font-medium text-brand" href="/visit" data-testid="home-visit">Record your visit and get a plain-English recap</Link>.</p>}
         Chartside is a demonstration product. Do not use it with real patient data without a HIPAA business associate agreement and your organization&apos;s approval.</footer>
     </main>
   );

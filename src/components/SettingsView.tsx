@@ -9,11 +9,13 @@ import { Plus, X } from "./icons";
 import SecurityCard from "./SecurityCard";
 import SnippetsCard from "./SnippetsCard";
 import { Spinner } from "./ui";
+import { useCore } from "./EditionProvider";
 
 const STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 
 export default function SettingsView({ user, templates, rules: initialRules, engine, speech, ehr, isAdmin = false }: { isAdmin?: boolean; ehr?: React.ReactNode; user: { name: string; email: string; specialty: string; prefs: { defaultTemplate?: string; state?: string; outputLang?: string; audioRetentionDays?: number; finalPass?: boolean; noteDetail?: "concise" | "standard" | "detailed"; autoDocuments?: string[] } }; templates: { id: string; name: string }[]; rules: StyleRule[]; engine: { llm: boolean; model: string | null }; speech: { provider: string; live: boolean } }) {
   const router = useRouter();
+  const core = useCore();
   const [rules, setRules] = useState(initialRules);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -45,12 +47,12 @@ export default function SettingsView({ user, templates, rules: initialRules, eng
         <p className="col-span-full text-sm font-semibold">Profile &amp; defaults</p>
         <div><label className="label" htmlFor="sname">Name</label><input id="sname" name="name" className="input" defaultValue={user.name} /></div>
         <div><label className="label" htmlFor="sspec">Specialty</label><input id="sspec" name="specialty" className="input" defaultValue={user.specialty} /></div>
-        <div><label className="label" htmlFor="stpl">Default template</label><select id="stpl" name="defaultTemplate" className="input" defaultValue={user.prefs.defaultTemplate ?? "soap"}>{templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
+        {core ? <input type="hidden" name="defaultTemplate" value={user.prefs.defaultTemplate ?? "soap"} /> : <div><label className="label" htmlFor="stpl">Default template</label><select id="stpl" name="defaultTemplate" className="input" defaultValue={user.prefs.defaultTemplate ?? "soap"}>{templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></div>}
         <div><label className="label" htmlFor="sstate">Practice state (for consent rules)</label><select id="sstate" name="state" className="input" defaultValue={user.prefs.state ?? "IL"}>{STATES.map((s) => <option key={s}>{s}</option>)}</select></div>
-        <div><label className="label" htmlFor="slang">Default patient summary language</label><select id="slang" name="outputLang" className="input" defaultValue={user.prefs.outputLang ?? "en"}><option value="en">English</option><option value="es">Spanish</option></select></div>
+        {core ? <input type="hidden" name="outputLang" value={user.prefs.outputLang ?? "en"} /> : <div><label className="label" htmlFor="slang">Default patient summary language</label><select id="slang" name="outputLang" className="input" defaultValue={user.prefs.outputLang ?? "en"}><option value="en">English</option><option value="es">Spanish</option></select></div>}
         <div><label className="label" htmlFor="sret">Audio retention</label><select id="sret" name="audioRetentionDays" className="input" defaultValue={String(user.prefs.audioRetentionDays ?? 0)}><option value="0">Delete audio when the note is signed</option><option value="7">Keep 7 days after signing</option><option value="30">Keep 30 days after signing</option></select></div>
         <div><label className="label" htmlFor="sdetail">Default note length</label><select id="sdetail" name="noteDetail" className="input" defaultValue={user.prefs.noteDetail ?? "standard"} data-testid="pref-detail"><option value="concise">Brief: key findings and actions only</option><option value="standard">Standard</option><option value="detailed">Detailed: full history and ROS</option></select></div>
-        <fieldset className="col-span-full" data-testid="auto-documents"><legend className="label">Draft these for every visit</legend><div className="flex flex-wrap gap-x-4 gap-y-1">{[["patient_letter", "Letter to patient"], ["work_note", "Work note"], ["school_note", "School note"]].map(([v, l]) => <label key={v} className="flex items-center gap-1.5 text-sm text-ink-2"><input type="checkbox" name="autoDocuments" value={v} defaultChecked={user.prefs.autoDocuments?.includes(v)} className="accent-brand" /> {l}</label>)}</div><p className="mt-1 text-xs text-ink-3">Letters the patient asks for during a visit (work, school, FMLA, jury duty, medical necessity) are always drafted automatically.</p></fieldset>
+        {core ? (user.prefs.autoDocuments ?? []).map((v) => <input key={v} type="hidden" name="autoDocuments" value={v} />) : <fieldset className="col-span-full" data-testid="auto-documents"><legend className="label">Draft these for every visit</legend><div className="flex flex-wrap gap-x-4 gap-y-1">{[["patient_letter", "Letter to patient"], ["work_note", "Work note"], ["school_note", "School note"]].map(([v, l]) => <label key={v} className="flex items-center gap-1.5 text-sm text-ink-2"><input type="checkbox" name="autoDocuments" value={v} defaultChecked={user.prefs.autoDocuments?.includes(v)} className="accent-brand" /> {l}</label>)}</div><p className="mt-1 text-xs text-ink-3">Letters the patient asks for during a visit (work, school, FMLA, jury duty, medical necessity) are always drafted automatically.</p></fieldset>}
         <label className="col-span-full flex items-center gap-2 text-sm text-ink-2"><input type="checkbox" name="finalPass" className="accent-brand" defaultChecked={user.prefs.finalPass !== false} /> Re-transcribe the full recording with speaker separation when a visit ends (uses the speech provider)</label>
         <div className="col-span-full flex items-center justify-end gap-3">{saved && <span className="text-sm text-ok" role="status">Saved</span>}<button className="btn-primary" disabled={busy}>{busy && <Spinner />} Save</button></div>
       </form>
@@ -70,7 +72,7 @@ export default function SettingsView({ user, templates, rules: initialRules, eng
 
       <SnippetsCard isAdmin={isAdmin} />
 
-      <div className="card p-5" data-testid="extension-settings">
+      {!core && <div className="card p-5" data-testid="extension-settings">
         <p className="text-sm font-semibold">Chrome extension for web EHRs</p>
         <p className="mt-1 text-sm text-ink-2">Keep today&apos;s notes in a side panel next to any browser-based EHR. Copy a section, or teach the extension which EHR field each section belongs in once and push the whole note in one click.</p>
         <ol className="mt-2 list-decimal space-y-0.5 pl-5 text-sm text-ink-2">
@@ -78,7 +80,7 @@ export default function SettingsView({ user, templates, rules: initialRules, eng
           <li>Choose Load unpacked and select the <span className="kbd">extension</span> folder of your Chartside install.</li>
           <li>Open the side panel, enter this Chartside address, and stay signed in here.</li>
         </ol>
-      </div>
+      </div>}
 
       <div className="card p-5" data-testid="engine-settings">
         <p className="text-sm font-semibold">Documentation engine</p>

@@ -1,3 +1,4 @@
+import { isCore } from "@/lib/edition";
 import TodayList, { type TodayRow } from "@/components/TodayList";
 import { requireUser } from "@/lib/server/auth";
 import { can } from "@/lib/server/policy";
@@ -33,14 +34,15 @@ export default async function Today({ searchParams }: { searchParams: Promise<{ 
   const shared = await sharedWithMe(user);
   const survey = await surveyDue(user);
   const steps = await onboarding(user);
-  const plan = ["owner", "admin"].includes(user.role) ? await planFor(user.orgId) : null;
+  const core = isCore();
+  const plan = !core && ["owner", "admin"].includes(user.role) ? await planFor(user.orgId) : null;
   return (
     <>
     {plan?.tier === "trial" && plan.daysLeft !== null && plan.daysLeft <= 3 && (
       <div className="mx-auto max-w-5xl px-4 pt-6 md:px-8"><p className="rounded-lg bg-warn-50 px-4 py-2.5 text-sm text-warn" data-testid="trial-banner">Your free trial ends in {plan.daysLeft} day{plan.daysLeft === 1 ? "" : "s"}. <Link href="/admin" className="font-medium underline">Choose a plan</Link> to keep your notes flowing.</p></div>
     )}
     {steps && <Onboarding items={steps} />}
-    {locs.length > 1 && <LocationFilter locations={locs.map((l) => ({ id: l.id, name: l.name }))} selected={loc} mine={user.prefs.locationId ?? null} />}
+    {!core && locs.length > 1 && <LocationFilter locations={locs.map((l) => ({ id: l.id, name: l.name }))} selected={loc} mine={user.prefs.locationId ?? null} />}
     <TodayList
       rows={rows}
       me={user.id}
@@ -50,7 +52,7 @@ export default async function Today({ searchParams }: { searchParams: Promise<{ 
       canCapture={can(user, "clinical.capture")}
     />
     {survey && <SurveyPrompt />}
-    {shared.length > 0 && (
+    {!core && shared.length > 0 && (
       <section className="mx-auto max-w-5xl px-4 pb-10 md:px-8" data-testid="shared-with-me">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-3">Shared with you</h2>
         <ul className="card mt-2 divide-y divide-line">
