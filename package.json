@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:core": "E2E_EDITION=core playwright test",
     "test:all": "vitest run && playwright test",
     "test:pg": "vitest run --no-file-parallelism && playwright test",
     "codesets:build": "node scripts/codesets.mjs",

@@ -1,9 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 3200;
+const CORE = process.env.E2E_EDITION === "core";
+const CORE_SPECS = /tests\/e2e\/(core\/[\w-]+|go|memo|onboard|magic|guest-claim|capture|manual|dictation|livedraft|audio|stack|voice|signoff|auth)\.spec\.ts$/;
 
 export default defineConfig({
   testDir: "tests/e2e",
+  ...(CORE ? { testMatch: CORE_SPECS, grepInvert: /WhatsApp|Barn Line|veterinary|[Pp]ractice|shows the simple nav without a survey|teaching attestation|sees what's waiting and records|answers with the queue and a link|microphone visit: live diarized|unscheduled visit from a pasted transcript/ } : { testIgnore: /tests\/e2e\/core\// }),
   timeout: 90_000,
   expect: { timeout: 15_000 },
   fullyParallel: true,
@@ -63,6 +66,7 @@ export default defineConfig({
       timeout: 240_000,
       reuseExistingServer: false,
       env: {
+        CHARTSIDE_EDITION: CORE ? "core" : "full",
         CHARTSIDE_DB: "data/e2e/e2e.db",
         CHARTSIDE_ENGINE: "local",
         CHARTSIDE_INSECURE_COOKIES: "1",
