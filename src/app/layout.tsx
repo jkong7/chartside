@@ -2,6 +2,9 @@ import type { Metadata, Viewport } from "next";
 import ServiceWorker from "@/components/ServiceWorker";
 import "./globals.css";
 import { TZ_COOKIE } from "@/lib/tz";
+import { connection } from "next/server";
+import EditionProvider from "@/components/EditionProvider";
+import { edition } from "@/lib/edition";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.CHARTSIDE_PUBLIC_URL || "http://localhost:3100"),
@@ -19,7 +22,8 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  await connection();
   return (
     <html lang="en">
       <head>
@@ -31,7 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen font-sans">
         <script dangerouslySetInnerHTML={{ __html: `try{var z=Intl.DateTimeFormat().resolvedOptions().timeZone;if(z)document.cookie="${TZ_COOKIE}="+encodeURIComponent(z)+";path=/;max-age=31536000;samesite=lax"}catch(e){}` }} />
-        {children}
+        <EditionProvider value={edition()}>{children}</EditionProvider>
         <ServiceWorker />
       </body>
     </html>
